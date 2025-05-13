@@ -1,26 +1,4 @@
 ﻿// chipaxAdapter.js
-
-/**
- * Calcula los días vencidos de una factura
- * @param {string} fechaVencimiento - Fecha de vencimiento en formato ISO
- * @returns {number} - Días vencidos (negativo si aún no vence)
- */
-const calcularDiasVencidos = (fechaVencimiento) => {
-  if (!fechaVencimiento) return 0;
-  
-  const hoy = new Date();
-  const fechaVenc = new Date(fechaVencimiento);
-  
-  // Limpiar horas para comparar solo fechas
-  hoy.setHours(0, 0, 0, 0);
-  fechaVenc.setHours(0, 0, 0, 0);
-  
-  // Calcula la diferencia en días
-  const diffTime = hoy.getTime() - fechaVenc.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
-  return diffDays;
-};
 const adaptSaldosBancarios = (response) => {
   console.log('🔄 adaptSaldosBancarios - Iniciando adaptación');
   
@@ -79,6 +57,27 @@ const adaptCuentasPendientes = (facturas) => {
   }).filter(cuenta => cuenta.saldo > 0);
 };
 
+/**
+ * Calcula los días vencidos de una factura
+ * @param {string} fechaVencimiento - Fecha de vencimiento en formato ISO
+ * @returns {number} - Días vencidos (negativo si aún no vence)
+ */
+const calcularDiasVencidos = (fechaVencimiento) => {
+  if (!fechaVencimiento) return 0;
+  
+  const hoy = new Date();
+  const fechaVenc = new Date(fechaVencimiento);
+  
+  // Limpiar horas para comparar solo fechas
+  hoy.setHours(0, 0, 0, 0);
+  fechaVenc.setHours(0, 0, 0, 0);
+  
+  // Calcula la diferencia en días
+  const diffTime = hoy.getTime() - fechaVenc.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  return diffDays;
+};
 const adaptCuentasPorPagar = (facturas) => {
   // Verificar formato de entrada
   if (!facturas) {
@@ -153,19 +152,6 @@ const adaptCuentasPorPagar = (facturas) => {
   console.log(`💰 Total por pagar: ${totalPorPagar.toLocaleString('es-CL', { style: 'currency', currency: 'CLP' })}`);
   
   return facturasAdaptadas;
-};
-  });
-  
-  // Filtrar solo las que tienen saldo pendiente mayor a 0
-  const facturasConSaldo = facturasAdaptadas.filter(f => f.saldo > 0);
-  
-  console.log(`✅ Facturas adaptadas: ${facturasAdaptadas.length}, con saldo pendiente: ${facturasConSaldo.length}`);
-  
-  // Mostrar resumen
-  const totalPorPagar = facturasConSaldo.reduce((sum, f) => sum + f.saldo, 0);
-  console.log(`💰 Total por pagar: ${totalPorPagar.toLocaleString('es-CL', { style: 'currency', currency: 'CLP' })}`);
-  
-  return facturasConSaldo;
 };
 
 const adaptFacturasPendientesAprobacion = (facturas) => {
@@ -275,20 +261,5 @@ export default {
   adaptEgresosProgramados,
   adaptBancos
 };
-
-
-
-// CommonJS exports para compatibilidad
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    adaptSaldosBancarios,
-    adaptBancos,
-    adaptCuentasPendientes,
-    adaptCuentasPorPagar,
-    adaptFacturasPendientesAprobacion,
-    adaptFlujoCaja,
-    adaptEgresosProgramados
-  };
-}
 
 
