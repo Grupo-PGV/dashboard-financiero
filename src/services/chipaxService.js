@@ -213,42 +213,70 @@ export const EgresosService = {
         return { items: [] };
       }
       
+      console.log(`📊 Total de facturas recibidas: ${response.items.length}`);
+      
       // Debugging: ver estructura de una factura
       if (response.items.length > 0) {
         console.log('📄 Estructura de una factura de ejemplo:', JSON.stringify(response.items[0], null, 2));
+        
+        // Analizar campos relevantes
+        const primerFactura = response.items[0];
+        console.log('🔍 Campos relevantes de la primera factura:');
+        console.log('- estado:', primerFactura.estado);
+        console.log('- estado_pago:', primerFactura.estado_pago);
+        console.log('- pagado:', primerFactura.pagado);
+        console.log('- pagada:', primerFactura.pagada);
+        console.log('- fechaPagoInterna:', primerFactura.fechaPagoInterna);
+        console.log('- saldo:', primerFactura.saldo);
+        console.log('- monto_por_pagar:', primerFactura.monto_por_pagar);
+        console.log('- total:', primerFactura.total);
+        console.log('- monto_pagado:', primerFactura.monto_pagado);
       }
       
-      // Filtrar solo facturas pendientes de pago basándonos en múltiples criterios
+      // Filtrar facturas - criterio más flexible
+      // NOTA: Como no tenemos un campo claro que indique si está pagada,
+      // vamos a asumir que TODAS las facturas con estado "aceptado" son pendientes
+      // a menos que tengan un campo específico que indique lo contrario
       const facturasPendientesPago = response.items.filter(factura => {
-        // Criterios principales de filtrado
-        const tieneSaldoPendiente = factura.saldo > 0 || factura.monto_por_pagar > 0;
-        const noEstaPagada = factura.estado !== 'Pagado' && 
-                            factura.estado_pago !== 'Pagado' && 
-                            factura.pagado !== true;
+        // Determinar si la factura está pagada
+        const estaPagada = factura.pagada === true || 
+                          factura.pagado === true || 
+                          factura.estado_pago === 'pagado' ||
+                          factura.estado_pago === 'Pagado';
         
-        // Verificar si el total pagado es menor al total de la factura
-        const montoTotal = factura.total || factura.monto_total || factura.monto;
-        const montoPagado = factura.monto_pagado || factura.cantidad_pagada || 0;
-        const pagoParcial = montoPagado < montoTotal;
+        // Verificar si tiene saldo explícito
+        const tieneSaldoExplicito = factura.saldo > 0 || factura.monto_por_pagar > 0;
         
-        // La factura está pendiente si cumple con alguno de estos criterios
-        return tieneSaldoPendiente && noEstaPagada && (pagoParcial || montoPagado === 0);
+        // Si no hay campos de saldo, usar el estado
+        const estadoPendiente = factura.estado === 'aceptado' || 
+                              factura.estado === 'pendiente' ||
+                              factura.estado_pago === 'pendiente';
+        
+        // La factura está pendiente si NO está pagada Y (tiene saldo O está en estado pendiente)
+        return !estaPagada && (tieneSaldoExplicito || estadoPendiente);
       });
       
-      console.log(`✅ Total de facturas de compra: ${response.items.length}`);
+      console.log(`✅ Facturas de compra totales: ${response.items.length}`);
       console.log(`📊 Facturas pendientes de pago: ${facturasPendientesPago.length}`);
       
-      // Mostrar resumen de las primeras 5 facturas pendientes
-      facturasPendientesPago.slice(0, 5).forEach((factura, index) => {
-        console.log(`Factura ${index + 1}:`, {
-          folio: factura.folio,
-          proveedor: factura.proveedor?.nombre || factura.proveedor,
-          total: factura.total || factura.monto_total,
-          saldo: factura.saldo || factura.monto_por_pagar,
-          estado: factura.estado,
-          estado_pago: factura.estado_pago
-        });
+      // Mostrar resumen de estados
+      const estadosCount = {};
+      response.items.forEach(f => {
+        const estado = f.estado || 'sin_estado';
+        estadosCount[estado] = (estadosCount[estado] || 0) + 1;
       });
+      console.log('📈 Distribución de estados:', estadosCount);
+      
+      // Si no hay facturas filtradas, usar todas las facturas aceptadas como temporal
+      if (facturasPendientesPago.length === 0) {
+        console.log('⚠️ No se encontraron facturas con los criterios. Usando facturas aceptadas...');
+        const facturasAceptadas = response.items.filter(f => f.estado === 'aceptado');
+        console.log(`📊 Facturas aceptadas: ${facturasAceptadas.length}`);
+        return {
+          ...response,
+          items: facturasAceptadas
+        };
+      }
       
       return {
         ...response,
@@ -342,3 +370,4 @@ if (typeof module !== 'undefined' && module.exports) {
     Ajustes: AjustesService
   };
 }
+

@@ -1,4 +1,26 @@
 ﻿// chipaxAdapter.js
+
+/**
+ * Calcula los días vencidos de una factura
+ * @param {string} fechaVencimiento - Fecha de vencimiento en formato ISO
+ * @returns {number} - Días vencidos (negativo si aún no vence)
+ */
+const calcularDiasVencidos = (fechaVencimiento) => {
+  if (!fechaVencimiento) return 0;
+  
+  const hoy = new Date();
+  const fechaVenc = new Date(fechaVencimiento);
+  
+  // Limpiar horas para comparar solo fechas
+  hoy.setHours(0, 0, 0, 0);
+  fechaVenc.setHours(0, 0, 0, 0);
+  
+  // Calcula la diferencia en días
+  const diffTime = hoy.getTime() - fechaVenc.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  return diffDays;
+};
 const adaptSaldosBancarios = (response) => {
   console.log('🔄 adaptSaldosBancarios - Iniciando adaptación');
   
@@ -74,31 +96,64 @@ const adaptCuentasPorPagar = (facturas) => {
   
   console.log(`🔄 Adaptando ${items.length} facturas por pagar`);
   
-  // Adaptar cada factura
+  // Adaptar cada factura con campos más flexibles
   const facturasAdaptadas = items.map(factura => {
-    // Determinar el saldo pendiente
+    // Calcular el monto total de manera flexible
+    const montoTotal = factura.total || 
+                      factura.monto_total || 
+                      factura.montoTotal || 
+                      factura.monto || 
+                      factura.totalFacturado || 
+                      0;
+    
+    // Para el saldo, si no existe campo específico, asumir que es el total
     const saldoPendiente = factura.saldo || 
                           factura.monto_por_pagar || 
-                          (factura.total - (factura.monto_pagado || 0)) ||
-                          0;
+                          factura.montoPorPagar ||
+                          factura.saldoPendiente ||
+                          montoTotal; // Si no hay campo de saldo, usar el total
+    
+    // Obtener proveedor de manera flexible
+    const nombreProveedor = factura.proveedor?.nombre || 
+                           factura.proveedor || 
+                           factura.nombre_proveedor || 
+                           factura.nombreProveedor ||
+                           'Proveedor no especificado';
+                           
+    const rutProveedor = factura.proveedor?.rut || 
+                        factura.rut_proveedor || 
+                        factura.rutProveedor ||
+                        factura.proveedor_rut ||
+                        'Sin RUT';
     
     return {
-      id: factura.id || String(Math.random()),
-      folio: factura.folio || factura.numero || 'Sin folio',
+      id: factura.id || factura._id || String(Math.random()),
+      folio: factura.folio || factura.numero || factura.numeroFactura || 'Sin folio',
       proveedor: {
-        nombre: factura.proveedor?.nombre || factura.proveedor || factura.nombre_proveedor || 'Proveedor no especificado',
-        rut: factura.proveedor?.rut || factura.rut_proveedor || factura.proveedor_rut || 'Sin RUT'
+        nombre: nombreProveedor,
+        rut: rutProveedor
       },
-      montoTotal: parseFloat(factura.total || factura.monto_total || factura.monto || 0),
+      montoTotal: parseFloat(montoTotal),
       saldo: parseFloat(saldoPendiente),
       moneda: factura.moneda || factura.currency || 'CLP',
-      fechaEmision: factura.fecha_emision || factura.fecha || factura.created_at || new Date().toISOString(),
-      fechaVencimiento: factura.fecha_vencimiento || factura.due_date || null,
-      diasVencidos: calcularDiasVencidos(factura.fecha_vencimiento || factura.due_date),
+      fechaEmision: factura.fecha_emision || factura.fechaEmision || factura.fecha || factura.created_at || new Date().toISOString(),
+      fechaVencimiento: factura.fecha_vencimiento || factura.fechaVencimiento || factura.due_date || null,
+      fechaPago: factura.fechaPagoInterna || factura.fecha_pago || null,
+      diasVencidos: calcularDiasVencidos(factura.fecha_vencimiento || factura.fechaVencimiento || factura.due_date),
       estado: factura.estado || factura.status || 'Pendiente',
-      estadoPago: factura.estado_pago || 'Pendiente',
+      estadoPago: factura.estado_pago || factura.estadoPago || 'Pendiente',
       observaciones: factura.observaciones || factura.notas || ''
     };
+  });
+  
+  console.log(`✅ Facturas adaptadas: ${facturasAdaptadas.length}`);
+  
+  // Mostrar resumen
+  const totalPorPagar = facturasAdaptadas.reduce((sum, f) => sum + f.saldo, 0);
+  console.log(`💰 Total por pagar: ${totalPorPagar.toLocaleString('es-CL', { style: 'currency', currency: 'CLP' })}`);
+  
+  return facturasAdaptadas;
+};
   });
   
   // Filtrar solo las que tienen saldo pendiente mayor a 0
@@ -235,3 +290,5 @@ if (typeof module !== 'undefined' && module.exports) {
     adaptEgresosProgramados
   };
 }
+
+
