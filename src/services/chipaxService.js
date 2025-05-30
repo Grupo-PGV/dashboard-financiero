@@ -126,60 +126,102 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
 };
 
 /**
- * Obtiene todos los datos paginados de un endpoint
+ * Obtiene todos los datos paginados de un endpoint - VERSIÓN MEJORADA
  */
 export const fetchAllPaginatedData = async (baseEndpoint) => {
-  console.log(`📊 Obteniendo datos paginados de ${baseEndpoint}...`);
+  console.log(`📊 Obteniendo TODAS las páginas de ${baseEndpoint}...`);
   
   try {
+    // Obtener primera página para conocer la paginación
     const firstPageData = await fetchFromChipax(`${baseEndpoint}${baseEndpoint.includes('?') ? '&' : '?'}page=1`);
     
     if (!firstPageData.items || !firstPageData.paginationAttributes) {
-      console.log('📄 No hay paginación');
+      console.log('📄 No hay paginación, devolviendo datos directos');
       return firstPageData;
     }
     
-    const { totalPages, totalCount } = firstPageData.paginationAttributes;
-    console.log(`📊 ${totalPages} páginas con ${totalCount} items en total`);
+    const { totalPages, totalCount, currentPage } = firstPageData.paginationAttributes;
+    console.log(`🔍 PAGINACIÓN DETECTADA:`);
+    console.log(`   📊 Total de páginas: ${totalPages}`);
+    console.log(`   📈 Total de items: ${totalCount}`);
+    console.log(`   📄 Página actual: ${currentPage}`);
+    console.log(`   🔢 Items en primera página: ${firstPageData.items.length}`);
     
     if (totalPages <= 1) {
+      console.log('✅ Solo una página, devolviendo datos directamente');
       return firstPageData;
     }
     
-    // Para múltiples páginas, obtener todas
+    // Para múltiples páginas, obtener TODAS
     let allItems = [...firstPageData.items];
+    console.log(`🚀 Obteniendo ${totalPages - 1} páginas adicionales...`);
     
-    const BATCH_SIZE = 5;
+    const BATCH_SIZE = 3; // Reducido para ser más conservador con la API
+    let pagesProcessed = 1;
     
     for (let page = 2; page <= totalPages; page += BATCH_SIZE) {
       const batchPromises = [];
       const endPage = Math.min(page + BATCH_SIZE - 1, totalPages);
       
+      console.log(`🔄 Procesando lote: páginas ${page}-${endPage} de ${totalPages}`);
+      
+      // Crear promesas para el lote actual
       for (let p = page; p <= endPage; p++) {
         const endpoint = `${baseEndpoint}${baseEndpoint.includes('?') ? '&' : '?'}page=${p}`;
-        batchPromises.push(fetchFromChipax(endpoint, {}, false));
+        batchPromises.push(
+          fetchFromChipax(endpoint, {}, false).then(result => ({
+            page: p,
+            data: result
+          }))
+        );
       }
       
       try {
         const batchResults = await Promise.all(batchPromises);
-        batchResults.forEach(result => {
-          if (result.items) {
-            allItems = [...allItems, ...result.items];
+        
+        batchResults.forEach(({ page, data }) => {
+          if (data && data.items && Array.isArray(data.items)) {
+            allItems = [...allItems, ...data.items];
+            pagesProcessed++;
+            console.log(`   ✅ Página ${page}: ${data.items.length} items (Total acumulado: ${allItems.length})`);
+          } else {
+            console.warn(`   ⚠️ Página ${page}: Sin datos válidos`);
           }
         });
+        
+        // Pequeña pausa entre lotes para no sobrecargar la API
+        if (endPage < totalPages) {
+          console.log(`⏳ Pausa de 500ms antes del siguiente lote...`);
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
       } catch (batchError) {
-        console.error(`❌ Error en páginas ${page}-${endPage}:`, batchError);
+        console.error(`❌ Error en lote de páginas ${page}-${endPage}:`, batchError);
+        // Continuar con el siguiente lote en caso de error
       }
     }
     
-    console.log(`✅ Total obtenido: ${allItems.length} items`);
+    console.log(`🎉 PAGINACIÓN COMPLETA:`);
+    console.log(`   📊 Páginas procesadas: ${pagesProcessed}/${totalPages}`);
+    console.log(`   📈 Items totales obtenidos: ${allItems.length}`);
+    console.log(`   ✅ Esperados: ${totalCount}, Obtenidos: ${allItems.length}`);
+    
+    // Verificar si obtuvimos todos los items esperados
+    if (allItems.length !== totalCount) {
+      console.warn(`⚠️ ADVERTENCIA: Se esperaban ${totalCount} items pero se obtuvieron ${allItems.length}`);
+    }
+    
     return { 
       items: allItems,
-      paginationAttributes: firstPageData.paginationAttributes
+      paginationAttributes: {
+        ...firstPageData.paginationAttributes,
+        actualTotal: allItems.length,
+        allPagesLoaded: true
+      }
     };
     
   } catch (error) {
-    console.error(`❌ Error obteniendo datos de ${baseEndpoint}:`, error);
+    console.error(`❌ Error obteniendo datos paginados de ${baseEndpoint}:`, error);
     return { items: [] };
   }
 };
@@ -188,11 +230,34 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
 
 export const IngresosService = {
   getFacturasVenta: async () => {
-    console.log('📊 Obteniendo facturas de venta (CONFIRMADO: 42 facturas)...');
+    console.log('📊 Obteniendo TODAS las facturas de venta por cobrar...');
     try {
       // Endpoint confirmado que funciona y tiene datos
+      console.log('🔍 Iniciando carga completa de facturas por cobrar...');
       const result = await fetchAllPaginatedData('/dtes?porCobrar=1');
-      console.log(`✅ Facturas de venta obtenidas: ${result.items?.length || 0} facturas`);
+      
+      console.log(`🎯 RESULTADO FINAL DE FACTURAS POR COBRAR:`);
+      console.log(`   📊 Total de facturas obtenidas: ${result.items?.length || 0}`);
+      
+      if (result.items && result.items.length > 0) {
+        // Calcular estadísticas
+        const totalPorCobrar = result.items.reduce((sum, f) => {
+          const monto = f.montoTotal || f.total || 0;
+          const pagado = f.montoPagado || 0;
+          return sum + (monto - pagado);
+        }, 0);
+        
+        console.log(`💰 Monto total por cobrar: ${totalPorCobrar.toLocaleString('es-CL', { style: 'currency', currency: 'CLP' })}`);
+        
+        const conSaldoPendiente = result.items.filter(f => {
+          const monto = f.montoTotal || f.total || 0;
+          const pagado = f.montoPagado || 0;
+          return (monto - pagado) > 0;
+        });
+        
+        console.log(`✅ Facturas con saldo pendiente: ${conSaldoPendiente.length}`);
+      }
+      
       return result;
     } catch (error) {
       console.error('❌ Error obteniendo facturas de venta:', error);
@@ -243,25 +308,41 @@ export const ReportesService = {
 
 export const EgresosService = {
   getFacturasCompra: async () => {
-    console.log('🛒 Obteniendo facturas de compra (CONFIRMADO: 50 facturas por pagar)...');
+    console.log('🛒 Obteniendo TODAS las facturas de compra por pagar...');
     try {
       // Endpoint confirmado que funciona perfectamente
+      console.log('🔍 Iniciando carga completa de facturas por pagar...');
       const result = await fetchAllPaginatedData('/compras?pagado=false');
-      console.log(`✅ Facturas por pagar obtenidas: ${result.items?.length || 0} facturas`);
+      
+      console.log(`🎯 RESULTADO FINAL DE FACTURAS POR PAGAR:`);
+      console.log(`   📊 Total de facturas obtenidas: ${result.items?.length || 0}`);
       
       // Log de muestra para verificar estructura
       if (result.items && result.items.length > 0) {
         const sample = result.items[0];
-        console.log('📋 Estructura de factura de compra:', {
-          id: sample.id,
-          folio: sample.folio,
-          razon_social: sample.razon_social,
-          monto_total: sample.monto_total || sample.total,
-          fecha_emision: sample.fecha_emision,
-          fecha_vencimiento: sample.fecha_vencimiento,
-          pagado: sample.pagado,
-          estado: sample.estado
-        });
+        console.log('📋 Estructura de factura de compra (muestra):');
+        console.log('   ID:', sample.id);
+        console.log('   Folio:', sample.folio);
+        console.log('   Proveedor:', sample.razon_social);
+        console.log('   Monto:', sample.monto_total || sample.total);
+        console.log('   Estado:', sample.estado);
+        console.log('   Pagado:', sample.pagado);
+        
+        // Calcular estadísticas rápidas
+        const totalMonto = result.items.reduce((sum, f) => {
+          const monto = f.monto_total || f.total || 0;
+          return sum + parseFloat(monto);
+        }, 0);
+        
+        console.log(`💰 Monto total por pagar: ${totalMonto.toLocaleString('es-CL', { style: 'currency', currency: 'CLP' })}`);
+        
+        // Verificar si realmente son por pagar
+        const efectivamentePorPagar = result.items.filter(f => !f.pagado && f.estado !== 'pagado');
+        console.log(`✅ Facturas efectivamente por pagar: ${efectivamentePorPagar.length}`);
+        
+        if (efectivamentePorPagar.length !== result.items.length) {
+          console.warn(`⚠️ NOTA: ${result.items.length - efectivamentePorPagar.length} facturas pueden estar ya pagadas`);
+        }
       }
       
       return result;
