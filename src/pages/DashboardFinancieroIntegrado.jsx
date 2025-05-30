@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { AlertCircle, Calendar, Filter, Info, Wallet, PieChart, TrendingUp } from 'lucide-react';
 
 // Importaciones de componentes - RUTAS CORREGIDAS
+// Al principio, en los imports
+import ChipaxDebugger from '../components/ChipaxDebugger';
 import ChipaxDataUpdater from '../components/ChipaxDataUpdater';
 import BankBalanceCard from '../components/BankBalanceCard';
 import CashFlowChart from '../components/CashFlowChart';
@@ -296,6 +298,10 @@ const DashboardFinancieroIntegrado = () => {
             onApprove={handleAprobarFactura}
             onReject={handleRechazarFactura}
           />
+          // Dentro del return, después del último </div> y antes del </div> final
+<div className="mb-6">
+  <ChipaxDebugger />
+</div>
         </div>
       </div>
     </div>
