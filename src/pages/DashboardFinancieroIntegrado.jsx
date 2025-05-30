@@ -1,442 +1,172 @@
-// DashboardFinancieroIntegrado.jsx - Versión corregida y optimizada
+// DashboardFinancieroIntegrado.jsx - Versión mejorada con información de paginación
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, Calendar, Filter, Info, Wallet, PieChart, TrendingUp, Activity, Shield } from 'lucide-react';
+import { 
+  AlertCircle, Calendar, Filter, Info, Wallet, PieChart, TrendingUp, 
+  Database, CheckCircle, Clock, RefreshCw, Settings
+} from 'lucide-react';
 import ChipaxDataUpdater from '../components/ChipaxDataUpdater';
 import BankBalanceCard from '../components/BankBalanceCard';
 import CashFlowChart from '../components/CashFlowChart';
 import AccountsReceivableTable from '../components/AccountsReceivableTable';
 import PendingInvoicesComponent from '../components/PendingInvoicesComponent';
+import PaginationDebugger from '../components/PaginationDebugger';
 
-/**
- * Dashboard Financiero Integrado con Chipax
- * Versión mejorada con manejo robusto de errores y estados
- */
 const DashboardFinancieroIntegrado = () => {
-  // =====================================================
-  // ESTADOS PRINCIPALES
-  // =====================================================
-  
+  // Estados principales
   const [saldosBancarios, setSaldosBancarios] = useState([]);
   const [bancos, setBancos] = useState([]);
   const [cuentasPendientes, setCuentasPendientes] = useState([]);
   const [cuentasPorPagar, setCuentasPorPagar] = useState([]);
   const [facturasPendientes, setFacturasPendientes] = useState([]);
-  const [flujoCaja, setFlujoCaja] = useState({
-    saldoInicial: 0,
-    saldoFinal: 0,
-    periodos: []
-  });
+  const [flujoCaja, setFlujoCaja] = useState(null);
   const [clientes, setClientes] = useState([]);
   const [egresosProgramados, setEgresosProgramados] = useState([]);
-  
-  // Estados de control
   const [dataSource, setDataSource] = useState('manual');
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  
+  // Estados para información de paginación
+  const [paginationInfo, setPaginationInfo] = useState({});
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [lastSyncDetails, setLastSyncDetails] = useState(null);
+  
+  // Estados para configuración
   const [periodoFlujo, setPeriodoFlujo] = useState('mensual');
-  const [dashboardStats, setDashboardStats] = useState({
-    totalModules: 7,
-    loadedModules: 0,
-    hasErrors: false
+  const [fechasRango, setFechasRango] = useState({
+    fechaInicio: new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().split('T')[0],
+    fechaFin: new Date().toISOString().split('T')[0]
   });
 
-  // =====================================================
-  // FUNCIONES DE UTILIDAD Y VALIDACIÓN
-  // =====================================================
-
-  const validateData = (data, dataType) => {
-    try {
-      if (data === null || data === undefined) {
-        console.warn(`⚠️ Datos ${dataType} son null/undefined`);
-        return false;
-      }
-      
-      if (Array.isArray(data)) {
-        return true;
-      }
-      
-      if (dataType === 'flujoCaja' && typeof data === 'object') {
-        return data.hasOwnProperty('periodos') || data.hasOwnProperty('saldoInicial');
-      }
-      
-      return typeof data === 'object';
-    } catch (error) {
-      console.error(`Error validando datos ${dataType}:`, error);
-      return false;
-    }
-  };
-
-  const logDataUpdate = (dataType, data) => {
-    if (validateData(data, dataType)) {
-      const count = Array.isArray(data) ? data.length : 
-                   data.periodos ? data.periodos.length : 'objeto';
-      console.log(`✅ ${dataType} actualizado: ${count} elementos`);
-    } else {
-      console.warn(`⚠️ Datos ${dataType} no válidos, usando fallback`);
-    }
-  };
-
-  const safeUpdateState = (setter, data, dataType, fallback = []) => {
-    try {
-      if (validateData(data, dataType)) {
-        setter(data);
-        logDataUpdate(dataType, data);
-        
-        // Actualizar estadísticas
-        setDashboardStats(prev => ({
-          ...prev,
-          loadedModules: prev.loadedModules + 1
-        }));
-        
-        // Limpiar errores para este módulo
-        setErrors(prev => {
-          const newErrors = { ...prev };
-          delete newErrors[dataType];
-          return newErrors;
-        });
-        
-      } else {
-        setter(fallback);
-        console.warn(`⚠️ Usando fallback para ${dataType}`);
-        
-        setErrors(prev => ({
-          ...prev,
-          [dataType]: `Datos ${dataType} no válidos`
-        }));
-      }
-    } catch (error) {
-      console.error(`Error actualizando estado ${dataType}:`, error);
-      setter(fallback);
-      
-      setErrors(prev => ({
-        ...prev,
-        [dataType]: `Error procesando ${dataType}: ${error.message}`
-      }));
-    }
-  };
-
-  // =====================================================
-  // HANDLERS DE ACTUALIZACIÓN DE DATOS
-  // =====================================================
-
-  const handleUpdateSaldos = (data) => {
-    safeUpdateState(setSaldosBancarios, data, 'saldosBancarios', []);
-  };
-
-  const handleUpdateBancos = (data) => {
-    safeUpdateState(setBancos, data, 'bancos', []);
-  };
-
-  const handleUpdateCuentasPendientes = (data) => {
-    safeUpdateState(setCuentasPendientes, data, 'cuentasPendientes', []);
-  };
-
-  const handleUpdateCuentasPorPagar = (data) => {
-    safeUpdateState(setCuentasPorPagar, data, 'cuentasPorPagar', []);
-  };
-
-  const handleUpdateFacturasPendientes = (data) => {
-    safeUpdateState(setFacturasPendientes, data, 'facturasPendientes', []);
-  };
-
-  const handleUpdateFlujoCaja = (data) => {
-    const fallbackFlujoCaja = {
-      saldoInicial: 0,
-      saldoFinal: 0,
-      periodos: []
-    };
-    safeUpdateState(setFlujoCaja, data, 'flujoCaja', fallbackFlujoCaja);
-  };
-
-  const handleUpdateClientes = (data) => {
-    safeUpdateState(setClientes, data, 'clientes', []);
-  };
-
-  const handleUpdateEgresosProgramados = (data) => {
-    safeUpdateState(setEgresosProgramados, data, 'egresosProgramados', []);
-  };
-
-  // =====================================================
-  // HANDLERS DE EVENTOS
-  // =====================================================
-
+  // Handlers principales
   const handleDataSourceChange = (source) => {
     setDataSource(source);
-    console.log(`📡 Fuente de datos cambiada a: ${source}`);
-    
-    // Resetear estadísticas
-    setDashboardStats({
-      totalModules: 7,
-      loadedModules: 0,
-      hasErrors: Object.keys(errors).length > 0
-    });
+    console.log(`📊 Fuente de datos cambiada a: ${source}`);
   };
 
-  const handleFlujoCajaPeriodChange = (periodo) => {
-    setPeriodoFlujo(periodo);
-    console.log(`📊 Periodo de flujo de caja cambiado a: ${periodo}`);
+  const handleFlujoCajaPeriodChange = (periodo) => setPeriodoFlujo(periodo);
+  const handleDateRangeChange = (newRange) => setFechasRango(newRange);
+
+  // Handlers para actualización de datos con información de paginación
+  const handleUpdateSaldos = (saldos) => {
+    setSaldosBancarios(saldos);
+    console.log(`✅ Saldos bancarios actualizados: ${saldos.length} cuentas`);
+  };
+
+  const handleUpdateCuentasPendientes = (cuentas, info = null) => {
+    setCuentasPendientes(cuentas);
+    if (info) {
+      setPaginationInfo(prev => ({ ...prev, cuentasPendientes: info }));
+    }
+    console.log(`✅ Cuentas por cobrar actualizadas: ${cuentas.length} facturas`);
+  };
+
+  const handleUpdateCuentasPorPagar = (cuentas, info = null) => {
+    setCuentasPorPagar(cuentas);
+    if (info) {
+      setPaginationInfo(prev => ({ ...prev, cuentasPorPagar: info }));
+    }
+    console.log(`✅ Cuentas por pagar actualizadas: ${cuentas.length} facturas`);
+  };
+
+  const handleUpdateFacturasPendientes = (facturas) => {
+    setFacturasPendientes(facturas);
+    console.log(`✅ Facturas pendientes actualizadas: ${facturas.length} facturas`);
+  };
+
+  const handleUpdateFlujoCaja = (flujo) => {
+    setFlujoCaja(flujo);
+    console.log(`✅ Flujo de caja actualizado`);
+  };
+
+  const handleUpdateClientes = (clientesData, info = null) => {
+    setClientes(clientesData);
+    if (info) {
+      setPaginationInfo(prev => ({ ...prev, clientes: info }));
+    }
+    console.log(`✅ Clientes actualizados: ${clientesData.length || 'N/A'} clientes`);
+  };
+
+  const handleUpdateEgresosProgramados = (egresos) => {
+    setEgresosProgramados(egresos);
+    console.log(`✅ Egresos programados actualizados: ${egresos.length} egresos`);
+  };
+
+  const handleUpdateBancos = (bancosData) => {
+    setBancos(bancosData);
+    console.log(`✅ Bancos actualizados: ${bancosData.length} bancos`);
+  };
+
+  // Handler para detalles de sincronización
+  const handleSyncDetails = (details) => {
+    setLastSyncDetails(details);
+    console.log('📊 Detalles de sincronización recibidos:', details);
   };
 
   const handleExportToExcel = (dataType) => {
-    // TODO: Implementar exportación a Excel
-    alert(`Exportación a Excel de ${dataType} no implementada aún.`);
-    console.log(`📊 Solicitud de exportación: ${dataType}`);
+    alert(`Exportación a Excel de ${dataType} no implementada.`);
   };
 
-  const handleAprobarFactura = (id) => {
-    try {
-      setFacturasPendientes(prev => prev.filter(f => f.id !== id));
-      console.log(`✅ Factura ${id} aprobada`);
-    } catch (error) {
-      console.error('Error aprobando factura:', error);
-    }
-  };
+  // Funciones de cálculo
+  const calcularSaldoTotal = () => saldosBancarios.reduce((acc, c) => acc + c.saldo, 0);
+  const calcularTotalPorCobrar = () => cuentasPendientes.reduce((acc, c) => acc + c.saldo, 0);
+  const calcularTotalPorPagar = () => cuentasPorPagar.reduce((acc, c) => acc + c.saldo, 0);
 
-  const handleRechazarFactura = (id) => {
-    try {
-      setFacturasPendientes(prev => prev.filter(f => f.id !== id));
-      console.log(`❌ Factura ${id} rechazada`);
-    } catch (error) {
-      console.error('Error rechazando factura:', error);
-    }
-  };
+  const handleAprobarFactura = (id) => setFacturasPendientes(prev => prev.filter(f => f.id !== id));
+  const handleRechazarFactura = (id) => setFacturasPendientes(prev => prev.filter(f => f.id !== id));
 
-  // =====================================================
-  // FUNCIONES DE CÁLCULO SEGURAS
-  // =====================================================
+  const formatCurrency = (amount, currency = 'CLP') =>
+    new Intl.NumberFormat('es-CL', { 
+      style: 'currency', 
+      currency, 
+      maximumFractionDigits: currency === 'CLP' ? 0 : 2 
+    }).format(amount);
 
-  const calcularSaldoTotal = () => {
-    try {
-      return Array.isArray(saldosBancarios) 
-        ? saldosBancarios.reduce((acc, cuenta) => acc + (cuenta.saldo || 0), 0)
-        : 0;
-    } catch (error) {
-      console.error('Error calculando saldo total:', error);
-      return 0;
-    }
-  };
+  // Componente para mostrar información de paginación
+  const PaginationInfoCard = ({ title, info, total }) => {
+    if (!info) return null;
 
-  const calcularTotalPorCobrar = () => {
-    try {
-      return Array.isArray(cuentasPendientes) 
-        ? cuentasPendientes.reduce((acc, cuenta) => acc + (cuenta.saldo || 0), 0)
-        : 0;
-    } catch (error) {
-      console.error('Error calculando total por cobrar:', error);
-      return 0;
-    }
-  };
-
-  const calcularTotalPorPagar = () => {
-    try {
-      return Array.isArray(cuentasPorPagar) 
-        ? cuentasPorPagar.reduce((acc, cuenta) => acc + (cuenta.saldo || 0), 0)
-        : 0;
-    } catch (error) {
-      console.error('Error calculando total por pagar:', error);
-      return 0;
-    }
-  };
-
-  // =====================================================
-  // FUNCIONES DE FORMATO
-  // =====================================================
-
-  const formatCurrency = (amount, currency = 'CLP') => {
-    try {
-      return new Intl.NumberFormat('es-CL', { 
-        style: 'currency', 
-        currency, 
-        maximumFractionDigits: currency === 'CLP' ? 0 : 2 
-      }).format(amount || 0);
-    } catch (error) {
-      console.error('Error formateando moneda:', error);
-      return '$0';
-    }
-  };
-
-  // =====================================================
-  // EFECTOS
-  // =====================================================
-
-  useEffect(() => {
-    // Actualizar estadísticas de errores
-    setDashboardStats(prev => ({
-      ...prev,
-      hasErrors: Object.keys(errors).length > 0
-    }));
-  }, [errors]);
-
-  // Log de estado general del dashboard
-  useEffect(() => {
-    console.log('📊 Estado del Dashboard:', {
-      saldosBancarios: saldosBancarios.length,
-      cuentasPendientes: cuentasPendientes.length,
-      cuentasPorPagar: cuentasPorPagar.length,
-      facturasPendientes: facturasPendientes.length,
-      flujoCajaPeriodos: flujoCaja.periodos ? flujoCaja.periodos.length : 0,
-      clientes: clientes.length,
-      egresosProgramados: egresosProgramados.length,
-      errores: Object.keys(errors).length
-    });
-  }, [saldosBancarios, cuentasPendientes, cuentasPorPagar, facturasPendientes, flujoCaja, clientes, egresosProgramados, errors]);
-
-  // =====================================================
-  // COMPONENTES DE RENDERIZADO
-  // =====================================================
-
-  const renderErrorAlert = () => {
-    const errorCount = Object.keys(errors).length;
-    
-    if (errorCount === 0) return null;
+    const isComplete = info.completenessPercent === 100;
+    const hasFailures = info.failedPages && info.failedPages.length > 0;
 
     return (
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-        <div className="flex items-start">
-          <AlertCircle size={20} className="text-amber-600 mr-2 mt-0.5" />
-          <div>
-            <h3 className="text-amber-800 font-medium">
-              Advertencias de sincronización ({errorCount})
-            </h3>
-            <div className="mt-1 text-sm text-amber-700 space-y-1">
-              {Object.entries(errors).map(([key, value]) => (
-                <div key={key} className="flex items-center">
-                  <span className="font-medium mr-2">{key}:</span>
-                  <span>{value}</span>
-                </div>
-              ))}
-            </div>
-            <p className="mt-2 text-xs text-amber-600">
-              💡 El dashboard funciona con datos parciales. Algunos módulos pueden mostrar información limitada.
-            </p>
+      <div className={`p-3 rounded border ${
+        isComplete ? 'bg-green-50 border-green-200' : 
+        hasFailures ? 'bg-amber-50 border-amber-200' : 
+        'bg-blue-50 border-blue-200'
+      }`}>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-medium text-gray-800">{title}</h4>
+          <div className={`flex items-center text-xs ${
+            isComplete ? 'text-green-600' : 
+            hasFailures ? 'text-amber-600' : 
+            'text-blue-600'
+          }`}>
+            {isComplete ? <CheckCircle size={12} className="mr-1" /> : 
+             hasFailures ? <AlertCircle size={12} className="mr-1" /> : 
+             <Clock size={12} className="mr-1" />}
+            {info.completenessPercent.toFixed(1)}%
           </div>
         </div>
+        
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div>
+            <span className="text-gray-600">Páginas:</span>
+            <p className="font-medium">{info.totalPagesLoaded}/{info.totalPagesRequested}</p>
+          </div>
+          <div>
+            <span className="text-gray-600">Items:</span>
+            <p className="font-medium">{total || info.totalItemsLoaded}</p>
+          </div>
+        </div>
+        
+        {hasFailures && (
+          <div className="mt-2 text-xs text-amber-700">
+            <span>Páginas fallidas: {info.failedPages.join(', ')}</span>
+          </div>
+        )}
       </div>
     );
   };
-
-  const renderSaldosBancariosCard = () => (
-    <div className="bg-white shadow rounded-lg p-4">
-      <div className="flex items-center mb-4">
-        <Wallet size={20} className="text-blue-600 mr-2" />
-        <h2 className="text-lg font-semibold text-gray-900">Saldos Bancarios</h2>
-      </div>
-      
-      <div className="text-3xl font-bold text-gray-900 mb-2">
-        {formatCurrency(calcularSaldoTotal())}
-      </div>
-      
-      <div className="text-sm text-gray-500 mb-4">
-        Total en {saldosBancarios.length} cuenta{saldosBancarios.length !== 1 ? 's' : ''}
-      </div>
-      
-      <div className="grid grid-cols-1 gap-3 max-h-64 overflow-y-auto">
-        {saldosBancarios.length > 0 ? (
-          saldosBancarios.map(cuenta => (
-            <BankBalanceCard key={cuenta.id} cuenta={cuenta} loading={loading} />
-          ))
-        ) : (
-          <div className="text-center text-gray-500 py-4">
-            <Wallet size={32} className="mx-auto mb-2 text-gray-300" />
-            <p>No hay cuentas bancarias</p>
-            <p className="text-xs">Sincroniza con Chipax para ver tus saldos</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const renderCuentasPorCobrarCard = () => (
-    <div className="bg-white shadow rounded-lg p-4">
-      <div className="flex items-center mb-4">
-        <TrendingUp size={20} className="text-green-600 mr-2" />
-        <h2 className="text-lg font-semibold text-gray-900">Cuentas por Cobrar</h2>
-      </div>
-      
-      <div className="text-3xl font-bold text-green-600 mb-2">
-        {formatCurrency(calcularTotalPorCobrar())}
-      </div>
-      
-      <div className="text-sm text-gray-500 mb-4">
-        {cuentasPendientes.length} factura{cuentasPendientes.length !== 1 ? 's' : ''} pendiente{cuentasPendientes.length !== 1 ? 's' : ''} de cobro
-      </div>
-      
-      <div className="space-y-3 max-h-40 overflow-y-auto">
-        {cuentasPendientes.length > 0 ? (
-          cuentasPendientes.slice(0, 3).map(cuenta => (
-            <div key={cuenta.id} className="border-b pb-2 last:border-b-0 last:pb-0">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {cuenta.cliente?.nombre || 'Cliente sin nombre'}
-                  </p>
-                  <p className="text-sm text-gray-500">Factura #{cuenta.folio}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium text-gray-900">
-                    {formatCurrency(cuenta.saldo)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="text-center text-gray-500 py-4">
-            <TrendingUp size={32} className="mx-auto mb-2 text-gray-300" />
-            <p>No hay cuentas por cobrar</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const renderFacturasPendientesCard = () => (
-    <div className="bg-white shadow rounded-lg p-4">
-      <div className="flex items-center mb-4">
-        <PieChart size={20} className="text-red-600 mr-2" />
-        <h2 className="text-lg font-semibold text-gray-900">Facturas por Aprobar</h2>
-      </div>
-      
-      <div className="text-3xl font-bold text-red-600 mb-2">
-        {facturasPendientes.length}
-      </div>
-      
-      <div className="text-sm text-gray-500 mb-4">
-        Facturas pendientes de aprobación
-      </div>
-      
-      <div className="space-y-3 max-h-40 overflow-y-auto">
-        {facturasPendientes.length > 0 ? (
-          facturasPendientes.slice(0, 3).map(factura => (
-            <div key={factura.id} className="border-b pb-2 last:border-b-0 last:pb-0">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {factura.proveedor?.nombre || 'Proveedor sin nombre'}
-                  </p>
-                  <p className="text-sm text-gray-500">Factura #{factura.folio}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium text-gray-900">
-                    {formatCurrency(factura.monto)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="text-center text-gray-500 py-4">
-            <Shield size={32} className="mx-auto mb-2 text-gray-300" />
-            <p>No hay facturas pendientes</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  // =====================================================
-  // RENDER PRINCIPAL
-  // =====================================================
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -446,35 +176,43 @@ const DashboardFinancieroIntegrado = () => {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Dashboard Financiero</h1>
-              <p className="text-gray-600">
-                Gestiona tus finanzas en tiempo real con datos de Chipax
-              </p>
+              <p className="text-gray-600">Gestiona tus finanzas en tiempo real con datos de Chipax</p>
             </div>
             
-            {/* Indicador de estado */}
-            <div className="flex items-center space-x-4 text-sm">
-              <div className="flex items-center">
-                <div className={`w-2 h-2 rounded-full mr-2 ${
-                  dataSource === 'chipax' ? 'bg-green-500' : 'bg-gray-400'
-                }`}></div>
-                <span className="text-gray-600">
-                  Fuente: {dataSource === 'chipax' ? 'Chipax' : 'Manual'}
-                </span>
-              </div>
+            {/* Controles del header */}
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setShowDebugPanel(!showDebugPanel)}
+                className={`px-3 py-1 rounded text-sm flex items-center ${
+                  showDebugPanel 
+                    ? 'bg-purple-100 text-purple-700' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Settings size={16} className="mr-1" />
+                Debug
+              </button>
               
-              <div className="flex items-center">
-                <Activity size={16} className="mr-1 text-blue-500" />
-                <span className="text-gray-600">
-                  {dashboardStats.loadedModules}/{dashboardStats.totalModules} módulos
-                </span>
-              </div>
+              {dataSource === 'chipax' && (
+                <div className="flex items-center text-sm text-green-600">
+                  <Database size={16} className="mr-1" />
+                  Conectado a Chipax
+                </div>
+              )}
             </div>
           </div>
         </div>
       </header>
 
       <div className="container mx-auto px-4 py-6">
-        {/* Componente de sincronización */}
+        {/* Panel de debug (condicional) */}
+        {showDebugPanel && (
+          <div className="mb-6">
+            <PaginationDebugger />
+          </div>
+        )}
+
+        {/* Chipax Data Updater */}
         <div className="mb-6">
           <ChipaxDataUpdater
             onUpdateSaldos={handleUpdateSaldos}
@@ -487,17 +225,163 @@ const DashboardFinancieroIntegrado = () => {
             onUpdateBancos={handleUpdateBancos}
             saldoInicial={0}
             onDataSourceChange={handleDataSourceChange}
+            onSyncDetails={handleSyncDetails}
           />
         </div>
 
-        {/* Alertas de errores */}
-        {renderErrorAlert()}
+        {/* Información de paginación */}
+        {Object.keys(paginationInfo).length > 0 && (
+          <div className="mb-6 bg-white rounded-lg shadow p-4">
+            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+              <Info size={16} className="mr-2 text-blue-600" />
+              Información de Carga de Datos
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {paginationInfo.cuentasPendientes && (
+                <PaginationInfoCard
+                  title="Cuentas por Cobrar"
+                  info={paginationInfo.cuentasPendientes}
+                  total={cuentasPendientes.length}
+                />
+              )}
+              
+              {paginationInfo.cuentasPorPagar && (
+                <PaginationInfoCard
+                  title="Cuentas por Pagar"
+                  info={paginationInfo.cuentasPorPagar}
+                  total={cuentasPorPagar.length}
+                />
+              )}
+              
+              {paginationInfo.clientes && (
+                <PaginationInfoCard
+                  title="Clientes"
+                  info={paginationInfo.clientes}
+                  total={clientes.length}
+                />
+              )}
+            </div>
+          </div>
+        )}
 
-        {/* Tarjetas de resumen */}
+        {/* Errores */}
+        {Object.keys(errors).length > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start">
+              <AlertCircle size={20} className="text-red-600 mr-2 mt-0.5" />
+              <div>
+                <h3 className="text-red-800 font-medium">Errores al cargar datos</h3>
+                <ul className="mt-1 text-sm text-red-700 space-y-1">
+                  {Object.entries(errors).map(([key, value]) => (
+                    <li key={key}>{key}: {value}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tarjetas principales */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          {renderSaldosBancariosCard()}
-          {renderCuentasPorCobrarCard()}
-          {renderFacturasPendientesCard()}
+          {/* Saldos Bancarios */}
+          <div className="bg-white shadow rounded-lg p-4">
+            <div className="flex items-center mb-4">
+              <Wallet size={20} className="text-blue-600 mr-2" />
+              <h2 className="text-lg font-semibold text-gray-900">Saldos Bancarios</h2>
+            </div>
+            <div className="text-3xl font-bold text-gray-900 mb-2">
+              {formatCurrency(calcularSaldoTotal())}
+            </div>
+            <div className="text-sm text-gray-500 mb-4">
+              Total en {saldosBancarios.length} cuentas
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              {saldosBancarios.map(cuenta => (
+                <BankBalanceCard key={cuenta.id} cuenta={cuenta} loading={loading} />
+              ))}
+            </div>
+          </div>
+
+          {/* Cuentas por Cobrar */}
+          <div className="bg-white shadow rounded-lg p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <TrendingUp size={20} className="text-green-600 mr-2" />
+                <h2 className="text-lg font-semibold text-gray-900">Cuentas por Cobrar</h2>
+              </div>
+              {paginationInfo.cuentasPendientes && (
+                <div className={`text-xs px-2 py-1 rounded ${
+                  paginationInfo.cuentasPendientes.completenessPercent === 100
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {paginationInfo.cuentasPendientes.completenessPercent.toFixed(0)}%
+                </div>
+              )}
+            </div>
+            <div className="text-3xl font-bold text-green-600 mb-2">
+              {formatCurrency(calcularTotalPorCobrar())}
+            </div>
+            <div className="text-sm text-gray-500 mb-4">
+              {cuentasPendientes.length} facturas pendientes de cobro
+            </div>
+            <div className="space-y-3">
+              {cuentasPendientes.slice(0, 3).map(cuenta => (
+                <div key={cuenta.id} className="border-b pb-2 last:border-b-0 last:pb-0">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-medium text-gray-900">{cuenta.cliente?.nombre || cuenta.cliente}</p>
+                      <p className="text-sm text-gray-500">Factura #{cuenta.folio}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-gray-900">{formatCurrency(cuenta.saldo)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Cuentas por Pagar */}
+          <div className="bg-white shadow rounded-lg p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <PieChart size={20} className="text-red-600 mr-2" />
+                <h2 className="text-lg font-semibold text-gray-900">Cuentas por Pagar</h2>
+              </div>
+              {paginationInfo.cuentasPorPagar && (
+                <div className={`text-xs px-2 py-1 rounded ${
+                  paginationInfo.cuentasPorPagar.completenessPercent === 100
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {paginationInfo.cuentasPorPagar.completenessPercent.toFixed(0)}%
+                </div>
+              )}
+            </div>
+            <div className="text-3xl font-bold text-red-600 mb-2">
+              {formatCurrency(calcularTotalPorPagar())}
+            </div>
+            <div className="text-sm text-gray-500 mb-4">
+              {cuentasPorPagar.length} facturas pendientes de pago
+            </div>
+            <div className="space-y-3">
+              {cuentasPorPagar.slice(0, 3).map(factura => (
+                <div key={factura.id} className="border-b pb-2 last:border-b-0 last:pb-0">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-medium text-gray-900">{factura.proveedor?.nombre || factura.proveedor}</p>
+                      <p className="text-sm text-gray-500">Factura #{factura.folio}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-gray-900">{formatCurrency(factura.saldo)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Gráfico de flujo de caja */}
@@ -520,7 +404,7 @@ const DashboardFinancieroIntegrado = () => {
           />
         </div>
 
-        {/* Componente de facturas pendientes */}
+        {/* Facturas pendientes de aprobación */}
         <div className="mb-6">
           <PendingInvoicesComponent
             facturas={facturasPendientes}
@@ -529,6 +413,37 @@ const DashboardFinancieroIntegrado = () => {
             onReject={handleRechazarFactura}
           />
         </div>
+
+        {/* Información de última sincronización */}
+        {lastSyncDetails && (
+          <div className="bg-white rounded-lg shadow p-4">
+            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+              <RefreshCw size={16} className="mr-2 text-blue-600" />
+              Última Sincronización
+            </h3>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600">Duración:</span>
+                <p className="font-medium">{lastSyncDetails.duration}s</p>
+              </div>
+              <div>
+                <span className="text-gray-600">Módulos cargados:</span>
+                <p className="font-medium">{lastSyncDetails.modulesLoaded || 'N/A'}</p>
+              </div>
+              <div>
+                <span className="text-gray-600">Timestamp:</span>
+                <p className="font-medium">{new Date(lastSyncDetails.timestamp || Date.now()).toLocaleTimeString()}</p>
+              </div>
+              <div>
+                <span className="text-gray-600">Estado:</span>
+                <p className={`font-medium ${lastSyncDetails.success ? 'text-green-600' : 'text-red-600'}`}>
+                  {lastSyncDetails.success ? 'Exitoso' : 'Con errores'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
