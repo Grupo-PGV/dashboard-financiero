@@ -11,7 +11,7 @@ const ChipaxDebugger = () => {
   const [testing, setTesting] = useState(false);
   const [selectedEndpoint, setSelectedEndpoint] = useState('all');
 
-  // Lista de endpoints a probar
+  // Lista de endpoints a probar (basado en documentación oficial)
   const endpoints = [
     {
       id: 'token',
@@ -19,59 +19,145 @@ const ChipaxDebugger = () => {
       description: 'Verificar autenticación',
       test: () => chipaxService.getChipaxToken()
     },
-    {
-      id: 'flujo-caja',
-      name: '💰 Flujo de Caja (Init)',
-      description: 'Datos principales de flujo de caja',
-      test: () => chipaxService.fetchFromChipax('/flujo-caja/init')
-    },
+    // === SALDOS Y CUENTAS BANCARIAS ===
     {
       id: 'cuentas-corrientes', 
       name: '🏦 Cuentas Corrientes',
-      description: 'Saldos bancarios',
-      test: () => chipaxService.fetchFromChipax('/cuentas-corrientes')
+      description: 'Saldos bancarios principales',
+      test: () => chipaxService.fetchFromChipax('/cuentas_corrientes')
+    },
+    {
+      id: 'cartolas',
+      name: '🏧 Cartolas Bancarias',
+      description: 'Movimientos bancarios detallados',
+      test: () => chipaxService.fetchFromChipax('/cartolas')
+    },
+    {
+      id: 'bancos',
+      name: '🏦 Lista de Bancos',
+      description: 'Bancos disponibles',
+      test: () => chipaxService.fetchFromChipax('/bancos')
+    },
+    // === FACTURAS Y DOCUMENTOS ===
+    {
+      id: 'dtes',
+      name: '📄 DTEs (Todos)',
+      description: 'Documentos tributarios electrónicos',
+      test: () => chipaxService.fetchFromChipax('/dtes')
     },
     {
       id: 'dtes-venta',
       name: '📄 DTEs de Venta (Por Cobrar)',
       description: 'Facturas de venta pendientes',
-      test: () => chipaxService.fetchFromChipax('/dtes?porCobrar=1&page=1')
+      test: () => chipaxService.fetchFromChipax('/dtes?porCobrar=1')
     },
     {
-      id: 'compras',
-      name: '🛒 Facturas de Compra',
-      description: 'Facturas de compra/proveedores',
-      test: () => chipaxService.fetchFromChipax('/compras?page=1')
+      id: 'facturas',
+      name: '🧾 Facturas',
+      description: 'Facturas emitidas',
+      test: () => chipaxService.fetchFromChipax('/facturas')
     },
+    // === COMPRAS Y PROVEEDORES ===
+    {
+      id: 'compras-todas',
+      name: '🛒 Compras (Todas)',
+      description: 'Todas las facturas de compra',
+      test: () => chipaxService.fetchFromChipax('/compras')
+    },
+    {
+      id: 'compras-por-pagar',
+      name: '💸 Compras Por Pagar',
+      description: 'Compras pendientes de pago',
+      test: () => chipaxService.fetchFromChipax('/compras?pagado=false')
+    },
+    {
+      id: 'compras-estado',
+      name: '⏳ Compras Por Estado',
+      description: 'Compras filtradas por estado',
+      test: () => chipaxService.fetchFromChipax('/compras?estado=por_pagar')
+    },
+    {
+      id: 'proveedores',
+      name: '🏢 Proveedores',
+      description: 'Lista de proveedores',
+      test: () => chipaxService.fetchFromChipax('/proveedores')
+    },
+    // === PAGOS Y COBROS ===
+    {
+      id: 'pagos',
+      name: '💰 Pagos',
+      description: 'Pagos realizados',
+      test: () => chipaxService.fetchFromChipax('/pagos')
+    },
+    {
+      id: 'cobros',
+      name: '💳 Cobros',
+      description: 'Cobros realizados',
+      test: () => chipaxService.fetchFromChipax('/cobros')
+    },
+    // === FLUJO DE CAJA Y PROYECCIONES ===
+    {
+      id: 'flujo-caja-init',
+      name: '💰 Flujo de Caja (Init)',
+      description: 'Datos principales de flujo de caja',
+      test: () => chipaxService.fetchFromChipax('/flujo-caja/init')
+    },
+    {
+      id: 'proyecciones',
+      name: '📈 Proyecciones',
+      description: 'Proyecciones financieras',
+      test: () => chipaxService.fetchFromChipax('/proyecciones')
+    },
+    {
+      id: 'kpis',
+      name: '📊 KPIs',
+      description: 'Indicadores clave',
+      test: () => chipaxService.fetchFromChipax('/kpis')
+    },
+    // === CONFIGURACIÓN ===
     {
       id: 'clientes',
       name: '👥 Clientes',
       description: 'Lista de clientes',
-      test: () => chipaxService.fetchFromChipax('/clientes?page=1')
+      test: () => chipaxService.fetchFromChipax('/clientes')
     },
     {
-      id: 'cuentas',
-      name: '📊 Plan de Cuentas',
-      description: 'Plan contable',
-      test: () => chipaxService.fetchFromChipax('/cuentas')
+      id: 'productos',
+      name: '📦 Productos',
+      description: 'Catálogo de productos',
+      test: () => chipaxService.fetchFromChipax('/productos')
     },
     {
-      id: 'movimientos',
-      name: '💫 Movimientos',
-      description: 'Movimientos contables',
-      test: () => chipaxService.fetchFromChipax('/movimientos?page=1')
+      id: 'monedas',
+      name: '💱 Monedas',
+      description: 'Monedas disponibles',
+      test: () => chipaxService.fetchFromChipax('/monedas')
+    },
+    // === OTROS DOCUMENTOS ===
+    {
+      id: 'honorarios',
+      name: '🧾 Honorarios',
+      description: 'Boletas de honorarios',
+      test: () => chipaxService.fetchFromChipax('/honorarios')
     },
     {
-      id: 'cartolas',
-      name: '🏧 Cartolas Bancarias',
-      description: 'Cartolas de bancos',
-      test: () => chipaxService.fetchFromChipax('/flujo-caja/cartolas')
+      id: 'boletas-terceros',
+      name: '🧾 Boletas de Terceros',
+      description: 'Boletas de terceros',
+      test: () => chipaxService.fetchFromChipax('/boletas_terceros')
+    },
+    // === EXPERIMENTAL ===
+    {
+      id: 'empresas',
+      name: '🏢 Empresas',
+      description: 'Empresas disponibles',
+      test: () => chipaxService.fetchFromChipax('/empresas')
     },
     {
-      id: 'pagos-programados',
-      name: '📅 Pagos Programados',
-      description: 'Pagos futuros programados',
-      test: () => chipaxService.fetchFromChipax('/pagos-programados')
+      id: 'alertas',
+      name: '🔔 Alertas',
+      description: 'Alertas financieras',
+      test: () => chipaxService.fetchFromChipax('/alertas')
     }
   ];
 
