@@ -1,338 +1,390 @@
-// PaginationDebugger.jsx - Debug de paginación para GitHub Web
+// PaginationDebugger.jsx - Componente para diagnosticar y probar paginación
 import React, { useState } from 'react';
 import { 
-  Play, AlertTriangle, CheckCircle, Clock, RefreshCw, 
-  BarChart, Database, FileText, Users, ChevronDown, ChevronUp,
-  Zap, Target, Settings
+  Play, RefreshCw, CheckCircle, AlertTriangle, Info, 
+  BarChart, FileText, Users, DollarSign, Clock, 
+  ChevronRight, ChevronDown, Eye, Bug
 } from 'lucide-react';
 import chipaxService from '../services/chipaxService';
 
 const PaginationDebugger = () => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [debugResults, setDebugResults] = useState(null);
-  const [selectedEndpoint, setSelectedEndpoint] = useState('/dtes?porCobrar=1');
-  const [maxPagesToTest, setMaxPagesToTest] = useState(5);
-  const [loadAllPages, setLoadAllPages] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState([]);
+  const [selectedEndpoint, setSelectedEndpoint] = useState('/compras?pagado=false');
+  const [expandedResult, setExpandedResult] = useState(null);
 
+  // Lista de endpoints para probar
   const endpoints = [
-    { value: '/dtes?porCobrar=1', label: 'Facturas de Venta (CxC)', icon: <FileText size={16} /> },
-    { value: '/compras', label: 'Facturas de Compra (CxP)', icon: <BarChart size={16} /> },
-    { value: '/clientes', label: 'Clientes', icon: <Users size={16} /> }
+    { 
+      path: '/compras?pagado=false', 
+      name: 'Facturas de Compra (Pendientes)', 
+      icon: <FileText size={16} />,
+      description: 'Facturas de compra pendientes de pago'
+    },
+    { 
+      path: '/compras', 
+      name: 'Todas las Facturas de Compra', 
+      icon: <FileText size={16} />,
+      description: 'Todas las facturas de compra sin filtro'
+    },
+    { 
+      path: '/dtes?porCobrar=1', 
+      name: 'Facturas por Cobrar', 
+      icon: <DollarSign size={16} />,
+      description: 'Facturas de venta pendientes de cobro'
+    },
+    { 
+      path: '/dtes', 
+      name: 'Todas las Facturas de Venta', 
+      icon: <BarChart size={16} />,
+      description: 'Todas las facturas de venta'
+    },
+    { 
+      path: '/clientes', 
+      name: 'Clientes', 
+      icon: <Users size={16} />,
+      description: 'Lista completa de clientes'
+    },
+    { 
+      path: '/honorarios', 
+      name: 'Honorarios', 
+      icon: <FileText size={16} />,
+      description: 'Boletas de honorarios'
+    }
   ];
 
-  const runBasicPaginationDebug = async () => {
-    setIsLoading(true);
-    setDebugResults(null);
+  // Función para probar un endpoint específico
+  const testEndpoint = async (endpoint) => {
+    const testResult = {
+      endpoint: endpoint.path,
+      name: endpoint.name,
+      startTime: Date.now(),
+      status: 'testing',
+      phases: []
+    };
 
     try {
-      console.log('🔍 Iniciando debug básico...');
+      // Fase 1: Primera página
+      testResult.phases.push({ phase: 'first_page', status: 'testing', startTime: Date.now() });
       
-      const result = await chipaxService.Ingresos.debugPagination(
-        selectedEndpoint, 
-        maxPagesToTest
-      );
+      const firstPageResponse = await chipaxService.fetchFromChipax(`${endpoint.path}${endpoint.path.includes('?') ? '&' : '?'}page=1`);
       
-      setDebugResults({
-        type: 'basic',
-        ...result,
-        timestamp: new Date().toISOString()
+      testResult.phases[0].status = 'completed';
+      testResult.phases[0].endTime = Date.now();
+      testResult.phases[0].data = {
+        hasItems: !!firstPageResponse.items,
+        itemCount: firstPageResponse.items?.length || 0,
+        hasPagination: !!firstPageResponse.paginationAttributes,
+        paginationInfo: firstPageResponse.paginationAttributes
+      };
+
+      // Si no hay paginación, terminar aquí
+      if (!firstPageResponse.paginationAttributes) {
+        testResult.status = 'completed';
+        testResult.endTime = Date.now();
+        testResult.totalItems = firstPageResponse.items?.length || 0;
+        testResult.totalPages = 1;
+        testResult.summary = 'Sin paginación - datos completos en una página';
+        return testResult;
+      }
+
+      // Fase 2: Análisis de paginación
+      const { totalPages, totalCount } = firstPageResponse.paginationAttributes;
+      testResult.phases.push({ 
+        phase: 'pagination_analysis', 
+        status: 'completed', 
+        data: { totalPages, totalCount, needsMultipleRequests: totalPages > 1 }
       });
-      
+
+      // Fase 3: Carga completa con paginación
+      if (totalPages > 1) {
+        testResult.phases.push({ phase: 'full_pagination', status: 'testing', startTime: Date.now() });
+        
+        const fullResponse = await chipaxService.fetchAllPaginatedData(endpoint.path);
+        
+        testResult.phases[2].status = 'completed';
+        testResult.phases[2].endTime = Date.now();
+        testResult.phases[2].data = {
+          totalItemsLoaded: fullResponse.items?.length || 0,
+          paginationInfo: fullResponse.paginationInfo,
+          success: true
+        };
+
+        testResult.totalItems = fullResponse.items?.length || 0;
+        testResult.paginationInfo = fullResponse.paginationInfo;
+      } else {
+        testResult.totalItems = firstPageResponse.items?.length || 0;
+      }
+
+      testResult.status = 'completed';
+      testResult.totalPages = totalPages;
+      testResult.summary = `Éxito: ${testResult.totalItems} items obtenidos de ${totalPages} páginas`;
+
     } catch (error) {
-      console.error('Error en debug:', error);
-      setDebugResults({
-        type: 'error',
-        error: error.message,
-        timestamp: new Date().toISOString()
-      });
+      testResult.status = 'error';
+      testResult.error = error.message;
+      testResult.summary = `Error: ${error.message}`;
+      
+      // Marcar la fase actual como error
+      const currentPhase = testResult.phases.find(p => p.status === 'testing');
+      if (currentPhase) {
+        currentPhase.status = 'error';
+        currentPhase.error = error.message;
+        currentPhase.endTime = Date.now();
+      }
+    }
+
+    testResult.endTime = Date.now();
+    testResult.duration = testResult.endTime - testResult.startTime;
+    
+    return testResult;
+  };
+
+  // Probar endpoint seleccionado
+  const handleTestSingle = async () => {
+    const endpoint = endpoints.find(e => e.path === selectedEndpoint);
+    if (!endpoint) return;
+
+    setLoading(true);
+    try {
+      const result = await testEndpoint(endpoint);
+      setResults(prev => [result, ...prev.slice(0, 9)]); // Mantener últimos 10 resultados
+    } catch (error) {
+      console.error('Error en test:', error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const runFullPaginationTest = async () => {
-    setIsLoading(true);
-    setDebugResults(null);
-
+  // Probar todos los endpoints
+  const handleTestAll = async () => {
+    setLoading(true);
+    setResults([]);
+    
     try {
-      console.log('🚀 Iniciando test completo...');
-      
-      const startTime = Date.now();
-      let result;
-      
-      if (selectedEndpoint === '/dtes?porCobrar=1') {
-        result = await chipaxService.Ingresos.getFacturasVenta(loadAllPages ? null : maxPagesToTest);
-      } else if (selectedEndpoint === '/compras') {
-        result = await chipaxService.Egresos.getFacturasCompra(loadAllPages ? null : maxPagesToTest);
-      } else if (selectedEndpoint === '/clientes') {
-        result = await chipaxService.Ajustes.getClientes(loadAllPages ? null : maxPagesToTest);
-      } else {
-        result = await chipaxService.fetchAllPaginatedData(selectedEndpoint, loadAllPages ? null : maxPagesToTest);
+      for (const endpoint of endpoints) {
+        console.log(`🧪 Probando: ${endpoint.name}`);
+        const result = await testEndpoint(endpoint);
+        setResults(prev => [...prev, result]);
+        
+        // Pequeña pausa entre tests para no sobrecargar la API
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
-      
-      const endTime = Date.now();
-      const duration = endTime - startTime;
-      
-      setDebugResults({
-        type: 'full',
-        endpoint: selectedEndpoint,
-        result,
-        performance: {
-          duration,
-          itemsPerSecond: Math.round((result.items?.length || 0) / (duration / 1000)),
-          averageTimePerPage: result.paginationAttributes?.pagesLoaded 
-            ? Math.round(duration / result.paginationAttributes.pagesLoaded) 
-            : 0
-        },
-        timestamp: new Date().toISOString()
-      });
-      
     } catch (error) {
       console.error('Error en test completo:', error);
-      setDebugResults({
-        type: 'error',
-        error: error.message,
-        timestamp: new Date().toISOString()
-      });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const renderResults = () => {
-    if (!debugResults) return null;
-
-    if (debugResults.type === 'error') {
-      return (
-        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <div className="flex items-center mb-2">
-            <AlertTriangle size={20} className="text-red-600 mr-2" />
-            <h4 className="font-medium text-red-800">Error en Debug</h4>
-          </div>
-          <p className="text-red-700 text-sm">{debugResults.error}</p>
-        </div>
-      );
+  // Función para obtener el color del estado
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed': return 'text-green-600';
+      case 'testing': return 'text-blue-600';
+      case 'error': return 'text-red-600';
+      default: return 'text-gray-600';
     }
+  };
 
-    return (
-      <div className="mt-4 space-y-4">
-        {debugResults.type === 'basic' && (
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h4 className="font-medium text-blue-800 mb-3 flex items-center">
-              <Target size={18} className="mr-2" />
-              Resultados del Debug Básico
-            </h4>
-            
-            {debugResults.pagination && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-900">
-                    {debugResults.pagination.totalPages}
-                  </div>
-                  <div className="text-xs text-blue-700">Total Páginas</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-900">
-                    {debugResults.pagination.totalCount}
-                  </div>
-                  <div className="text-xs text-blue-700">Total Items</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-900">
-                    {debugResults.analysis?.avgItemsPerPage || 0}
-                  </div>
-                  <div className="text-xs text-blue-700">Items/Página</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-900">
-                    {debugResults.summary?.totalItemsTested || 0}
-                  </div>
-                  <div className="text-xs text-blue-700">Items Probados</div>
-                </div>
-              </div>
-            )}
-            
-            {debugResults.testResults && (
-              <div>
-                <h5 className="font-medium text-blue-800 mb-2">Resultados por Página:</h5>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {debugResults.testResults.map((test, index) => (
-                    <div key={index} className={`p-2 rounded text-xs ${
-                      test.hasItems ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      Página {test.page}: {test.itemCount} items
-                      {test.error && <div className="text-red-600">Error: {test.error}</div>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+  // Función para obtener el icono del estado
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'completed': return <CheckCircle size={16} />;
+      case 'testing': return <RefreshCw size={16} className="animate-spin" />;
+      case 'error': return <AlertTriangle size={16} />;
+      default: return <Clock size={16} />;
+    }
+  };
 
-        {debugResults.type === 'full' && (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-            <h4 className="font-medium text-green-800 mb-3 flex items-center">
-              <Zap size={18} className="mr-2" />
-              Resultados de Carga Completa
-            </h4>
-            
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-900">
-                  {debugResults.result.items?.length || 0}
-                </div>
-                <div className="text-xs text-green-700">Total Items Cargados</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-900">
-                  {debugResults.result.paginationAttributes?.pagesLoaded || 0}
-                </div>
-                <div className="text-xs text-green-700">Páginas Cargadas</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-900">
-                  {debugResults.performance.duration}ms
-                </div>
-                <div className="text-xs text-green-700">Duración Total</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-900">
-                  {debugResults.performance.itemsPerSecond}
-                </div>
-                <div className="text-xs text-green-700">Items/Segundo</div>
-              </div>
-            </div>
-            
-            {debugResults.result.paginationAttributes?.pagesFailed > 0 && (
-              <div className="p-2 bg-amber-100 rounded text-amber-800 text-sm">
-                ⚠️ {debugResults.result.paginationAttributes.pagesFailed} páginas fallaron
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
+  // Formatear duración
+  const formatDuration = (ms) => {
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
   };
 
   return (
-    <div className="bg-white shadow rounded-lg p-4 mb-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-            <Settings size={18} className="mr-2 text-purple-600" />
-            Debug de Paginación Avanzado
-          </h2>
-          <p className="text-sm text-gray-600">
-            Herramientas para verificar que la paginación obtiene todos los datos
-          </p>
-        </div>
-        
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center text-sm text-purple-600 hover:text-purple-800"
-        >
-          {isExpanded ? (
-            <>
-              <ChevronUp size={16} className="mr-1" />
-              Ocultar
-            </>
-          ) : (
-            <>
-              <ChevronDown size={16} className="mr-1" />
-              Expandir Debug
-            </>
-          )}
-        </button>
+    <div className="bg-white rounded-lg shadow">
+      {/* Header */}
+      <div className="p-4 border-b">
+        <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+          <Bug size={20} className="mr-2 text-purple-600" />
+          Diagnóstico de Paginación - Chipax API
+        </h2>
+        <p className="text-sm text-gray-500 mt-1">
+          Herramienta para diagnosticar y probar la paginación en diferentes endpoints
+        </p>
       </div>
-      
-      {isExpanded && (
-        <div className="mt-4 border-t pt-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Endpoint a probar
-              </label>
-              <select
-                value={selectedEndpoint}
-                onChange={(e) => setSelectedEndpoint(e.target.value)}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                disabled={isLoading}
-              >
-                {endpoints.map(endpoint => (
-                  <option key={endpoint.value} value={endpoint.value}>
-                    {endpoint.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Páginas máximas (debug)
-              </label>
-              <input
-                type="number"
-                value={maxPagesToTest}
-                onChange={(e) => setMaxPagesToTest(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                min="1"
-                max="20"
-                disabled={isLoading}
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Opciones
-              </label>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="loadAll"
-                  checked={loadAllPages}
-                  onChange={(e) => setLoadAllPages(e.target.checked)}
-                  className="mr-2"
-                  disabled={isLoading}
-                />
-                <label htmlFor="loadAll" className="text-sm text-gray-700">
-                  Cargar todas las páginas
-                </label>
-              </div>
-            </div>
+
+      {/* Controles */}
+      <div className="p-4 border-b bg-gray-50">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Endpoint a probar:
+            </label>
+            <select
+              value={selectedEndpoint}
+              onChange={(e) => setSelectedEndpoint(e.target.value)}
+              className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              disabled={loading}
+            >
+              {endpoints.map(endpoint => (
+                <option key={endpoint.path} value={endpoint.path}>
+                  {endpoint.name} - {endpoint.path}
+                </option>
+              ))}
+            </select>
           </div>
           
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="flex gap-2">
             <button
-              onClick={runBasicPaginationDebug}
-              disabled={isLoading}
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm"
+              onClick={handleTestSingle}
+              disabled={loading}
+              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 flex items-center"
             >
-              <Target size={16} className="mr-2" />
-              Debug Básico
+              {loading ? <RefreshCw size={16} className="mr-2 animate-spin" /> : <Play size={16} className="mr-2" />}
+              Probar Seleccionado
             </button>
             
             <button
-              onClick={runFullPaginationTest}
-              disabled={isLoading}
-              className="flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 text-sm"
+              onClick={handleTestAll}
+              disabled={loading}
+              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 flex items-center"
             >
-              <Zap size={16} className="mr-2" />
-              Carga Completa
+              {loading ? <RefreshCw size={16} className="mr-2 animate-spin" /> : <BarChart size={16} className="mr-2" />}
+              Probar Todos
             </button>
           </div>
-          
-          {isLoading && (
-            <div className="flex items-center justify-center py-8">
-              <RefreshCw size={24} className="animate-spin text-blue-600 mr-2" />
-              <span className="text-gray-600">Ejecutando debug...</span>
-            </div>
-          )}
-          
-          {renderResults()}
         </div>
-      )}
+      </div>
+
+      {/* Resultados */}
+      <div className="p-4">
+        {results.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <Bug size={48} className="mx-auto mb-3 text-gray-300" />
+            <p>No hay resultados de pruebas aún</p>
+            <p className="text-sm">Selecciona un endpoint y haz clic en "Probar"</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {results.map((result, index) => (
+              <div key={index} className="border rounded-lg overflow-hidden">
+                {/* Header del resultado */}
+                <div 
+                  className="p-4 bg-gray-50 cursor-pointer flex items-center justify-between"
+                  onClick={() => setExpandedResult(expandedResult === index ? null : index)}
+                >
+                  <div className="flex items-center">
+                    <div className={`mr-3 ${getStatusColor(result.status)}`}>
+                      {getStatusIcon(result.status)}
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900">{result.name}</h3>
+                      <p className="text-sm text-gray-500">{result.endpoint}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center">
+                    <div className="text-right mr-4">
+                      <p className="text-sm font-medium">
+                        {result.totalItems ? `${result.totalItems.toLocaleString()} items` : 'N/A'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {result.duration ? formatDuration(result.duration) : 'N/A'}
+                      </p>
+                    </div>
+                    {expandedResult === index ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                  </div>
+                </div>
+
+                {/* Detalle expandido */}
+                {expandedResult === index && (
+                  <div className="p-4 border-t">
+                    {/* Resumen */}
+                    <div className="mb-4 p-3 bg-blue-50 rounded border border-blue-100">
+                      <p className="text-sm text-blue-800">
+                        <Info size={16} className="inline mr-1" />
+                        {result.summary}
+                      </p>
+                    </div>
+
+                    {/* Error si existe */}
+                    {result.error && (
+                      <div className="mb-4 p-3 bg-red-50 rounded border border-red-100">
+                        <p className="text-sm text-red-800">
+                          <AlertTriangle size={16} className="inline mr-1" />
+                          {result.error}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Información de paginación */}
+                    {result.paginationInfo && (
+                      <div className="mb-4 p-3 bg-green-50 rounded border border-green-100">
+                        <h4 className="text-sm font-medium text-green-800 mb-2">Información de Paginación:</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                          <div>
+                            <span className="text-green-700">Páginas solicitadas:</span>
+                            <p className="font-medium">{result.paginationInfo.totalPagesRequested}</p>
+                          </div>
+                          <div>
+                            <span className="text-green-700">Páginas cargadas:</span>
+                            <p className="font-medium">{result.paginationInfo.totalPagesLoaded}</p>
+                          </div>
+                          <div>
+                            <span className="text-green-700">Items esperados:</span>
+                            <p className="font-medium">{result.paginationInfo.totalItemsExpected}</p>
+                          </div>
+                          <div>
+                            <span className="text-green-700">Completitud:</span>
+                            <p className="font-medium">{result.paginationInfo.completenessPercent.toFixed(1)}%</p>
+                          </div>
+                        </div>
+                        
+                        {result.paginationInfo.failedPages?.length > 0 && (
+                          <div className="mt-2">
+                            <span className="text-red-700 text-xs">Páginas fallidas:</span>
+                            <p className="font-medium text-red-800">{result.paginationInfo.failedPages.join(', ')}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Fases del test */}
+                    {result.phases && result.phases.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-800 mb-3">Fases del Test:</h4>
+                        <div className="space-y-2">
+                          {result.phases.map((phase, phaseIndex) => (
+                            <div key={phaseIndex} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                              <div className="flex items-center">
+                                <div className={`mr-2 ${getStatusColor(phase.status)}`}>
+                                  {getStatusIcon(phase.status)}
+                                </div>
+                                <span className="text-sm font-medium">
+                                  {phase.phase === 'first_page' && 'Primera Página'}
+                                  {phase.phase === 'pagination_analysis' && 'Análisis de Paginación'}
+                                  {phase.phase === 'full_pagination' && 'Carga Completa'}
+                                </span>
+                              </div>
+                              
+                              <div className="text-xs text-gray-500">
+                                {phase.endTime && phase.startTime && formatDuration(phase.endTime - phase.startTime)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
