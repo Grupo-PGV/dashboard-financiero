@@ -1,4 +1,4 @@
-// chipaxService.js - Versión con paginación completa corregida
+// chipaxService.js - Versión con paginación completa para GitHub Web
 const CHIPAX_API_URL = 'https://api.chipax.com/v2';
 const APP_ID = '605e0aa5-ca0c-4513-b6ef-0030ac1f0849';
 const SECRET_KEY = 'f01974df-86e1-45a0-924f-75961ea926fc';
@@ -9,41 +9,33 @@ let tokenCache = {
 };
 
 // =====================================================
-// CONFIGURACIÓN DE PAGINACIÓN OPTIMIZADA
+// CONFIGURACIÓN DE PAGINACIÓN
 // =====================================================
 
 const PAGINATION_CONFIG = {
-  // Número de páginas a cargar en paralelo por lote
-  BATCH_SIZE: 8,
-  // Delay entre lotes para evitar rate limiting (ms)
-  BATCH_DELAY: 150,
-  // Timeout por petición individual (ms)
+  BATCH_SIZE: 5,
+  BATCH_DELAY: 200,
   REQUEST_TIMEOUT: 15000,
-  // Número máximo de reintentos por página
   MAX_RETRIES: 2,
-  // Delay entre reintentos (ms)
   RETRY_DELAY: 500
 };
 
 // =====================================================
-// FUNCIONES DE UTILIDAD PARA DEBUGGING
+// LOGGING OPTIMIZADO
 // =====================================================
 
 const log = {
   info: (message, data = null) => {
-    console.log(`📊 CHIPAX: ${message}`, data ? data : '');
+    console.log(`📊 CHIPAX: ${message}`, data || '');
   },
   success: (message, data = null) => {
-    console.log(`✅ CHIPAX: ${message}`, data ? data : '');
+    console.log(`✅ CHIPAX: ${message}`, data || '');
   },
   warning: (message, data = null) => {
-    console.warn(`⚠️ CHIPAX: ${message}`, data ? data : '');
+    console.warn(`⚠️ CHIPAX: ${message}`, data || '');
   },
   error: (message, error = null) => {
-    console.error(`❌ CHIPAX: ${message}`, error ? error : '');
-  },
-  debug: (message, data = null) => {
-    console.log(`🔍 CHIPAX DEBUG: ${message}`, data ? data : '');
+    console.error(`❌ CHIPAX: ${message}`, error || '');
   }
 };
 
@@ -54,9 +46,7 @@ const log = {
 export const getChipaxToken = async () => {
   const now = new Date();
   
-  // Verificar token en cache
   if (tokenCache.token && tokenCache.expiresAt && tokenCache.expiresAt > now) {
-    log.debug('Usando token en cache');
     return tokenCache.token;
   }
 
@@ -83,7 +73,7 @@ export const getChipaxToken = async () => {
     const data = await response.json();
     
     if (!data.token) {
-      throw new Error('Token no recibido en la respuesta');
+      throw new Error('Token no recibido');
     }
 
     tokenCache = {
@@ -102,7 +92,7 @@ export const getChipaxToken = async () => {
 };
 
 // =====================================================
-// FUNCIÓN BÁSICA DE PETICIÓN
+// PETICIÓN BÁSICA
 // =====================================================
 
 export const fetchFromChipax = async (endpoint, options = {}, retries = 0) => {
@@ -142,13 +132,10 @@ export const fetchFromChipax = async (endpoint, options = {}, retries = 0) => {
   } catch (error) {
     if (error.name === 'AbortError') {
       log.error(`Timeout en petición: ${endpoint}`);
-    } else {
-      log.error(`Error en petición: ${endpoint}`, error);
     }
     
-    // Reintentar si es posible
     if (retries < PAGINATION_CONFIG.MAX_RETRIES) {
-      log.info(`Reintentando petición ${endpoint} (${retries + 1}/${PAGINATION_CONFIG.MAX_RETRIES})`);
+      log.info(`Reintentando ${endpoint} (${retries + 1}/${PAGINATION_CONFIG.MAX_RETRIES})`);
       await new Promise(resolve => setTimeout(resolve, PAGINATION_CONFIG.RETRY_DELAY));
       return fetchFromChipax(endpoint, options, retries + 1);
     }
@@ -158,58 +145,48 @@ export const fetchFromChipax = async (endpoint, options = {}, retries = 0) => {
 };
 
 // =====================================================
-// FUNCIÓN DE PAGINACIÓN OPTIMIZADA
+// PAGINACIÓN COMPLETA
 // =====================================================
 
 export const fetchAllPaginatedData = async (baseEndpoint, maxPages = null) => {
-  log.info(`🚀 Iniciando carga paginada completa: ${baseEndpoint}`);
+  log.info(`🚀 Iniciando paginación completa: ${baseEndpoint}`);
   
   try {
-    // Paso 1: Obtener primera página para conocer la estructura
-    log.debug('Obteniendo primera página...');
+    // Obtener primera página
     const firstPageEndpoint = `${baseEndpoint}${baseEndpoint.includes('?') ? '&' : '?'}page=1`;
     const firstPageData = await fetchFromChipax(firstPageEndpoint);
     
-    // Verificar si hay paginación
     if (!firstPageData.paginationAttributes) {
-      log.info('No hay paginación detectada, devolviendo datos directos');
+      log.info('No hay paginación, devolviendo datos directos');
       return firstPageData;
     }
     
-    const { totalPages, totalCount, currentPage } = firstPageData.paginationAttributes;
+    const { totalPages, totalCount } = firstPageData.paginationAttributes;
     const itemsInFirstPage = firstPageData.items ? firstPageData.items.length : 0;
     
-    log.info(`📊 Paginación detectada:`, {
-      totalPages,
-      totalCount,
-      currentPage,
-      itemsInFirstPage
-    });
+    log.info(`📊 Paginación detectada: ${totalPages} páginas, ${totalCount} items total`);
     
-    // Si solo hay una página, devolverla
     if (totalPages <= 1) {
       log.success(`✅ Solo 1 página, ${itemsInFirstPage} items obtenidos`);
       return firstPageData;
     }
     
-    // Determinar cuántas páginas cargar
     const pagesToLoad = maxPages ? Math.min(totalPages, maxPages) : totalPages;
     
     if (maxPages && totalPages > maxPages) {
-      log.warning(`⚠️ Limitando carga a ${maxPages} páginas de ${totalPages} totales`);
+      log.warning(`⚠️ Limitando a ${maxPages} páginas de ${totalPages} totales`);
     }
     
-    // Paso 2: Cargar páginas restantes de forma optimizada
     return await loadRemainingPages(baseEndpoint, firstPageData, pagesToLoad);
     
   } catch (error) {
-    log.error('Error en carga paginada', error);
+    log.error('Error en paginación completa', error);
     return { items: [], paginationAttributes: null };
   }
 };
 
 // =====================================================
-// FUNCIÓN PARA CARGAR PÁGINAS RESTANTES
+// CARGA DE PÁGINAS RESTANTES
 // =====================================================
 
 const loadRemainingPages = async (baseEndpoint, firstPageData, totalPagesToLoad) => {
@@ -219,15 +196,24 @@ const loadRemainingPages = async (baseEndpoint, firstPageData, totalPagesToLoad)
   
   log.info(`📥 Cargando ${totalPagesToLoad - 1} páginas restantes...`);
   
-  // Crear lotes de páginas para cargar en paralelo
-  const batches = createPageBatches(2, totalPagesToLoad, PAGINATION_CONFIG.BATCH_SIZE);
+  // Crear lotes de páginas
+  const batches = [];
+  for (let page = 2; page <= totalPagesToLoad; page += PAGINATION_CONFIG.BATCH_SIZE) {
+    const batch = [];
+    for (let i = page; i < Math.min(page + PAGINATION_CONFIG.BATCH_SIZE, totalPagesToLoad + 1); i++) {
+      batch.push(i);
+    }
+    if (batch.length > 0) {
+      batches.push(batch);
+    }
+  }
   
+  // Procesar cada lote
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
     const batch = batches[batchIndex];
     const batchNumber = batchIndex + 1;
-    const totalBatches = batches.length;
     
-    log.debug(`📦 Procesando lote ${batchNumber}/${totalBatches} (páginas ${batch[0]}-${batch[batch.length - 1]})`);
+    log.info(`📦 Lote ${batchNumber}/${batches.length} (páginas ${batch[0]}-${batch[batch.length - 1]})`);
     
     try {
       // Cargar páginas del lote en paralelo
@@ -237,23 +223,20 @@ const loadRemainingPages = async (baseEndpoint, firstPageData, totalPagesToLoad)
           const pageData = await fetchFromChipax(pageEndpoint);
           
           if (pageData.items && Array.isArray(pageData.items)) {
-            log.debug(`✅ Página ${pageNumber}: ${pageData.items.length} items`);
             return {
               pageNumber,
               items: pageData.items,
               success: true
             };
           } else {
-            log.warning(`⚠️ Página ${pageNumber}: Sin items`);
             return {
               pageNumber,
               items: [],
               success: false,
-              error: 'Sin items en la respuesta'
+              error: 'Sin items'
             };
           }
         } catch (error) {
-          log.error(`❌ Error en página ${pageNumber}`, error);
           return {
             pageNumber,
             items: [],
@@ -263,10 +246,8 @@ const loadRemainingPages = async (baseEndpoint, firstPageData, totalPagesToLoad)
         }
       });
       
-      // Esperar resultados del lote
       const batchResults = await Promise.allSettled(batchPromises);
       
-      // Procesar resultados
       let batchItemCount = 0;
       let batchFailures = 0;
       
@@ -289,18 +270,17 @@ const loadRemainingPages = async (baseEndpoint, firstPageData, totalPagesToLoad)
       
       log.info(`📊 Lote ${batchNumber} completado: ${batchItemCount} items, ${batchFailures} fallos`);
       
-      // Pausa entre lotes para evitar saturar la API
+      // Pausa entre lotes
       if (batchIndex < batches.length - 1) {
         await new Promise(resolve => setTimeout(resolve, PAGINATION_CONFIG.BATCH_DELAY));
       }
       
     } catch (error) {
-      log.error(`❌ Error procesando lote ${batchNumber}`, error);
+      log.error(`❌ Error en lote ${batchNumber}`, error);
       failedPages += batch.length;
     }
   }
   
-  // Resultado final
   const finalResult = {
     items: allItems,
     paginationAttributes: {
@@ -312,37 +292,17 @@ const loadRemainingPages = async (baseEndpoint, firstPageData, totalPagesToLoad)
     }
   };
   
-  log.success(`🎉 Carga completa: ${allItems.length} items de ${loadedPages}/${totalPagesToLoad} páginas`);
+  log.success(`🎉 Paginación completa: ${allItems.length} items de ${loadedPages}/${totalPagesToLoad} páginas`);
   
   if (failedPages > 0) {
-    log.warning(`⚠️ ${failedPages} páginas fallaron durante la carga`);
+    log.warning(`⚠️ ${failedPages} páginas fallaron`);
   }
   
   return finalResult;
 };
 
 // =====================================================
-// FUNCIÓN PARA CREAR LOTES DE PÁGINAS
-// =====================================================
-
-const createPageBatches = (startPage, endPage, batchSize) => {
-  const batches = [];
-  
-  for (let page = startPage; page <= endPage; page += batchSize) {
-    const batch = [];
-    for (let i = page; i < Math.min(page + batchSize, endPage + 1); i++) {
-      batch.push(i);
-    }
-    if (batch.length > 0) {
-      batches.push(batch);
-    }
-  }
-  
-  return batches;
-};
-
-// =====================================================
-// SERVICIOS ESPECÍFICOS CON PAGINACIÓN COMPLETA
+// SERVICIOS CON PAGINACIÓN
 // =====================================================
 
 export const IngresosService = {
@@ -350,20 +310,18 @@ export const IngresosService = {
     log.info('📊 Obteniendo TODAS las facturas de venta...');
     try {
       const result = await fetchAllPaginatedData('/dtes?porCobrar=1', limitPages);
-      log.success(`✅ Facturas de venta obtenidas: ${result.items.length} items`);
+      log.success(`✅ Facturas de venta: ${result.items.length} items`);
       return result;
     } catch (error) {
-      log.error('Error obteniendo facturas de venta', error);
+      log.error('Error facturas de venta', error);
       return { items: [], paginationAttributes: null };
     }
   },
   
-  // Función específica para debug de paginación
   debugPagination: async (endpoint = '/dtes?porCobrar=1', maxPages = 5) => {
     log.info(`🔍 DEBUG: Analizando paginación de ${endpoint}`);
     
     try {
-      // Obtener primera página
       const firstPage = await fetchFromChipax(`${endpoint}&page=1`);
       
       const debugInfo = {
@@ -382,7 +340,6 @@ export const IngresosService = {
           willTestPages: Math.min(maxPages, totalPages)
         };
         
-        // Probar algunas páginas adicionales
         const testPages = Math.min(maxPages, totalPages);
         const testResults = [];
         
@@ -416,7 +373,7 @@ export const IngresosService = {
       return debugInfo;
       
     } catch (error) {
-      log.error('Error en debug de paginación', error);
+      log.error('Error en debug', error);
       return { error: error.message, endpoint };
     }
   }
@@ -430,7 +387,7 @@ export const BancoService = {
       log.success('✅ Datos bancarios obtenidos');
       return data;
     } catch (error) {
-      log.error('Error obteniendo datos bancarios', error);
+      log.error('Error datos bancarios', error);
       return { cuentasCorrientes: [], arrFlujoCaja: [] };
     }
   }
@@ -444,7 +401,7 @@ export const ReportesService = {
       log.success('✅ Flujo de caja obtenido');
       return data;
     } catch (error) {
-      log.error('Error obteniendo flujo de caja', error);
+      log.error('Error flujo de caja', error);
       return { arrFlujoCaja: [] };
     }
   }
@@ -457,13 +414,12 @@ export const EgresosService = {
       const response = await fetchAllPaginatedData('/compras', limitPages);
       
       if (!response || !response.items) {
-        log.warning('⚠️ No se recibieron facturas de compra');
+        log.warning('⚠️ No hay facturas de compra');
         return { items: [] };
       }
       
-      log.info(`📊 Total facturas de compra obtenidas: ${response.items.length}`);
+      log.info(`📊 Total facturas de compra: ${response.items.length}`);
       
-      // Filtrar facturas pendientes de pago
       const facturasPendientes = response.items.filter(factura => {
         try {
           const estaPagada = factura.pagada === true || 
@@ -474,7 +430,6 @@ export const EgresosService = {
           
           return esAceptada && !estaPagada;
         } catch (err) {
-          log.warning('⚠️ Error procesando factura:', factura.id);
           return false;
         }
       });
@@ -487,18 +442,18 @@ export const EgresosService = {
       };
       
     } catch (error) {
-      log.error('Error obteniendo facturas de compra', error);
+      log.error('Error facturas de compra', error);
       return { items: [] };
     }
   },
   
   getFacturasPendientesAprobacion: async () => {
-    log.info('⏳ Obteniendo facturas pendientes de aprobación...');
+    log.info('⏳ Facturas pendientes de aprobación...');
     return [];
   },
   
   getPagosProgramados: async () => {
-    log.info('📅 Obteniendo pagos programados...');
+    log.info('📅 Pagos programados...');
     return [];
   }
 };
@@ -508,21 +463,21 @@ export const AjustesService = {
     log.info('👥 Obteniendo TODOS los clientes...');
     try {
       const data = await fetchAllPaginatedData('/clientes', limitPages);
-      log.success(`✅ Clientes obtenidos: ${data.items.length} items`);
+      log.success(`✅ Clientes: ${data.items.length} items`);
       return data;
     } catch (error) {
-      log.error('Error obteniendo clientes', error);
+      log.error('Error clientes', error);
       return { items: [] };
     }
   }
 };
 
 // =====================================================
-// FUNCIÓN PRINCIPAL PARA CARGAR TODOS LOS DATOS
+// FUNCIÓN PRINCIPAL
 // =====================================================
 
 export const fetchAllChipaxData = async (fechaInicio, fechaFin, limitPages = null) => {
-  log.info('🚀 Iniciando carga completa de datos de Chipax...');
+  log.info('🚀 Carga completa de Chipax...');
   log.info(`📅 Rango: ${fechaInicio} - ${fechaFin}`);
   
   if (limitPages) {
@@ -537,8 +492,8 @@ export const fetchAllChipaxData = async (fechaInicio, fechaFin, limitPages = nul
     AjustesService.getClientes(limitPages)
   ]);
 
-  log.info('📊 Resumen de resultados:');
-  const labels = ['Saldos Bancarios', 'Facturas Venta', 'Facturas Compra', 'Flujo Caja', 'Clientes'];
+  log.info('📊 Resumen:');
+  const labels = ['Saldos', 'Ventas', 'Compras', 'Flujo', 'Clientes'];
   
   results.forEach((result, index) => {
     if (result.status === 'fulfilled') {
@@ -546,7 +501,7 @@ export const fetchAllChipaxData = async (fechaInicio, fechaFin, limitPages = nul
       const count = data.items ? data.items.length : 
                    data.arrFlujoCaja ? data.arrFlujoCaja.length :
                    Array.isArray(data) ? data.length : 'objeto';
-      log.success(`✅ ${labels[index]}: ${count} elementos`);
+      log.success(`✅ ${labels[index]}: ${count}`);
     } else {
       log.error(`❌ ${labels[index]}: ${result.reason?.message}`);
     }
@@ -564,12 +519,12 @@ export const fetchAllChipaxData = async (fechaInicio, fechaFin, limitPages = nul
     pagosProgramados: []
   };
   
-  log.success('✅ Carga completa de datos finalizada');
+  log.success('✅ Carga completa finalizada');
   return datosFinales;
 };
 
 // =====================================================
-// EXPORTACIÓN DEFAULT
+// EXPORTACIÓN
 // =====================================================
 
 export default {
