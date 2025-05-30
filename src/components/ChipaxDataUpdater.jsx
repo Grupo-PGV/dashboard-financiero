@@ -477,4 +477,54 @@ const ChipaxDataUpdater = ({
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-              <span className="text-sm text-gray-600">Saldos
+              <span className="text-sm text-gray-600">Saldos Bancarios</span>
+              {renderStatus(updateStatus.saldos)}
+            </div>
+            
+            <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+              <span className="text-sm text-gray-600">Cuentas por Cobrar</span>
+              {renderStatus(updateStatus.cuentasPendientes)}
+            </div>
+            
+            <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+              <span className="text-sm text-gray-600">Cuentas por Pagar</span>
+              {renderStatus(updateStatus.cuentasPorPagar)}
+            </div>
+            
+            <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+              <span className="text-sm text-gray-600">Facturas Pendientes</span>
+              {renderStatus(updateStatus.facturasPendientes)}
+            </div>
+            
+            <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+              <span className="text-sm text-gray-600">Flujo de Caja</span>
+              {renderStatus(updateStatus.flujoCaja)}
+            </div>
+            
+            <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+              <span className="text-sm text-gray-600">Clientes</span>
+              {renderStatus(updateStatus.clientes)}
+            </div>
+            
+            <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+              <span className="text-sm text-gray-600">Egresos Programados</span>
+              {renderStatus(updateStatus.egresosProgramados)}
+            </div>
+          </div>
+          
+          {/* Información del sistema */}
+          <div className="mt-4 text-xs text-gray-500">
+            <p>💡 Los datos se obtienen de Chipax a través de su API oficial.</p>
+            <p>🔄 La sincronización actualiza todos los módulos disponibles con datos en tiempo real.</p>
+            <p>🛡️ Sistema con manejo robusto de errores para evitar interrupciones.</p>
+          </div>
+          
+          {/* Log de debugging */}
+          {renderDebugInfo()}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ChipaxDataUpdater;
