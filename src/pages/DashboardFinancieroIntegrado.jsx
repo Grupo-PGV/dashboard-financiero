@@ -4,6 +4,7 @@ import { AlertCircle, Calendar, Filter, Info, Wallet, PieChart, TrendingUp } fro
 
 // Importaciones de componentes - RUTAS CORREGIDAS
 import ChipaxDebugger from '../components/ChipaxDebugger';
+import PaginationDebugger from '../components/PaginationDebugger';
 import ChipaxDataUpdater from '../components/ChipaxDataUpdater';
 import BankBalanceCard from '../components/BankBalanceCard';
 import CashFlowChart from '../components/CashFlowChart';
@@ -297,6 +298,11 @@ const DashboardFinancieroIntegrado = () => {
             onApprove={handleAprobarFactura}
             onReject={handleRechazarFactura}
           />
+        </div>
+
+        {/* PAGINATION DEBUGGER - AGREGADO PARA DEBUG */}
+        <div className="mb-6">
+          <PaginationDebugger />
         </div>
 
         {/* CHIPAX DEBUGGER - AGREGADO AQUÍ */}
