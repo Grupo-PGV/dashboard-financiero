@@ -30,6 +30,7 @@ const AccountsReceivableTable = ({
   
   // Formatear moneda
   const formatCurrency = (amount, currency = 'CLP') => {
+    if (!amount && amount !== 0) return '$0';
     return new Intl.NumberFormat('es-CL', { 
       style: 'currency', 
       currency,
@@ -40,23 +41,31 @@ const AccountsReceivableTable = ({
   // Formatear fecha
   const formatDate = (date) => {
     if (!date) return '-';
-    return new Date(date).toLocaleDateString('es-CL');
+    try {
+      return new Date(date).toLocaleDateString('es-CL');
+    } catch (error) {
+      return '-';
+    }
   };
   
   // Calcular días restantes a partir de la fecha de vencimiento
   const getDaysRemaining = (dueDate) => {
     if (!dueDate) return null;
     
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const vencimiento = new Date(dueDate);
-    vencimiento.setHours(0, 0, 0, 0);
-    
-    const diffTime = vencimiento - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    return diffDays;
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const vencimiento = new Date(dueDate);
+      vencimiento.setHours(0, 0, 0, 0);
+      
+      const diffTime = vencimiento - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      return diffDays;
+    } catch (error) {
+      return null;
+    }
   };
   
   // Obtener clase de estilo según los días restantes
@@ -115,16 +124,20 @@ const AccountsReceivableTable = ({
   useEffect(() => {
     if (loading) return;
     
-    let filtered = [...cuentas];
+    let filtered = Array.isArray(cuentas) ? [...cuentas] : [];
     
     // Aplicar filtro de búsqueda
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(cuenta => 
-        cuenta.cliente.nombre.toLowerCase().includes(term) ||
-        cuenta.cliente.rut.toLowerCase().includes(term) ||
-        cuenta.folio.toString().toLowerCase().includes(term)
-      );
+      filtered = filtered.filter(cuenta => {
+        const clienteNombre = cuenta.cliente?.nombre || cuenta.cliente || '';
+        const clienteRut = cuenta.cliente?.rut || '';
+        const folio = (cuenta.folio || cuenta.numeroFactura || '').toString();
+        
+        return clienteNombre.toLowerCase().includes(term) ||
+               clienteRut.toLowerCase().includes(term) ||
+               folio.toLowerCase().includes(term);
+      });
     }
     
     // Aplicar filtro de estado
@@ -155,24 +168,24 @@ const AccountsReceivableTable = ({
           valueB = b.fechaVencimiento ? new Date(b.fechaVencimiento).getTime() : Infinity;
           break;
         case 'cliente':
-          valueA = a.cliente.nombre.toLowerCase();
-          valueB = b.cliente.nombre.toLowerCase();
+          valueA = (a.cliente?.nombre || a.cliente || '').toLowerCase();
+          valueB = (b.cliente?.nombre || b.cliente || '').toLowerCase();
           break;
         case 'folio':
-          valueA = parseInt(a.folio) || 0;
-          valueB = parseInt(b.folio) || 0;
+          valueA = parseInt(a.folio || a.numeroFactura || 0) || 0;
+          valueB = parseInt(b.folio || b.numeroFactura || 0) || 0;
           break;
         case 'monto':
-          valueA = a.monto || 0;
-          valueB = b.monto || 0;
+          valueA = a.monto || a.montoTotal || 0;
+          valueB = b.monto || b.montoTotal || 0;
           break;
         case 'saldo':
           valueA = a.saldo || 0;
           valueB = b.saldo || 0;
           break;
         default:
-          valueA = a[sortField];
-          valueB = b[sortField];
+          valueA = a[sortField] || '';
+          valueB = b[sortField] || '';
       }
       
       // Comparar según la dirección de ordenamiento
@@ -202,7 +215,7 @@ const AccountsReceivableTable = ({
   };
   
   // Calcular total de cuentas por cobrar
-  const totalPorCobrar = filteredCuentas.reduce((sum, cuenta) => sum + cuenta.saldo, 0);
+  const totalPorCobrar = filteredCuentas.reduce((sum, cuenta) => sum + (cuenta.saldo || 0), 0);
   
   // Calcular número de cuentas vencidas
   const cuentasVencidas = filteredCuentas.filter(cuenta => getDaysRemaining(cuenta.fechaVencimiento) < 0).length;
@@ -387,17 +400,23 @@ const AccountsReceivableTable = ({
           </thead>
           <tbody className="text-gray-700 text-sm divide-y divide-gray-100">
             {currentItems.length > 0 ? (
-              currentItems.map((cuenta) => (
-                <tr key={cuenta.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{cuenta.folio}</td>
+              currentItems.map((cuenta, index) => (
+                <tr key={cuenta.id || index} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium">
+                    {cuenta.folio || cuenta.numeroFactura || 'Sin folio'}
+                  </td>
                   <td className="px-4 py-3">
                     <div>
-                      <p className="font-medium">{cuenta.cliente.nombre}</p>
-                      <p className="text-gray-500 text-xs">{cuenta.cliente.rut}</p>
+                      <p className="font-medium">
+                        {cuenta.cliente?.nombre || cuenta.cliente || 'Cliente desconocido'}
+                      </p>
+                      <p className="text-gray-500 text-xs">
+                        {cuenta.cliente?.rut || 'Sin RUT'}
+                      </p>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {formatCurrency(cuenta.monto, cuenta.moneda)}
+                    {formatCurrency(cuenta.monto || cuenta.montoTotal, cuenta.moneda)}
                   </td>
                   <td className="px-4 py-3 text-right font-medium">
                     {formatCurrency(cuenta.saldo, cuenta.moneda)}
@@ -478,3 +497,6 @@ const AccountsReceivableTable = ({
     </div>
   );
 };
+
+// ¡ESTA ES LA LÍNEA MÁS IMPORTANTE!
+export default AccountsReceivableTable;
