@@ -1,401 +1,509 @@
-// chipaxAdapter.js - Optimizado para datos reales de Chipax
-console.log('🔄 Inicializando chipaxAdapter optimizado...');
+// chipaxAdapter.js - Versión corregida con validaciones robustas
 
-/**
- * Adapta saldos bancarios de Chipax
- * NOTA: Esta cuenta no tiene cuentas bancarias configuradas, 
- * pero intentamos extraer datos del flujo de caja si están disponibles
- */
+// =====================================================
+// FUNCIONES DE UTILIDAD Y VALIDACIÓN
+// =====================================================
+
+const logAdapter = (functionName, input, output) => {
+  console.log(`🔄 ${functionName} - Input:`, typeof input, Array.isArray(input) ? `Array(${input.length})` : 'Object');
+  console.log(`✅ ${functionName} - Output:`, Array.isArray(output) ? `Array(${output.length})` : typeof output);
+};
+
+const validateInput = (data, expectedType, functionName) => {
+  if (!data) {
+    console.warn(`⚠️ ${functionName}: Datos de entrada son null o undefined`);
+    return false;
+  }
+  
+  if (expectedType === 'array' && !Array.isArray(data)) {
+    console.warn(`⚠️ ${functionName}: Se esperaba array pero se recibió ${typeof data}`);
+    return false;
+  }
+  
+  if (expectedType === 'object' && typeof data !== 'object') {
+    console.warn(`⚠️ ${functionName}: Se esperaba objeto pero se recibió ${typeof data}`);
+    return false;
+  }
+  
+  return true;
+};
+
+const safeParseFloat = (value, defaultValue = 0) => {
+  if (value === null || value === undefined || value === '') return defaultValue;
+  const parsed = parseFloat(value);
+  return isNaN(parsed) ? defaultValue : parsed;
+};
+
+const safeString = (value, defaultValue = '') => {
+  if (value === null || value === undefined) return defaultValue;
+  return String(value);
+};
+
+// =====================================================
+// FUNCIONES DE ADAPTACIÓN
+// =====================================================
+
 const adaptSaldosBancarios = (response) => {
-  console.log('🔄 adaptSaldosBancarios - Procesando respuesta...');
+  console.log('🔄 adaptSaldosBancarios - Iniciando adaptación');
   
-  if (!response) {
-    console.warn('⚠️ No se recibieron datos bancarios');
+  if (!validateInput(response, 'object', 'adaptSaldosBancarios')) {
     return [];
   }
 
-  // Si hay datos de flujo de caja, intentar extraer información bancaria
-  if (response.arrFlujoCaja && Array.isArray(response.arrFlujoCaja)) {
-    console.log('📊 Procesando datos de flujo de caja para saldos...');
+  const cuentasBancarias = [];
+  
+  try {
+    // Verificar diferentes estructuras posibles
+    const flujoCajaData = response.arrFlujoCaja || response.flujoCaja || response.cuentasCorrientes || [];
     
-    const cuentasBancarias = [];
-    
-    response.arrFlujoCaja.forEach((flujo, index) => {
-      if (flujo.idCuentaCorriente || flujo.nombreCuenta) {
-        cuentasBancarias.push({
-          id: flujo.idCuentaCorriente || `cuenta_${index}`,
-          nombre: flujo.nombreCuenta || `Cuenta ${flujo.idCuentaCorriente || index}`,
-          banco: flujo.banco || 'Banco no especificado',
-          numeroCuenta: flujo.idCuentaCorriente?.toString() || '',
-          tipo: 'cuenta_corriente',
-          moneda: 'CLP',
-          saldo: flujo.saldoPeriodo || flujo.saldo || 0,
-          disponible: flujo.saldoPeriodo || flujo.saldo || 0,
-          ultimoMovimiento: flujo.fecha || null
-        });
+    if (!Array.isArray(flujoCajaData)) {
+      console.warn('⚠️ No se encontró array de flujo de caja válido');
+      return [];
+    }
+
+    flujoCajaData.forEach((flujo, index) => {
+      try {
+        if (flujo && flujo.idCuentaCorriente) {
+          cuentasBancarias.push({
+            id: flujo.idCuentaCorriente || `cuenta_${index}`,
+            nombre: safeString(flujo.nombreCuenta || flujo.nombre, `Cuenta ${flujo.idCuentaCorriente || index}`),
+            banco: safeString(flujo.nombreBanco || flujo.banco, 'Banco no especificado'),
+            numeroCuenta: safeString(flujo.numeroCuenta || flujo.idCuentaCorriente, ''),
+            tipo: safeString(flujo.tipo, 'cuenta_corriente'),
+            moneda: safeString(flujo.moneda, 'CLP'),
+            saldo: safeParseFloat(flujo.saldoPeriodo || flujo.saldo || flujo.saldoActual),
+            disponible: safeParseFloat(flujo.saldoDisponible || flujo.saldoPeriodo || flujo.saldo),
+            ultimoMovimiento: flujo.fechaUltimoMovimiento || flujo.ultimaActualizacion || new Date().toISOString()
+          });
+        }
+      } catch (err) {
+        console.warn(`⚠️ Error procesando cuenta bancaria ${index}:`, err);
       }
     });
 
-    console.log(`✅ Cuentas bancarias extraídas del flujo: ${cuentasBancarias.length}`);
+    logAdapter('adaptSaldosBancarios', response, cuentasBancarias);
     return cuentasBancarias;
+    
+  } catch (error) {
+    console.error('❌ Error en adaptSaldosBancarios:', error);
+    return [];
   }
-
-  // Si hay cuentas corrientes directas
-  if (response.cuentasCorrientes && Array.isArray(response.cuentasCorrientes)) {
-    console.log('🏦 Procesando cuentas corrientes directas...');
-    return response.cuentasCorrientes.map(cuenta => ({
-      id: cuenta.id,
-      nombre: cuenta.nombre || cuenta.alias || 'Cuenta sin nombre',
-      banco: cuenta.banco || 'Banco no especificado',
-      numeroCuenta: cuenta.numero || cuenta.cuenta || '',
-      tipo: cuenta.tipo || 'cuenta_corriente',
-      moneda: cuenta.moneda || 'CLP',
-      saldo: cuenta.saldo || 0,
-      disponible: cuenta.disponible || cuenta.saldo || 0,
-      ultimoMovimiento: cuenta.ultimoMovimiento || null
-    }));
-  }
-
-  console.log('ℹ️ No hay cuentas bancarias configuradas en esta cuenta de Chipax');
-  return [];
 };
 
-/**
- * Adapta cuentas por cobrar (DTEs de venta)
- * CONFIRMADO: 42 facturas disponibles
- */
 const adaptCuentasPendientes = (facturas) => {
-  console.log('🔄 adaptCuentasPendientes - Procesando facturas por cobrar...');
+  console.log('🔄 adaptCuentasPendientes - Iniciando adaptación');
   
-  if (!facturas || !facturas.items || !Array.isArray(facturas.items)) {
-    console.warn('⚠️ No se recibieron facturas por cobrar válidas');
+  if (!validateInput(facturas, 'object', 'adaptCuentasPendientes')) {
     return [];
   }
 
-  console.log(`📊 Procesando ${facturas.items.length} facturas por cobrar...`);
-  
-  const cuentasAdaptadas = facturas.items.map(factura => {
-    // Calcular saldo pendiente
-    const montoTotal = factura.montoTotal || factura.total || 0;
-    const montoPagado = factura.montoPagado || factura.pagado_monto || 0;
-    const saldoPendiente = montoTotal - montoPagado;
+  try {
+    // Manejar diferentes estructuras de datos
+    const items = facturas.items || facturas.data || (Array.isArray(facturas) ? facturas : []);
     
-    return {
-      id: factura.id,
-      folio: factura.folio || factura.numero || 'Sin folio',
-      cliente: {
-        rut: factura.rutReceptor || factura.rut_receptor || 'Sin RUT',
-        nombre: factura.razonSocial || factura.razon_social || factura.cliente || 'Cliente sin nombre'
-      },
-      fechaEmision: factura.fechaEmision || factura.fecha_emision || factura.fecha,
-      fechaVencimiento: factura.fechaVencimiento || factura.fecha_vencimiento || factura.fechaEmision,
-      montoTotal: montoTotal,
-      saldo: saldoPendiente > 0 ? saldoPendiente : montoTotal, // Si no hay pagos, usar monto total
-      moneda: factura.moneda || 'CLP',
-      estado: factura.estado || 'pendiente',
-      diasVencidos: calcularDiasVencidos(factura.fechaVencimiento || factura.fecha_vencimiento)
-    };
-  }).filter(cuenta => cuenta.saldo > 0); // Solo facturas con saldo pendiente
+    if (!Array.isArray(items)) {
+      console.warn('⚠️ No se encontraron items válidos en facturas');
+      return [];
+    }
 
-  console.log(`✅ Cuentas por cobrar adaptadas: ${cuentasAdaptadas.length} con saldo pendiente`);
-  
-  // Mostrar total por cobrar
-  const totalPorCobrar = cuentasAdaptadas.reduce((sum, cuenta) => sum + cuenta.saldo, 0);
-  console.log(`💰 Total por cobrar: ${totalPorCobrar.toLocaleString('es-CL', { style: 'currency', currency: 'CLP' })}`);
-  
-  return cuentasAdaptadas;
-};
+    const cuentasAdaptadas = items.map((factura, index) => {
+      try {
+        // Calcular saldo pendiente de manera segura
+        const montoTotal = safeParseFloat(factura.montoTotal || factura.total || factura.monto);
+        const montoPagado = safeParseFloat(factura.montoPagado || factura.pagado || factura.abonos);
+        const saldoPendiente = Math.max(0, montoTotal - montoPagado);
+        
+        // Obtener información del cliente de manera flexible
+        const nombreCliente = factura.razonSocial || 
+                             factura.cliente?.nombre || 
+                             factura.cliente ||
+                             factura.nombreCliente ||
+                             'Cliente sin nombre';
+        
+        const rutCliente = factura.rutReceptor || 
+                          factura.cliente?.rut || 
+                          factura.rut || 
+                          factura.rutCliente ||
+                          'Sin RUT';
 
-/**
- * Adapta cuentas por pagar (facturas de compra)
- * CONFIRMADO: 50 facturas por pagar disponibles
- */
-const adaptCuentasPorPagar = (facturas) => {
-  console.log('🔄 adaptCuentasPorPagar - Procesando facturas por pagar...');
-  
-  if (!facturas || !facturas.items || !Array.isArray(facturas.items)) {
-    console.warn('⚠️ No se recibieron facturas por pagar válidas');
-    return [];
-  }
-
-  console.log(`📊 Procesando ${facturas.items.length} facturas por pagar...`);
-  
-  const facturasAdaptadas = facturas.items.map(factura => {
-    // Manejar diferentes formatos de monto
-    const montoTotal = factura.monto_total || 
-                      factura.montoTotal || 
-                      factura.total || 
-                      factura.monto || 
-                      0;
-    
-    // Para facturas por pagar, el saldo generalmente es el total si no está pagada
-    const saldoPendiente = factura.saldo || 
-                          factura.monto_por_pagar || 
-                          factura.montoPorPagar ||
-                          montoTotal;
-    
-    return {
-      id: factura.id,
-      folio: factura.folio || factura.numero || 'Sin folio',
-      proveedor: {
-        nombre: factura.razon_social || factura.razonSocial || factura.proveedor || 'Proveedor no especificado',
-        rut: factura.rut_emisor || factura.rutEmisor || factura.rut || 'Sin RUT'
-      },
-      fechaEmision: factura.fecha_emision || factura.fechaEmision || factura.fecha,
-      fechaVencimiento: factura.fecha_vencimiento || factura.fechaVencimiento,
-      fechaPago: factura.fecha_pago_interna || factura.fechaPagoInterna,
-      montoTotal: parseFloat(montoTotal),
-      saldo: parseFloat(saldoPendiente),
-      moneda: factura.moneda || 'CLP',
-      estado: factura.estado || 'por_pagar',
-      estadoPago: factura.estado_pago || factura.estadoPago || 'pendiente',
-      pagado: factura.pagado || false,
-      diasVencidos: calcularDiasVencidos(factura.fecha_vencimiento || factura.fechaVencimiento),
-      observaciones: factura.observaciones || factura.notas || ''
-    };
-  });
-  
-  console.log(`✅ Facturas por pagar adaptadas: ${facturasAdaptadas.length}`);
-  
-  // Mostrar estadísticas
-  const totalPorPagar = facturasAdaptadas.reduce((sum, f) => sum + f.saldo, 0);
-  const vencidas = facturasAdaptadas.filter(f => f.diasVencidos > 0).length;
-  
-  console.log(`💰 Total por pagar: ${totalPorPagar.toLocaleString('es-CL', { style: 'currency', currency: 'CLP' })}`);
-  console.log(`⚠️ Facturas vencidas: ${vencidas}`);
-  
-  return facturasAdaptadas;
-};
-
-/**
- * Adapta facturas pendientes de aprobación
- * NOTA: Esta cuenta no tiene flujo de aprobación configurado
- */
-const adaptFacturasPendientesAprobacion = (facturas) => {
-  console.log('🔄 adaptFacturasPendientesAprobacion - Esta cuenta no tiene flujo de aprobación');
-  
-  if (!facturas || !Array.isArray(facturas)) {
-    return [];
-  }
-
-  // En caso de que en el futuro se configure flujo de aprobación
-  return facturas.map(factura => ({
-    id: factura.id,
-    folio: factura.folio || factura.numero,
-    proveedor: {
-      nombre: factura.razon_social || factura.proveedor || 'Proveedor desconocido',
-      rut: factura.rut_emisor || factura.rut || 'Sin RUT'
-    },
-    fechaEmision: factura.fecha_emision || factura.fecha,
-    fechaRecepcion: factura.fecha_recepcion || factura.fecha,
-    monto: factura.monto_total || factura.total || 0,
-    moneda: factura.moneda || 'CLP',
-    estado: factura.estado || 'pendiente_aprobacion',
-    responsableAprobacion: factura.responsable || 'No asignado',
-    diasEnEspera: calcularDiasDesde(factura.fecha_recepcion || factura.fecha)
-  }));
-};
-
-/**
- * Adapta flujo de caja
- * CONFIRMADO: Datos disponibles en /flujo-caja/init
- */
-const adaptFlujoCaja = (response, saldoInicial = 0) => {
-  console.log('🔄 adaptFlujoCaja - Procesando datos de flujo de caja...');
-  
-  if (!response) {
-    console.warn('⚠️ No se recibieron datos de flujo de caja');
-    return { periodos: [], saldoInicial: 0, saldoFinal: 0 };
-  }
-
-  let periodos = [];
-  let saldoActual = saldoInicial;
-
-  // Procesar datos de flujo de caja
-  if (response.arrFlujoCaja && Array.isArray(response.arrFlujoCaja)) {
-    console.log(`📊 Procesando ${response.arrFlujoCaja.length} períodos de flujo...`);
-    
-    periodos = response.arrFlujoCaja.map(flujo => {
-      const ingresos = flujo.ingresos || 0;
-      const egresos = flujo.egresos || 0;
-      const flujoNeto = ingresos - egresos;
-      
-      saldoActual += flujoNeto;
-      
-      return {
-        fecha: flujo.fecha || flujo.periodo,
-        mes: flujo.mes,
-        anio: flujo.anio,
-        ingresos: ingresos,
-        egresos: egresos,
-        flujoNeto: flujoNeto,
-        saldoAcumulado: saldoActual,
-        descripcion: flujo.descripcion || ''
-      };
-    });
-  } else {
-    console.log('ℹ️ No hay datos específicos de flujo de caja, generando datos básicos...');
-    
-    // Generar un período básico si no hay datos específicos
-    const hoy = new Date();
-    periodos = [{
-      fecha: hoy.toISOString().split('T')[0],
-      mes: hoy.getMonth() + 1,
-      anio: hoy.getFullYear(),
-      ingresos: 0,
-      egresos: 0,
-      flujoNeto: 0,
-      saldoAcumulado: saldoInicial,
-      descripcion: 'Período actual'
-    }];
-  }
-
-  const resultado = {
-    saldoInicial: saldoInicial,
-    saldoFinal: saldoActual,
-    periodos: periodos
-  };
-
-  console.log(`✅ Flujo de caja adaptado: ${periodos.length} períodos`);
-  console.log(`💰 Saldo final calculado: ${saldoActual.toLocaleString('es-CL', { style: 'currency', currency: 'CLP' })}`);
-  
-  return resultado;
-};
-
-/**
- * Adapta egresos programados
- * NOTA: Esta cuenta no tiene pagos programados
- */
-const adaptEgresosProgramados = (pagos) => {
-  console.log('🔄 adaptEgresosProgramados - Esta cuenta no tiene pagos programados');
-  
-  if (!pagos || !Array.isArray(pagos)) {
-    return [];
-  }
-
-  return pagos.map(pago => ({
-    id: pago.id,
-    fechaPago: pago.fecha_programada || pago.fechaProgramada || pago.fecha,
-    beneficiario: {
-      nombre: pago.razon_social || pago.beneficiario || 'Beneficiario no especificado',
-      rut: pago.rut || 'Sin RUT'
-    },
-    concepto: pago.concepto || pago.descripcion || `Pago a ${pago.razon_social || 'beneficiario'}`,
-    monto: pago.monto || 0,
-    moneda: pago.moneda || 'CLP',
-    estado: pago.estado || 'programado',
-    categoria: pago.categoria || 'pago_proveedor',
-    diasParaPago: calcularDiasHasta(pago.fecha_programada || pago.fecha)
-  }));
-};
-
-/**
- * Adapta información de bancos
- */
-const adaptBancos = (response) => {
-  console.log('🔄 adaptBancos - Procesando información de bancos...');
-  
-  if (!response) {
-    return [];
-  }
-
-  const bancosUnicos = {};
-  
-  // Extraer bancos del flujo de caja si está disponible
-  if (response.arrFlujoCaja && Array.isArray(response.arrFlujoCaja)) {
-    response.arrFlujoCaja.forEach(flujo => {
-      if (flujo.idCuentaCorriente && flujo.nombreCuenta) {
-        const bancoNombre = flujo.banco || extraerBancoDeCuenta(flujo.nombreCuenta);
-        bancosUnicos[flujo.idCuentaCorriente] = {
-          id: flujo.idCuentaCorriente,
-          nombre: bancoNombre,
-          alias: flujo.nombreCuenta,
-          tipo: 'cuenta_corriente'
+        return {
+          id: factura.id || factura._id || `factura_${index}`,
+          folio: safeString(factura.folio || factura.numero || factura.numeroFactura),
+          cliente: {
+            nombre: safeString(nombreCliente),
+            rut: safeString(rutCliente)
+          },
+          monto: montoTotal,
+          saldo: saldoPendiente,
+          moneda: safeString(factura.moneda || factura.currency, 'CLP'),
+          fechaEmision: factura.fechaEmision || factura.fecha || factura.created_at || new Date().toISOString(),
+          fechaVencimiento: factura.fechaVencimiento || factura.dueDate || factura.fecha_vencimiento,
+          estado: safeString(factura.estado || factura.status, 'pendiente'),
+          diasVencidos: calcularDiasVencidos(factura.fechaVencimiento || factura.dueDate)
         };
+      } catch (err) {
+        console.warn(`⚠️ Error procesando factura ${index}:`, err);
+        return null;
+      }
+    }).filter(cuenta => cuenta !== null && cuenta.saldo > 0);
+
+    logAdapter('adaptCuentasPendientes', facturas, cuentasAdaptadas);
+    return cuentasAdaptadas;
+    
+  } catch (error) {
+    console.error('❌ Error en adaptCuentasPendientes:', error);
+    return [];
+  }
+};
+
+const adaptCuentasPorPagar = (facturas) => {
+  console.log('🔄 adaptCuentasPorPagar - Iniciando adaptación');
+  
+  if (!validateInput(facturas, 'object', 'adaptCuentasPorPagar')) {
+    return [];
+  }
+
+  try {
+    // Manejar diferentes estructuras de entrada
+    const items = Array.isArray(facturas) ? facturas : 
+                 (facturas.items || facturas.data || []);
+    
+    if (!Array.isArray(items)) {
+      console.warn('⚠️ No se encontraron items válidos en facturas por pagar');
+      return [];
+    }
+
+    const facturasAdaptadas = items.map((factura, index) => {
+      try {
+        // Calcular montos de manera flexible y segura
+        const montoTotal = safeParseFloat(
+          factura.total || 
+          factura.monto_total || 
+          factura.montoTotal || 
+          factura.monto || 
+          factura.totalFacturado
+        );
+        
+        const saldoPendiente = safeParseFloat(
+          factura.saldo || 
+          factura.monto_por_pagar || 
+          factura.montoPorPagar ||
+          factura.saldoPendiente ||
+          montoTotal // Si no hay campo de saldo, usar el total
+        );
+        
+        // Obtener información del proveedor de manera flexible
+        const nombreProveedor = factura.proveedor?.nombre || 
+                               factura.proveedor || 
+                               factura.nombre_proveedor || 
+                               factura.nombreProveedor ||
+                               factura.razonSocial ||
+                               'Proveedor no especificado';
+                               
+        const rutProveedor = factura.proveedor?.rut || 
+                            factura.rut_proveedor || 
+                            factura.rutProveedor ||
+                            factura.proveedor_rut ||
+                            factura.rutEmisor ||
+                            'Sin RUT';
+
+        return {
+          id: factura.id || factura._id || `factura_pagar_${index}`,
+          folio: safeString(factura.folio || factura.numero || factura.numeroFactura),
+          proveedor: {
+            nombre: safeString(nombreProveedor),
+            rut: safeString(rutProveedor)
+          },
+          monto: montoTotal,
+          saldo: saldoPendiente,
+          moneda: safeString(factura.moneda || factura.currency, 'CLP'),
+          fechaEmision: factura.fecha_emision || factura.fechaEmision || factura.fecha || factura.created_at || new Date().toISOString(),
+          fechaVencimiento: factura.fecha_vencimiento || factura.fechaVencimiento || factura.due_date,
+          fechaPago: factura.fechaPagoInterna || factura.fecha_pago,
+          diasVencidos: calcularDiasVencidos(factura.fecha_vencimiento || factura.fechaVencimiento || factura.due_date),
+          estado: safeString(factura.estado || factura.status, 'Pendiente'),
+          estadoPago: safeString(factura.estado_pago || factura.estadoPago, 'Pendiente'),
+          observaciones: safeString(factura.observaciones || factura.notas)
+        };
+      } catch (err) {
+        console.warn(`⚠️ Error procesando factura por pagar ${index}:`, err);
+        return null;
+      }
+    }).filter(factura => factura !== null);
+
+    logAdapter('adaptCuentasPorPagar', facturas, facturasAdaptadas);
+    
+    // Mostrar resumen financiero
+    const totalPorPagar = facturasAdaptadas.reduce((sum, f) => sum + f.saldo, 0);
+    console.log(`💰 Total por pagar: ${totalPorPagar.toLocaleString('es-CL', { style: 'currency', currency: 'CLP' })}`);
+    
+    return facturasAdaptadas;
+    
+  } catch (error) {
+    console.error('❌ Error en adaptCuentasPorPagar:', error);
+    return [];
+  }
+};
+
+const adaptFacturasPendientesAprobacion = (facturas) => {
+  console.log('🔄 adaptFacturasPendientesAprobacion - Iniciando adaptación');
+  
+  if (!Array.isArray(facturas)) {
+    console.warn('⚠️ No se recibieron facturas pendientes válidas');
+    return [];
+  }
+
+  try {
+    const facturasAdaptadas = facturas.map((factura, index) => {
+      try {
+        return {
+          id: factura.id || `factura_pendiente_${index}`,
+          folio: safeString(factura.folio || factura.numero),
+          proveedor: {
+            nombre: safeString(factura.razonSocial || factura.proveedor || factura.nombreProveedor),
+            rut: safeString(factura.rutProveedor || factura.rut)
+          },
+          monto: safeParseFloat(factura.montoTotal || factura.monto || factura.total),
+          moneda: safeString(factura.moneda, 'CLP'),
+          fechaEmision: factura.fechaEmision || factura.fecha || new Date().toISOString(),
+          fechaRecepcion: factura.fechaRecepcion || factura.fechaIngreso || new Date().toISOString(),
+          diasEnEspera: calcularDiasEspera(factura.fechaRecepcion || factura.fechaIngreso),
+          estado: safeString(factura.estado, 'pendiente_aprobacion'),
+          responsableAprobacion: safeString(factura.responsable || factura.aprobador, 'No asignado')
+        };
+      } catch (err) {
+        console.warn(`⚠️ Error procesando factura pendiente ${index}:`, err);
+        return null;
+      }
+    }).filter(factura => factura !== null);
+
+    logAdapter('adaptFacturasPendientesAprobacion', facturas, facturasAdaptadas);
+    return facturasAdaptadas;
+    
+  } catch (error) {
+    console.error('❌ Error en adaptFacturasPendientesAprobacion:', error);
+    return [];
+  }
+};
+
+const adaptFlujoCaja = (response, saldoInicial = 0) => {
+  console.log('🔄 adaptFlujoCaja - Iniciando adaptación');
+  
+  if (!validateInput(response, 'object', 'adaptFlujoCaja')) {
+    return {
+      saldoInicial: saldoInicial,
+      saldoFinal: saldoInicial,
+      periodos: []
+    };
+  }
+
+  try {
+    const flujoCajaArray = response.arrFlujoCaja || response.flujoCaja || response.periodos || [];
+    
+    if (!Array.isArray(flujoCajaArray)) {
+      console.warn('⚠️ No se encontró array de flujo de caja válido');
+      return {
+        saldoInicial: saldoInicial,
+        saldoFinal: saldoInicial,
+        periodos: []
+      };
+    }
+
+    let saldoAcumulado = saldoInicial;
+    const periodosAdaptados = [];
+
+    flujoCajaArray.forEach((flujo, index) => {
+      try {
+        const ingresos = safeParseFloat(flujo.ingresos || flujo.entradas || flujo.ingreso);
+        const egresos = safeParseFloat(flujo.egresos || flujo.salidas || flujo.egreso);
+        const flujoNeto = ingresos - egresos;
+        
+        saldoAcumulado += flujoNeto;
+
+        periodosAdaptados.push({
+          fecha: flujo.fecha || flujo.periodo || new Date().toISOString(),
+          mes: flujo.mes,
+          anio: flujo.anio || flujo.año,
+          ingresos: ingresos,
+          egresos: egresos,
+          flujoNeto: flujoNeto,
+          saldoAcumulado: saldoAcumulado,
+          descripcion: safeString(flujo.descripcion || flujo.concepto)
+        });
+      } catch (err) {
+        console.warn(`⚠️ Error procesando periodo de flujo ${index}:`, err);
       }
     });
-  }
 
-  const bancos = Object.values(bancosUnicos);
-  console.log(`✅ Bancos extraídos: ${bancos.length}`);
-  
-  return bancos;
+    const resultado = {
+      saldoInicial: saldoInicial,
+      saldoFinal: saldoAcumulado,
+      periodos: periodosAdaptados
+    };
+
+    logAdapter('adaptFlujoCaja', response, resultado);
+    return resultado;
+    
+  } catch (error) {
+    console.error('❌ Error en adaptFlujoCaja:', error);
+    return {
+      saldoInicial: saldoInicial,
+      saldoFinal: saldoInicial,
+      periodos: []
+    };
+  }
 };
 
-// ===== FUNCIONES AUXILIARES =====
+const adaptEgresosProgramados = (pagos) => {
+  console.log('🔄 adaptEgresosProgramados - Iniciando adaptación');
+  
+  if (!Array.isArray(pagos)) {
+    console.warn('⚠️ No se recibieron pagos programados válidos');
+    return [];
+  }
 
-/**
- * Calcula días vencidos desde una fecha
- */
+  try {
+    const egresosAdaptados = pagos.map((pago, index) => {
+      try {
+        return {
+          id: pago.id || `pago_${index}`,
+          concepto: safeString(pago.concepto || pago.descripcion, 'Pago programado'),
+          beneficiario: {
+            nombre: safeString(pago.razonSocial || pago.proveedor || pago.beneficiario),
+            rut: safeString(pago.rut || pago.rutBeneficiario)
+          },
+          monto: safeParseFloat(pago.monto || pago.importe),
+          moneda: safeString(pago.moneda, 'CLP'),
+          fechaPago: pago.fechaProgramada || pago.fecha || pago.fechaPago,
+          diasParaPago: calcularDiasParaPago(pago.fechaProgramada || pago.fecha),
+          categoria: safeString(pago.categoria || pago.tipo, 'Pago general'),
+          estado: safeString(pago.estado, 'programado')
+        };
+      } catch (err) {
+        console.warn(`⚠️ Error procesando pago programado ${index}:`, err);
+        return null;
+      }
+    }).filter(pago => pago !== null);
+
+    logAdapter('adaptEgresosProgramados', pagos, egresosAdaptados);
+    return egresosAdaptados;
+    
+  } catch (error) {
+    console.error('❌ Error en adaptEgresosProgramados:', error);
+    return [];
+  }
+};
+
+const adaptBancos = (response) => {
+  console.log('🔄 adaptBancos - Iniciando adaptación');
+  
+  if (!validateInput(response, 'object', 'adaptBancos')) {
+    return [];
+  }
+
+  try {
+    const flujoCajaData = response.arrFlujoCaja || response.flujoCaja || response.cuentasCorrientes || [];
+    
+    if (!Array.isArray(flujoCajaData)) {
+      return [];
+    }
+
+    const bancosUnicos = {};
+    
+    flujoCajaData.forEach((flujo, index) => {
+      try {
+        if (flujo && flujo.idCuentaCorriente) {
+          const bancoId = flujo.idBanco || flujo.idCuentaCorriente;
+          const nombreBanco = flujo.nombreBanco || flujo.nombreCuenta || `Banco ${bancoId}`;
+          
+          if (!bancosUnicos[bancoId]) {
+            bancosUnicos[bancoId] = {
+              id: bancoId,
+              nombre: safeString(nombreBanco),
+              tipo: safeString(flujo.tipoCuenta || flujo.tipo, 'cuenta_corriente'),
+              codigo: safeString(flujo.codigoBanco || flujo.codigo)
+            };
+          }
+        }
+      } catch (err) {
+        console.warn(`⚠️ Error procesando banco ${index}:`, err);
+      }
+    });
+
+    const bancos = Object.values(bancosUnicos);
+    logAdapter('adaptBancos', response, bancos);
+    return bancos;
+    
+  } catch (error) {
+    console.error('❌ Error en adaptBancos:', error);
+    return [];
+  }
+};
+
+// =====================================================
+// FUNCIONES AUXILIARES
+// =====================================================
+
 const calcularDiasVencidos = (fechaVencimiento) => {
   if (!fechaVencimiento) return 0;
   
   try {
     const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    
     const vencimiento = new Date(fechaVencimiento);
+    
+    // Limpiar horas para comparar solo fechas
+    hoy.setHours(0, 0, 0, 0);
     vencimiento.setHours(0, 0, 0, 0);
     
-    const diferencia = hoy - vencimiento;
+    const diferencia = hoy.getTime() - vencimiento.getTime();
     return Math.floor(diferencia / (1000 * 60 * 60 * 24));
   } catch (error) {
-    console.warn('Error calculando días vencidos:', error);
+    console.warn('⚠️ Error calculando días vencidos:', error);
     return 0;
   }
 };
 
-/**
- * Calcula días desde una fecha
- */
-const calcularDiasDesde = (fecha) => {
-  if (!fecha) return 0;
+const calcularDiasEspera = (fechaRecepcion) => {
+  if (!fechaRecepcion) return 0;
   
   try {
     const hoy = new Date();
-    const fechaInicio = new Date(fecha);
-    const diferencia = hoy - fechaInicio;
-    return Math.floor(diferencia / (1000 * 60 * 60 * 24));
+    const recepcion = new Date(fechaRecepcion);
+    
+    hoy.setHours(0, 0, 0, 0);
+    recepcion.setHours(0, 0, 0, 0);
+    
+    const diferencia = hoy.getTime() - recepcion.getTime();
+    return Math.max(0, Math.floor(diferencia / (1000 * 60 * 60 * 24)));
   } catch (error) {
+    console.warn('⚠️ Error calculando días de espera:', error);
     return 0;
   }
 };
 
-/**
- * Calcula días hasta una fecha
- */
-const calcularDiasHasta = (fecha) => {
-  if (!fecha) return 0;
+const calcularDiasParaPago = (fechaPago) => {
+  if (!fechaPago) return null;
   
   try {
     const hoy = new Date();
-    const fechaFutura = new Date(fecha);
-    const diferencia = fechaFutura - hoy;
+    const pago = new Date(fechaPago);
+    
+    hoy.setHours(0, 0, 0, 0);
+    pago.setHours(0, 0, 0, 0);
+    
+    const diferencia = pago.getTime() - hoy.getTime();
     return Math.floor(diferencia / (1000 * 60 * 60 * 24));
   } catch (error) {
-    return 0;
+    console.warn('⚠️ Error calculando días para pago:', error);
+    return null;
   }
 };
 
-/**
- * Extrae nombre del banco de una cuenta
- */
-const extraerBancoDeCuenta = (nombreCuenta) => {
-  if (!nombreCuenta) return 'Banco no especificado';
-  
-  const bancos = ['BCI', 'Santander', 'Chile', 'Estado', 'Itau', 'Security', 'Falabella', 'Ripley'];
-  
-  for (const banco of bancos) {
-    if (nombreCuenta.toUpperCase().includes(banco.toUpperCase())) {
-      return `Banco ${banco}`;
-    }
-  }
-  
-  return 'Banco no identificado';
-};
+// =====================================================
+// EXPORTACIÓN
+// =====================================================
 
-// Exportar todas las funciones
-const chipaxAdapter = {
+export default {
   adaptSaldosBancarios,
   adaptCuentasPendientes,
   adaptCuentasPorPagar,
@@ -404,9 +512,3 @@ const chipaxAdapter = {
   adaptEgresosProgramados,
   adaptBancos
 };
-
-export default chipaxAdapter;
-
-console.log('✅ chipaxAdapter optimizado para datos reales de Chipax');
-
-
