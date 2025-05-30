@@ -1,11 +1,13 @@
 // DashboardFinancieroIntegrado.jsx
-import React, { useState, useEffect } from 'react';
-import { AlertCircle, Calendar, Filter, Info, Wallet, PieChart, TrendingUp } from 'lucide-react';
-import ChipaxDataUpdater from './ChipaxDataUpdater';
-import BankBalanceCard from './BankBalanceCard';
-import CashFlowChart from './CashFlowChart';
-import AccountsReceivableTable from './AccountsReceivableTable';
-import PendingInvoicesComponent from './PendingInvoicesComponent';
+import React, { useState } from 'react';
+import { AlertCircle, Wallet, PieChart, TrendingUp } from 'lucide-react';
+
+// ✅ IMPORTACIONES CORREGIDAS - Todas desde components
+import ChipaxDataUpdater from '../components/ChipaxDataUpdater';
+import BankBalanceCard from '../components/BankBalanceCard';
+import CashFlowChart from '../components/CashFlowChart';
+import AccountsReceivableTable from '../components/AccountsReceivableTable';
+import PendingInvoicesComponent from '../components/PendingInvoicesComponent';
 
 const DashboardFinancieroIntegrado = () => {
   const [saldosBancarios, setSaldosBancarios] = useState([]);
@@ -20,14 +22,9 @@ const DashboardFinancieroIntegrado = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [periodoFlujo, setPeriodoFlujo] = useState('mensual');
-  const [fechasRango, setFechasRango] = useState({
-    fechaInicio: new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().split('T')[0],
-    fechaFin: new Date().toISOString().split('T')[0]
-  });
 
   const handleDataSourceChange = (source) => setDataSource(source);
   const handleFlujoCajaPeriodChange = (periodo) => setPeriodoFlujo(periodo);
-  const handleDateRangeChange = (newRange) => setFechasRango(newRange);
 
   const handleExportToExcel = (dataType) => {
     alert(`Exportación a Excel de ${dataType} no implementada.`);
@@ -35,7 +32,6 @@ const DashboardFinancieroIntegrado = () => {
 
   const calcularSaldoTotal = () => saldosBancarios.reduce((acc, c) => acc + c.saldo, 0);
   const calcularTotalPorCobrar = () => cuentasPendientes.reduce((acc, c) => acc + c.saldo, 0);
-  const calcularTotalPorPagar = () => cuentasPorPagar.reduce((acc, c) => acc + c.saldo, 0);
 
   const handleAprobarFactura = (id) => setFacturasPendientes(prev => prev.filter(f => f.id !== id));
   const handleRechazarFactura = (id) => setFacturasPendientes(prev => prev.filter(f => f.id !== id));
@@ -47,7 +43,7 @@ const DashboardFinancieroIntegrado = () => {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b">
         <div className="container mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard Financiero</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard Financiero GrupoPGV</h1>
           <p className="text-gray-600">Gestiona tus finanzas en tiempo real con datos de Chipax</p>
         </div>
       </header>
