@@ -1,4 +1,4 @@
-// chipaxService.js - Versión corregida con paginación mejorada
+// chipaxService.js - CORREGIDO con endpoints REALES de Chipax
 const CHIPAX_API_URL = '/v2'; // Usa proxy
 const APP_ID = '605e0aa5-ca0c-4513-b6ef-0030ac1f0849';
 const SECRET_KEY = 'f01974df-86e1-45a0-924f-75961ea926fc';
@@ -43,7 +43,7 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
       ...options,
       headers: {
         ...options.headers,
-        'Authorization': `JWT ${token}`,
+        'Authorization': `Bearer ${token}`, // Cambiado de JWT a Bearer
         'Content-Type': 'application/json'
       }
     });
@@ -66,8 +66,12 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
       if (data.paginationAttributes) {
         console.log('📄 Info de paginación:', data.paginationAttributes);
       }
-      if (data.items && Array.isArray(data.items)) {
+      if (Array.isArray(data)) {
+        console.log(`📋 Items directos: ${data.length}`);
+      } else if (data.items && Array.isArray(data.items)) {
         console.log(`📋 Items en esta página: ${data.items.length}`);
+      } else {
+        console.log('📊 Tipo de respuesta:', typeof data);
       }
     }
     
@@ -78,7 +82,7 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
   }
 };
 
-// 🔧 FUNCIÓN DE PAGINACIÓN CORREGIDA
+// 🔧 FUNCIÓN DE PAGINACIÓN CORREGIDA para endpoints reales
 export const fetchAllPaginatedData = async (baseEndpoint, maxRetries = 3) => {
   console.log(`📊 🔄 INICIANDO CARGA PAGINADA DE: ${baseEndpoint}`);
   
@@ -87,29 +91,50 @@ export const fetchAllPaginatedData = async (baseEndpoint, maxRetries = 3) => {
     console.log('📄 Obteniendo primera página para análisis...');
     const firstPageData = await fetchFromChipax(`${baseEndpoint}${baseEndpoint.includes('?') ? '&' : '?'}page=1`);
     
-    // 2. VERIFICAR SI HAY PAGINACIÓN
-    if (!firstPageData.paginationAttributes) {
-      console.log('ℹ️ No hay paginación detectada, devolviendo datos directos');
-      return firstPageData;
+    // 2. VERIFICAR FORMATO DE RESPUESTA
+    let items = [];
+    let paginationInfo = null;
+    
+    if (Array.isArray(firstPageData)) {
+      // Respuesta directa como array (sin paginación)
+      console.log('ℹ️ Respuesta directa como array, sin paginación detectada');
+      return {
+        items: firstPageData,
+        paginationInfo: null
+      };
+    } else if (firstPageData.items && Array.isArray(firstPageData.items)) {
+      // Formato con items y posible paginación
+      items = firstPageData.items;
+      paginationInfo = firstPageData.paginationAttributes || firstPageData.pagination;
+    } else {
+      // Formato desconocido
+      console.warn('⚠️ Formato de respuesta desconocido:', firstPageData);
+      return {
+        items: [],
+        paginationInfo: null
+      };
     }
     
-    const { totalPages, totalCount, currentPage } = firstPageData.paginationAttributes;
+    // 3. VERIFICAR SI HAY PAGINACIÓN
+    if (!paginationInfo || !paginationInfo.totalPages || paginationInfo.totalPages <= 1) {
+      console.log('ℹ️ No hay paginación o solo una página');
+      return {
+        items: items,
+        paginationInfo: null
+      };
+    }
+    
+    const { totalPages, totalCount, currentPage } = paginationInfo;
     console.log(`📊 ANÁLISIS DE PAGINACIÓN:`);
     console.log(`   - Total de páginas: ${totalPages}`);
     console.log(`   - Total de items: ${totalCount}`);
     console.log(`   - Página actual: ${currentPage}`);
-    console.log(`   - Items en primera página: ${firstPageData.items?.length || 0}`);
-    
-    // 3. SI SOLO HAY UNA PÁGINA, RETORNAR
-    if (totalPages <= 1) {
-      console.log('✅ Solo hay una página, proceso completado');
-      return firstPageData;
-    }
+    console.log(`   - Items en primera página: ${items.length}`);
     
     // 4. CARGAR TODAS LAS PÁGINAS RESTANTES
     console.log(`🔄 Cargando ${totalPages - 1} páginas adicionales...`);
     
-    let allItems = [...(firstPageData.items || [])];
+    let allItems = [...items];
     const failedPages = [];
     
     // Crear promesas para todas las páginas restantes
@@ -122,7 +147,7 @@ export const fetchAllPaginatedData = async (baseEndpoint, maxRetries = 3) => {
     }
     
     // 5. EJECUTAR TODAS LAS PETICIONES EN PARALELO (pero con límite)
-    const BATCH_SIZE = 5; // Máximo 5 peticiones simultáneas
+    const BATCH_SIZE = 3; // Reducido para ser más conservador
     const results = [];
     
     for (let i = 0; i < pagePromises.length; i += BATCH_SIZE) {
@@ -133,15 +158,33 @@ export const fetchAllPaginatedData = async (baseEndpoint, maxRetries = 3) => {
       // Log de progreso
       const processedPages = Math.min(i + BATCH_SIZE, pagePromises.length);
       console.log(`📊 Progreso: ${processedPages + 1}/${totalPages} páginas procesadas`);
+      
+      // Pequeña pausa entre lotes para no sobrecargar la API
+      if (i + BATCH_SIZE < pagePromises.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
     
     // 6. PROCESAR RESULTADOS
     results.forEach((result, index) => {
       const pageNumber = index + 2; // +2 porque empezamos desde la página 2
       
-      if (result.status === 'fulfilled' && result.value?.items) {
-        allItems.push(...result.value.items);
-        console.log(`✅ Página ${pageNumber}: ${result.value.items.length} items obtenidos`);
+      if (result.status === 'fulfilled' && result.value) {
+        const pageData = result.value;
+        let pageItems = [];
+        
+        if (Array.isArray(pageData)) {
+          pageItems = pageData;
+        } else if (pageData.items && Array.isArray(pageData.items)) {
+          pageItems = pageData.items;
+        }
+        
+        if (pageItems.length > 0) {
+          allItems.push(...pageItems);
+          console.log(`✅ Página ${pageNumber}: ${pageItems.length} items obtenidos`);
+        } else {
+          console.warn(`⚠️ Página ${pageNumber}: Sin items`);
+        }
       } else {
         console.error(`❌ Página ${pageNumber}: Error - ${result.reason?.message || 'Error desconocido'}`);
         failedPages.push(pageNumber);
@@ -155,13 +198,7 @@ export const fetchAllPaginatedData = async (baseEndpoint, maxRetries = 3) => {
     console.log(`   ⚠️ Páginas fallidas: ${failedPages.length} ${failedPages.length > 0 ? `(${failedPages.join(', ')})` : ''}`);
     console.log(`   📈 Eficiencia: ${((allItems.length / totalCount) * 100).toFixed(1)}%\n`);
     
-    // 8. ADVERTIR SI HAY PÁGINAS FALLIDAS
-    if (failedPages.length > 0) {
-      console.warn(`⚠️ ADVERTENCIA: ${failedPages.length} páginas no se pudieron cargar. Datos incompletos.`);
-    }
-    
     return {
-      ...firstPageData,
       items: allItems,
       paginationInfo: {
         totalPagesRequested: totalPages,
@@ -200,39 +237,74 @@ const fetchPageWithRetry = async (endpoint, pageNumber, maxRetries = 3) => {
   }
 };
 
-// 🔧 SERVICIOS MEJORADOS
+// 🔧 SERVICIOS CON ENDPOINTS REALES
 
 export const IngresosService = {
   getFacturasVenta: async () => {
-    console.log('📊 Obteniendo TODAS las facturas de venta...');
-    return await fetchAllPaginatedData('/dtes?porCobrar=1');
+    console.log('📊 Obteniendo facturas de venta...');
+    // Usar endpoint real /ventas
+    return await fetchAllPaginatedData('/ventas');
   },
+  
+  getFacturasPorCobrar: async () => {
+    console.log('📊 Obteniendo facturas por cobrar...');
+    // Usar endpoint real /dtes (Documentos Tributarios Electrónicos)
+    const dtes = await fetchAllPaginatedData('/dtes');
+    
+    // Filtrar solo facturas por cobrar (sin fecha de pago)
+    if (dtes.items) {
+      const facturasPorCobrar = dtes.items.filter(dte => {
+        // Filtrar solo facturas sin pago
+        return !dte.fecha_pago_interna && !dte.pagado && dte.tipo === 'factura';
+      });
+      
+      console.log(`💰 Facturas por cobrar filtradas: ${facturasPorCobrar.length}/${dtes.items.length}`);
+      
+      return {
+        ...dtes,
+        items: facturasPorCobrar
+      };
+    }
+    
+    return dtes;
+  }
 };
 
 export const BancoService = {
   getSaldosBancarios: async () => {
-    console.log('🏦 Obteniendo saldos bancarios...');
-    const data = await fetchFromChipax('/flujo-caja/init');
-    return data;
+    console.log('🏦 Obteniendo cuentas corrientes...');
+    // Usar endpoint real /cuentas_corrientes
+    return await fetchFromChipax('/cuentas_corrientes');
+  },
+  
+  getMovimientosBancarios: async () => {
+    console.log('🏦 Obteniendo cartolas bancarias...');
+    // Usar endpoint real /cartolas
+    return await fetchAllPaginatedData('/cartolas');
   }
 };
 
 export const ReportesService = {
-  getFlujoCaja: async () => {
-    console.log('💰 Obteniendo flujo de caja...');
-    const data = await fetchFromChipax('/flujo-caja/init');
-    return data;
+  getKPIs: async () => {
+    console.log('📊 Obteniendo KPIs...');
+    // Usar endpoint real /kpis
+    return await fetchFromChipax('/kpis');
+  },
+  
+  getProyecciones: async () => {
+    console.log('📈 Obteniendo proyecciones...');
+    // Usar endpoint real /proyecciones
+    return await fetchFromChipax('/proyecciones');
   }
 };
 
 export const EgresosService = {
-  // 🔧 FUNCIÓN PRINCIPAL CORREGIDA
   getFacturasCompra: async () => {
     try {
-      console.log('🛒 📊 OBTENIENDO TODAS LAS FACTURAS DE COMPRA (CON PAGINACIÓN MEJORADA)...');
+      console.log('🛒 📊 OBTENIENDO FACTURAS DE COMPRA (USANDO ENDPOINT REAL)...');
       
-      // ✅ USAR LA FUNCIÓN DE PAGINACIÓN CORREGIDA
-      const response = await fetchAllPaginatedData('/compras?pagado=false');
+      // ✅ USAR ENDPOINT REAL /compras
+      const response = await fetchAllPaginatedData('/compras');
       
       if (!response || !response.items) {
         console.warn('⚠️ No se recibieron facturas de compra');
@@ -241,10 +313,6 @@ export const EgresosService = {
       
       console.log(`📊 🎯 FACTURAS DE COMPRA OBTENIDAS:`);
       console.log(`   📋 Total de facturas: ${response.items.length}`);
-      if (response.paginationInfo) {
-        console.log(`   📄 Páginas cargadas: ${response.paginationInfo.totalPagesLoaded}/${response.paginationInfo.totalPagesRequested}`);
-        console.log(`   📈 Completitud: ${response.paginationInfo.completenessPercent.toFixed(1)}%`);
-      }
       
       // Análisis de ejemplo de la primera factura
       if (response.items.length > 0) {
@@ -253,41 +321,36 @@ export const EgresosService = {
         console.log('   - ID:', primerFactura.id);
         console.log('   - Folio:', primerFactura.folio);
         console.log('   - Estado:', primerFactura.estado);
-        console.log('   - Total:', primerFactura.total);
-        console.log('   - Estado pago:', primerFactura.estado_pago);
-        console.log('   - Proveedor:', primerFactura.proveedor?.nombre || 'N/A');
+        console.log('   - Total:', primerFactura.monto_total || primerFactura.total);
+        console.log('   - Pagado:', primerFactura.pagado);
+        console.log('   - Fecha pago:', primerFactura.fecha_pago_interna);
+        console.log('   - Proveedor:', primerFactura.razon_social);
       }
       
-      // Filtrar facturas pendientes de pago
+      // Filtrar facturas pendientes de pago (sin filtro en endpoint, filtrar localmente)
       const facturasPendientesPago = response.items.filter(factura => {
-        const estaPagada = factura.pagada === true || 
-                          factura.pagado === true || 
-                          factura.estado_pago === 'pagado' ||
-                          factura.estado_pago === 'Pagado';
+        // Una factura está pendiente si NO está pagada
+        const estaPagada = factura.pagado === true || 
+                          factura.fecha_pago_interna !== null;
         
-        const tieneSaldoExplicito = factura.saldo > 0 || factura.monto_por_pagar > 0;
-        const estadoPendiente = factura.estado === 'aceptado' || 
-                              factura.estado === 'pendiente' ||
-                              factura.estado_pago === 'pendiente';
-        
-        return !estaPagada && (tieneSaldoExplicito || estadoPendiente);
+        return !estaPagada;
       });
       
       console.log(`✅ 🎯 RESUMEN DE FACTURAS POR PAGAR:`);
       console.log(`   📊 Total de facturas obtenidas: ${response.items.length}`);
       console.log(`   💰 Facturas pendientes de pago: ${facturasPendientesPago.length}`);
       
-      // Mostrar distribución de estados
-      const estadosCount = {};
+      // Mostrar distribución de estados de pago
+      const estadosPago = {};
       response.items.forEach(f => {
-        const estado = f.estado || 'sin_estado';
-        estadosCount[estado] = (estadosCount[estado] || 0) + 1;
+        const pagado = f.pagado ? 'Pagado' : 'Pendiente';
+        estadosPago[pagado] = (estadosPago[pagado] || 0) + 1;
       });
-      console.log('📈 Distribución de estados:', estadosCount);
+      console.log('📈 Distribución de estados de pago:', estadosPago);
       
       return {
         ...response,
-        items: facturasPendientesPago.length > 0 ? facturasPendientesPago : response.items.filter(f => f.estado === 'aceptado')
+        items: facturasPendientesPago
       };
     } catch (error) {
       console.error('💥 ERROR OBTENIENDO FACTURAS POR PAGAR:', error);
@@ -296,36 +359,59 @@ export const EgresosService = {
   },
   
   getFacturasPendientesAprobacion: async () => {
-    console.log('⏳ No hay endpoint disponible para facturas pendientes de aprobación');
-    return [];
+    console.log('⏳ Intentando obtener facturas pendientes...');
+    // Nota: No hay endpoint específico documentado para esto
+    // Podríamos usar /compras y filtrar por estado
+    try {
+      const compras = await fetchFromChipax('/compras');
+      // Filtrar por estado pendiente de aprobación si existe ese campo
+      return [];
+    } catch (error) {
+      console.log('⏳ No hay endpoint para facturas pendientes de aprobación');
+      return [];
+    }
   },
   
   getPagosProgramados: async () => {
-    console.log('📅 No hay endpoint disponible para pagos programados');
-    return [];
+    console.log('📅 Intentando obtener pagos...');
+    // Usar endpoint real /pagos
+    try {
+      return await fetchAllPaginatedData('/pagos');
+    } catch (error) {
+      console.log('📅 Error obteniendo pagos');
+      return [];
+    }
   }
 };
 
 export const AjustesService = {
   getClientes: async () => {
-    console.log('👥 Obteniendo todos los clientes...');
+    console.log('👥 Obteniendo clientes...');
+    // ✅ USAR ENDPOINT REAL /clientes
     return await fetchAllPaginatedData('/clientes');
+  },
+  
+  getProveedores: async () => {
+    console.log('🏢 Obteniendo proveedores...');
+    // ✅ USAR ENDPOINT REAL /proveedores
+    return await fetchAllPaginatedData('/proveedores');
   }
 };
 
-// 🔧 FUNCIÓN PRINCIPAL MEJORADA
+// 🔧 FUNCIÓN PRINCIPAL MEJORADA CON ENDPOINTS REALES
 export const fetchAllChipaxData = async (fechaInicio, fechaFin) => {
-  console.log('🚀 🔄 INICIANDO CARGA COMPLETA DE DATOS DE CHIPAX...');
+  console.log('🚀 🔄 INICIANDO CARGA COMPLETA DE DATOS DE CHIPAX (ENDPOINTS REALES)...');
   console.log(`📅 Rango de fechas: ${fechaInicio} - ${fechaFin}`);
   
   const startTime = Date.now();
   
   const results = await Promise.allSettled([
     BancoService.getSaldosBancarios(),
-    IngresosService.getFacturasVenta(),
-    EgresosService.getFacturasCompra(), // 🎯 Ahora usa paginación mejorada
-    ReportesService.getFlujoCaja(),
-    AjustesService.getClientes()
+    IngresosService.getFacturasPorCobrar(), // Cambiado para usar facturas por cobrar filtradas
+    EgresosService.getFacturasCompra(),
+    ReportesService.getKPIs(),
+    AjustesService.getClientes(),
+    AjustesService.getProveedores()
   ]);
 
   const endTime = Date.now();
@@ -333,13 +419,20 @@ export const fetchAllChipaxData = async (fechaInicio, fechaFin) => {
 
   console.log(`\n📊 🎯 RESUMEN COMPLETO DE CARGA DE DATOS (${duration}s):`);
   
-  const dataNames = ['Saldos Bancarios', 'Facturas de Venta', 'Facturas de Compra', 'Flujo de Caja', 'Clientes'];
+  const dataNames = ['Cuentas Corrientes', 'Facturas por Cobrar', 'Facturas de Compra', 'KPIs', 'Clientes', 'Proveedores'];
   
   results.forEach((result, index) => {
     const name = dataNames[index];
     if (result.status === 'fulfilled') {
       const data = result.value;
-      const itemCount = data?.items?.length || (typeof data === 'object' ? 'datos' : '0');
+      let itemCount = 'N/A';
+      
+      if (Array.isArray(data)) {
+        itemCount = data.length;
+      } else if (data?.items && Array.isArray(data.items)) {
+        itemCount = data.items.length;
+      }
+      
       console.log(`   ✅ ${name}: ${itemCount} ${typeof itemCount === 'number' ? 'items' : ''}`);
       
       // Mostrar info de paginación si está disponible
@@ -352,15 +445,16 @@ export const fetchAllChipaxData = async (fechaInicio, fechaFin) => {
     }
   });
   
-  const [saldos, cobradas, pagar, flujo, clientes] = results;
+  const [saldos, cobradas, pagar, kpis, clientes, proveedores] = results;
   
   return {
-    saldosBancarios: saldos.value || { cuentasCorrientes: [] },
+    saldosBancarios: saldos.value || [],
     facturasPorCobrar: cobradas.value || { items: [] },
     facturasPorPagar: pagar.value || { items: [] },
     facturasPendientes: [],
-    flujoCaja: flujo.value || {},
+    flujoCaja: kpis.value || {},
     clientes: clientes.value || { items: [] },
+    proveedores: proveedores.value || { items: [] },
     pagosProgramados: []
   };
 };
