@@ -1,50 +1,62 @@
-// chipaxAdapter.js - Versión mejorada con mejor manejo de datos paginados
-console.log('🔧 Cargando chipaxAdapter mejorado...');
+// chipaxAdapter.js - Adaptado para datos REALES de Chipax
+console.log('🔧 Cargando chipaxAdapter para datos reales de Chipax...');
 
 /**
- * 🏦 Adapta datos de saldos bancarios desde el flujo de caja
+ * 🏦 Adapta datos de cuentas corrientes (endpoint real /cuentas_corrientes)
  */
 const adaptSaldosBancarios = (response) => {
-  console.log('🔄 adaptSaldosBancarios - Iniciando adaptación');
+  console.log('🔄 adaptSaldosBancarios - Adaptando datos reales');
   console.log('📊 Datos recibidos:', response);
   
-  if (!response || !response.arrFlujoCaja) {
-    console.warn('⚠️ No se encontraron datos de flujo de caja en la respuesta');
+  if (!response) {
+    console.warn('⚠️ No se encontraron datos de cuentas corrientes');
     return [];
   }
 
-  const cuentasBancarias = [];
-  
-  response.arrFlujoCaja.forEach((flujo, index) => {
-    if (flujo.idCuentaCorriente) {
-      const cuenta = {
-        id: flujo.idCuentaCorriente,
-        nombre: flujo.nombreCuenta || `Cuenta ${flujo.idCuentaCorriente}`,
-        banco: flujo.nombreBanco || flujo.nombreCuenta || `Banco ${flujo.idCuentaCorriente}`,
-        numeroCuenta: flujo.idCuentaCorriente.toString(),
-        tipo: 'cuenta_corriente',
-        moneda: 'CLP',
-        saldo: flujo.saldoPeriodo || 0,
-        disponible: flujo.saldoPeriodo || 0,
-        ultimoMovimiento: flujo.fechaUltimoMovimiento || new Date().toISOString()
+  // Manejar respuesta directa o con items
+  let cuentas = [];
+  if (Array.isArray(response)) {
+    cuentas = response;
+  } else if (response.items && Array.isArray(response.items)) {
+    cuentas = response.items;
+  } else {
+    console.warn('⚠️ Formato de respuesta no reconocido');
+    return [];
+  }
+
+  const cuentasBancarias = cuentas.map((cuenta, index) => {
+    try {
+      return {
+        id: cuenta.id || `cuenta_${index}`,
+        nombre: cuenta.nombre || cuenta.nombre_cuenta || `Cuenta ${cuenta.id || index}`,
+        banco: cuenta.banco || cuenta.nombre_banco || 'Banco no especificado',
+        numeroCuenta: cuenta.numero_cuenta || cuenta.numero || cuenta.id?.toString() || '',
+        tipo: cuenta.tipo || cuenta.tipo_cuenta || 'cuenta_corriente',
+        moneda: cuenta.moneda || 'CLP',
+        saldo: parseFloat(cuenta.saldo || cuenta.saldo_actual || cuenta.balance || 0),
+        disponible: parseFloat(cuenta.saldo_disponible || cuenta.saldo || cuenta.balance || 0),
+        ultimoMovimiento: cuenta.fecha_ultimo_movimiento || cuenta.updated_at || new Date().toISOString()
       };
-      
-      cuentasBancarias.push(cuenta);
-      console.log(`✅ Cuenta ${index + 1}: ${cuenta.nombre} - ${cuenta.saldo.toLocaleString('es-CL', { style: 'currency', currency: 'CLP' })}`);
+    } catch (error) {
+      console.error(`❌ Error adaptando cuenta ${index}:`, error);
+      return null;
     }
-  });
+  }).filter(cuenta => cuenta !== null);
 
   console.log(`✅ Saldos bancarios adaptados: ${cuentasBancarias.length} cuentas`);
-  console.log(`💰 Total en saldos: ${cuentasBancarias.reduce((sum, c) => sum + c.saldo, 0).toLocaleString('es-CL', { style: 'currency', currency: 'CLP' })}`);
+  if (cuentasBancarias.length > 0) {
+    const saldoTotal = cuentasBancarias.reduce((sum, c) => sum + c.saldo, 0);
+    console.log(`💰 Total en saldos: ${saldoTotal.toLocaleString('es-CL', { style: 'currency', currency: 'CLP' })}`);
+  }
   
   return cuentasBancarias;
 };
 
 /**
- * 📋 Adapta cuentas por cobrar desde facturas de venta
+ * 📋 Adapta cuentas por cobrar desde DTEs o ventas
  */
 const adaptCuentasPendientes = (facturas) => {
-  console.log('🔄 adaptCuentasPendientes - Iniciando adaptación');
+  console.log('🔄 adaptCuentasPendientes - Adaptando datos reales');
   console.log('📊 Tipo de datos recibidos:', typeof facturas, Array.isArray(facturas));
   
   if (!facturas) {
@@ -59,8 +71,6 @@ const adaptCuentasPendientes = (facturas) => {
   } else if (facturas.items && Array.isArray(facturas.items)) {
     items = facturas.items;
     console.log('📄 Información de paginación detectada:', facturas.paginationInfo);
-  } else if (facturas.data && Array.isArray(facturas.data)) {
-    items = facturas.data;
   } else {
     console.warn('⚠️ Formato de datos no reconocido:', facturas);
     return [];
@@ -75,68 +85,55 @@ const adaptCuentasPendientes = (facturas) => {
 
   // Mostrar estructura de la primera factura para debugging
   if (items.length > 0) {
-    console.log('🔍 Estructura de primera factura:', JSON.stringify(items[0], null, 2));
+    console.log('🔍 Estructura de primera factura:');
+    const first = items[0];
+    console.log('   - ID:', first.id);
+    console.log('   - Folio:', first.folio);
+    console.log('   - Razón social:', first.razon_social);
+    console.log('   - RUT emisor:', first.rut_emisor);
+    console.log('   - RUT receptor:', first.rut_receptor);
+    console.log('   - Monto total:', first.monto_total || first.total);
+    console.log('   - Fecha emisión:', first.fecha_emision);
+    console.log('   - Fecha vencimiento:', first.fecha_vencimiento);
+    console.log('   - Pagado:', first.pagado);
+    console.log('   - Fecha pago:', first.fecha_pago_interna);
   }
 
   const cuentasAdaptadas = items.map((factura, index) => {
     try {
-      // Extraer información del cliente de manera flexible
+      // Para facturas por cobrar, el cliente es el receptor
       const clienteInfo = {
-        rut: factura.rutReceptor || 
-             factura.rut_receptor || 
-             factura.cliente?.rut || 
-             factura.rut_cliente || 
-             'Sin RUT',
-        nombre: factura.razonSocial || 
-                factura.razon_social || 
-                factura.cliente?.nombre || 
-                factura.nombre_cliente || 
-                factura.cliente || 
-                'Cliente sin nombre'
+        rut: factura.rut_receptor || 'Sin RUT',
+        nombre: factura.razon_social_receptor || factura.razon_social || 'Cliente sin nombre'
       };
 
-      // Calcular montos de manera flexible
-      const montoTotal = parseFloat(factura.montoTotal || 
-                                  factura.monto_total || 
-                                  factura.total || 
-                                  factura.monto || 
-                                  0);
-
-      const montoPagado = parseFloat(factura.montoPagado || 
-                                   factura.monto_pagado || 
-                                   factura.pagado || 
-                                   0);
-
+      // Calcular montos
+      const montoTotal = parseFloat(factura.monto_total || factura.total || 0);
+      const montoPagado = parseFloat(factura.monto_pagado || 0);
       const saldoPendiente = montoTotal - montoPagado;
 
-      // Obtener fechas
-      const fechaEmision = factura.fechaEmision || 
-                          factura.fecha_emision || 
-                          factura.fecha || 
-                          factura.created_at;
-
-      const fechaVencimiento = factura.fechaVencimiento || 
-                              factura.fecha_vencimiento || 
-                              factura.due_date || 
-                              fechaEmision;
+      // Fechas
+      const fechaEmision = factura.fecha_emision || factura.created_at;
+      const fechaVencimiento = factura.fecha_vencimiento || fechaEmision;
 
       const cuentaAdaptada = {
-        id: factura.id || factura._id || `cxc_${index}`,
+        id: factura.id || `cxc_${index}`,
         cliente: clienteInfo,
-        folio: factura.folio || factura.numero || factura.numeroFactura || 'Sin folio',
+        folio: factura.folio || 'Sin folio',
         fechaEmision: fechaEmision,
         fechaVencimiento: fechaVencimiento,
         monto: montoTotal,
-        saldo: saldoPendiente > 0 ? saldoPendiente : 0,
-        moneda: factura.moneda || factura.currency || 'CLP',
-        estado: factura.estado || factura.status || 'pendiente',
+        saldo: saldoPendiente > 0 ? saldoPendiente : montoTotal, // Si no hay monto pagado, usar total
+        moneda: factura.moneda || 'CLP',
+        estado: factura.estado || 'pendiente',
         diasVencidos: calcularDiasVencidos(fechaVencimiento),
+        tipo: factura.tipo || 'factura',
         // Campos adicionales para debugging
         _originalData: {
-          hasMontoTotal: !!factura.montoTotal,
-          hasMontoPagado: !!factura.montoPagado,
-          originalMonto: factura.montoTotal || factura.total,
-          originalPagado: factura.montoPagado || factura.pagado
+          pagado: factura.pagado,
+          fecha_pago_interna: factura.fecha_pago_interna,
+          originalMonto: factura.monto_total || factura.total,
+          originalPagado: factura.monto_pagado
         }
       };
 
@@ -145,7 +142,7 @@ const adaptCuentasPendientes = (facturas) => {
       console.error(`❌ Error adaptando factura ${index}:`, error, factura);
       return null;
     }
-  }).filter(cuenta => cuenta !== null && cuenta.saldo > 0); // Solo cuentas con saldo pendiente
+  }).filter(cuenta => cuenta !== null && cuenta.saldo > 0);
 
   // Estadísticas de adaptación
   console.log(`✅ Cuentas por cobrar adaptadas: ${cuentasAdaptadas.length}/${items.length}`);
@@ -156,34 +153,16 @@ const adaptCuentasPendientes = (facturas) => {
     
     console.log(`💰 Total por cobrar: ${totalPorCobrar.toLocaleString('es-CL', { style: 'currency', currency: 'CLP' })}`);
     console.log(`⚠️ Facturas vencidas: ${vencidas}/${cuentasAdaptadas.length}`);
-    
-    // Mostrar distribución por rangos de días
-    const rangos = {
-      'Al día': 0,
-      '1-30 días': 0,
-      '31-60 días': 0,
-      'Más de 60 días': 0
-    };
-    
-    cuentasAdaptadas.forEach(cuenta => {
-      const dias = cuenta.diasVencidos;
-      if (dias <= 0) rangos['Al día']++;
-      else if (dias <= 30) rangos['1-30 días']++;
-      else if (dias <= 60) rangos['31-60 días']++;
-      else rangos['Más de 60 días']++;
-    });
-    
-    console.log('📊 Distribución por vencimiento:', rangos);
   }
   
   return cuentasAdaptadas;
 };
 
 /**
- * 🛒 Adapta cuentas por pagar desde facturas de compra (MEJORADO)
+ * 🛒 Adapta cuentas por pagar desde compras (endpoint real /compras)
  */
 const adaptCuentasPorPagar = (facturas) => {
-  console.log('🔄 adaptCuentasPorPagar - Iniciando adaptación mejorada');
+  console.log('🔄 adaptCuentasPorPagar - Adaptando datos reales de compras');
   console.log('📊 Tipo de datos recibidos:', typeof facturas, Array.isArray(facturas));
 
   if (!facturas) {
@@ -191,22 +170,13 @@ const adaptCuentasPorPagar = (facturas) => {
     return [];
   }
 
-  // Manejar diferentes formatos de respuesta (igual que en cuentas por cobrar)
+  // Manejar diferentes formatos de respuesta
   let items = [];
   if (Array.isArray(facturas)) {
     items = facturas;
   } else if (facturas.items && Array.isArray(facturas.items)) {
     items = facturas.items;
     console.log('📄 Información de paginación detectada:', facturas.paginationInfo);
-    
-    // Mostrar info detallada de paginación
-    if (facturas.paginationInfo) {
-      console.log(`📊 Paginación - Páginas: ${facturas.paginationInfo.totalPagesLoaded}/${facturas.paginationInfo.totalPagesRequested}`);
-      console.log(`📈 Completitud: ${facturas.paginationInfo.completenessPercent.toFixed(1)}%`);
-      console.log(`📋 Items esperados vs obtenidos: ${facturas.paginationInfo.totalItemsExpected} vs ${facturas.paginationInfo.totalItemsLoaded}`);
-    }
-  } else if (facturas.data && Array.isArray(facturas.data)) {
-    items = facturas.data;
   } else {
     console.warn('⚠️ Formato de datos no reconocido:', facturas);
     return [];
@@ -221,109 +191,60 @@ const adaptCuentasPorPagar = (facturas) => {
 
   // Debugging: mostrar estructura de primera factura
   if (items.length > 0) {
-    console.log('🔍 Estructura de primera factura de compra:');
     const first = items[0];
-    console.log('   ID:', first.id);
-    console.log('   Folio:', first.folio);
-    console.log('   Estado:', first.estado);
-    console.log('   Estado pago:', first.estado_pago);
-    console.log('   Total:', first.total);
-    console.log('   Saldo:', first.saldo);
-    console.log('   Proveedor:', first.proveedor);
-    console.log('   RUT proveedor:', first.rut_proveedor);
+    console.log('🔍 Estructura de primera factura de compra:');
+    console.log('   - ID:', first.id);
+    console.log('   - Folio:', first.folio);
+    console.log('   - Razón social (proveedor):', first.razon_social);
+    console.log('   - RUT emisor:', first.rut_emisor);
+    console.log('   - Monto total:', first.monto_total || first.total);
+    console.log('   - Pagado:', first.pagado);
+    console.log('   - Fecha pago:', first.fecha_pago_interna);
+    console.log('   - Estado:', first.estado);
+    console.log('   - Fecha emisión:', first.fecha_emision);
+    console.log('   - Fecha vencimiento:', first.fecha_vencimiento);
   }
 
-  // Adaptar cada factura con manejo robusto de errores
+  // Adaptar cada factura
   const facturasAdaptadas = items.map((factura, index) => {
     try {
-      // 1. Obtener monto total de manera flexible
-      const montoTotal = parseFloat(factura.total || 
-                                  factura.monto_total || 
-                                  factura.montoTotal || 
-                                  factura.monto || 
-                                  factura.totalFacturado || 
-                                  0);
+      // Monto total
+      const montoTotal = parseFloat(factura.monto_total || factura.total || 0);
 
-      // 2. Calcular saldo pendiente
-      let saldoPendiente;
-      if (factura.saldo !== undefined && factura.saldo !== null) {
-        saldoPendiente = parseFloat(factura.saldo);
-      } else if (factura.monto_por_pagar !== undefined) {
-        saldoPendiente = parseFloat(factura.monto_por_pagar);
-      } else if (factura.montoPorPagar !== undefined) {
-        saldoPendiente = parseFloat(factura.montoPorPagar);
-      } else {
-        // Si no hay campo específico de saldo, asumir que es el total
-        // A menos que esté marcada como pagada
-        const estaPagada = factura.pagada === true || 
-                          factura.pagado === true || 
-                          factura.estado_pago === 'pagado' ||
-                          factura.estado_pago === 'Pagado';
-        
-        saldoPendiente = estaPagada ? 0 : montoTotal;
-      }
+      // Para compras, el saldo pendiente es el total si no está pagada
+      const estaPagada = factura.pagado === true || factura.fecha_pago_interna !== null;
+      const saldoPendiente = estaPagada ? 0 : montoTotal;
 
-      // 3. Obtener información del proveedor de manera flexible
-      let nombreProveedor = 'Proveedor no especificado';
-      let rutProveedor = 'Sin RUT';
+      // Información del proveedor (emisor en este caso)
+      const proveedorInfo = {
+        nombre: factura.razon_social || 'Proveedor no especificado',
+        rut: factura.rut_emisor || 'Sin RUT'
+      };
 
-      if (factura.proveedor) {
-        if (typeof factura.proveedor === 'string') {
-          nombreProveedor = factura.proveedor;
-        } else if (typeof factura.proveedor === 'object') {
-          nombreProveedor = factura.proveedor.nombre || factura.proveedor.razonSocial || 'Proveedor sin nombre';
-          rutProveedor = factura.proveedor.rut || 'Sin RUT';
-        }
-      } else if (factura.nombre_proveedor) {
-        nombreProveedor = factura.nombre_proveedor;
-      } else if (factura.razon_social) {
-        nombreProveedor = factura.razon_social;
-      }
+      // Fechas
+      const fechaEmision = factura.fecha_emision || factura.created_at || new Date().toISOString();
+      const fechaVencimiento = factura.fecha_vencimiento || null;
 
-      if (rutProveedor === 'Sin RUT') {
-        rutProveedor = factura.rut_proveedor || 
-                      factura.rutProveedor || 
-                      factura.proveedor_rut || 
-                      'Sin RUT';
-      }
-
-      // 4. Obtener fechas
-      const fechaEmision = factura.fecha_emision || 
-                          factura.fechaEmision || 
-                          factura.fecha || 
-                          factura.created_at || 
-                          new Date().toISOString();
-
-      const fechaVencimiento = factura.fecha_vencimiento || 
-                              factura.fechaVencimiento || 
-                              factura.due_date || 
-                              null;
-
-      // 5. Crear objeto adaptado
       const facturaAdaptada = {
-        id: factura.id || factura._id || `cxp_${index}`,
-        folio: factura.folio || factura.numero || factura.numeroFactura || 'Sin folio',
-        proveedor: {
-          nombre: nombreProveedor,
-          rut: rutProveedor
-        },
+        id: factura.id || `cxp_${index}`,
+        folio: factura.folio || 'Sin folio',
+        proveedor: proveedorInfo,
         monto: montoTotal,
-        saldo: Math.max(0, saldoPendiente), // Asegurar que no sea negativo
-        moneda: factura.moneda || factura.currency || 'CLP',
+        saldo: saldoPendiente,
+        moneda: factura.moneda || 'CLP',
         fechaEmision: fechaEmision,
         fechaVencimiento: fechaVencimiento,
-        fechaPago: factura.fechaPagoInterna || factura.fecha_pago || null,
+        fechaPago: factura.fecha_pago_interna || null,
         diasVencidos: calcularDiasVencidos(fechaVencimiento),
-        estado: factura.estado || factura.status || 'Pendiente',
-        estadoPago: factura.estado_pago || factura.estadoPago || 'Pendiente',
-        observaciones: factura.observaciones || factura.notas || '',
+        estado: factura.estado || 'Pendiente',
+        estadoPago: estaPagada ? 'Pagado' : 'Pendiente',
+        tipo: factura.tipo || 'compra',
         // Campos para debugging
         _debug: {
-          originalTotal: factura.total,
-          originalSaldo: factura.saldo,
-          originalEstado: factura.estado,
-          originalEstadoPago: factura.estado_pago,
-          hasExplicitSaldo: factura.saldo !== undefined
+          originalTotal: factura.monto_total || factura.total,
+          originalPagado: factura.pagado,
+          originalFechaPago: factura.fecha_pago_interna,
+          originalEstado: factura.estado
         }
       };
 
@@ -334,10 +255,10 @@ const adaptCuentasPorPagar = (facturas) => {
     }
   }).filter(factura => factura !== null);
 
-  // 6. Filtrar solo facturas con saldo pendiente
+  // Filtrar solo facturas con saldo pendiente
   const facturasPendientes = facturasAdaptadas.filter(factura => factura.saldo > 0);
 
-  // 7. Estadísticas finales
+  // Estadísticas finales
   console.log(`✅ Facturas de compra procesadas:`);
   console.log(`   📊 Total procesadas: ${facturasAdaptadas.length}/${items.length}`);
   console.log(`   💰 Con saldo pendiente: ${facturasPendientes.length}`);
@@ -362,10 +283,10 @@ const adaptCuentasPorPagar = (facturas) => {
 };
 
 /**
- * ⏳ Adapta facturas pendientes de aprobación
+ * ⏳ Adapta facturas pendientes de aprobación (datos simulados o reales si están disponibles)
  */
 const adaptFacturasPendientesAprobacion = (facturas) => {
-  console.log('🔄 adaptFacturasPendientesAprobacion - Iniciando adaptación');
+  console.log('🔄 adaptFacturasPendientesAprobacion - Adaptando datos');
   
   if (!facturas || !Array.isArray(facturas)) {
     console.warn('⚠️ No se recibieron facturas pendientes para adaptar');
@@ -376,18 +297,18 @@ const adaptFacturasPendientesAprobacion = (facturas) => {
     try {
       return {
         id: factura.id || `pendiente_${index}`,
-        folio: factura.folio || factura.numero || 'Sin folio',
+        folio: factura.folio || 'Sin folio',
         proveedor: {
-          nombre: factura.razonSocial || factura.proveedor || 'Proveedor sin nombre',
-          rut: factura.rutProveedor || factura.rut_proveedor || 'Sin RUT'
+          nombre: factura.razon_social || factura.proveedor || 'Proveedor sin nombre',
+          rut: factura.rut_emisor || factura.rut_proveedor || 'Sin RUT'
         },
-        fechaEmision: factura.fechaEmision || factura.fecha || new Date().toISOString(),
-        fechaRecepcion: factura.fechaRecepcion || factura.fecha_recepcion || new Date().toISOString(),
-        monto: parseFloat(factura.montoTotal || factura.monto || 0),
+        fechaEmision: factura.fecha_emision || new Date().toISOString(),
+        fechaRecepcion: factura.fecha_recepcion || factura.created_at || new Date().toISOString(),
+        monto: parseFloat(factura.monto_total || factura.total || 0),
         moneda: factura.moneda || 'CLP',
         estado: factura.estado || 'pendiente_aprobacion',
         responsableAprobacion: factura.responsable || 'Sin asignar',
-        diasEnEspera: calcularDiasEnEspera(factura.fechaRecepcion || factura.fecha_recepcion),
+        diasEnEspera: calcularDiasEnEspera(factura.fecha_recepcion || factura.created_at),
         tipo: factura.tipo || 'compra'
       };
     } catch (error) {
@@ -401,14 +322,14 @@ const adaptFacturasPendientesAprobacion = (facturas) => {
 };
 
 /**
- * 📈 Adapta datos de flujo de caja
+ * 📈 Adapta datos de KPIs o proyecciones como flujo de caja
  */
 const adaptFlujoCaja = (response, saldoInicial = 0) => {
-  console.log('🔄 adaptFlujoCaja - Iniciando adaptación');
+  console.log('🔄 adaptFlujoCaja - Adaptando datos reales');
   console.log('📊 Datos recibidos:', response);
   
-  if (!response || !response.arrFlujoCaja) {
-    console.warn('⚠️ No se encontraron datos de flujo de caja');
+  if (!response) {
+    console.warn('⚠️ No se encontraron datos de KPIs/proyecciones');
     return {
       saldoInicial: saldoInicial,
       saldoFinal: saldoInicial,
@@ -416,29 +337,45 @@ const adaptFlujoCaja = (response, saldoInicial = 0) => {
     };
   }
 
-  const periodos = [];
+  // Intentar extraer datos de flujo de caja desde KPIs o proyecciones
+  let periodos = [];
   let saldoAcumulado = saldoInicial;
 
-  response.arrFlujoCaja.forEach((flujo, index) => {
-    const ingresos = parseFloat(flujo.ingresos || 0);
-    const egresos = parseFloat(flujo.egresos || 0);
-    const flujoNeto = ingresos - egresos;
-    
-    saldoAcumulado += flujoNeto;
-    
-    const periodo = {
-      fecha: flujo.fecha || flujo.periodo || new Date().toISOString(),
-      mes: flujo.mes,
-      anio: flujo.anio,
-      ingresos: ingresos,
-      egresos: egresos,
-      flujoNeto: flujoNeto,
-      saldoAcumulado: saldoAcumulado,
-      descripcion: flujo.descripcion || `Período ${index + 1}`
-    };
-    
-    periodos.push(periodo);
-  });
+  // Si hay datos de proyecciones, adaptarlos como flujo de caja
+  if (response.proyecciones && Array.isArray(response.proyecciones)) {
+    periodos = response.proyecciones.map((proyeccion, index) => {
+      const ingresos = parseFloat(proyeccion.ingresos || proyeccion.ventas || 0);
+      const egresos = parseFloat(proyeccion.egresos || proyeccion.gastos || 0);
+      const flujoNeto = ingresos - egresos;
+      
+      saldoAcumulado += flujoNeto;
+      
+      return {
+        fecha: proyeccion.fecha || proyeccion.periodo || new Date().toISOString(),
+        mes: proyeccion.mes,
+        anio: proyeccion.anio,
+        ingresos: ingresos,
+        egresos: egresos,
+        flujoNeto: flujoNeto,
+        saldoAcumulado: saldoAcumulado,
+        descripcion: proyeccion.descripcion || `Período ${index + 1}`
+      };
+    });
+  } else {
+    // Si no hay datos específicos, crear períodos simulados basados en saldo inicial
+    console.log('ℹ️ No hay datos de flujo específicos, creando período único');
+    periodos = [{
+      fecha: new Date().toISOString(),
+      mes: new Date().getMonth() + 1,
+      anio: new Date().getFullYear(),
+      ingresos: 0,
+      egresos: 0,
+      flujoNeto: 0,
+      saldoAcumulado: saldoInicial,
+      descripcion: 'Período actual'
+    }];
+    saldoAcumulado = saldoInicial;
+  }
 
   const flujoAdaptado = {
     saldoInicial: saldoInicial,
@@ -459,30 +396,41 @@ const adaptFlujoCaja = (response, saldoInicial = 0) => {
 };
 
 /**
- * 📅 Adapta egresos programados
+ * 📅 Adapta pagos programados
  */
 const adaptEgresosProgramados = (pagos) => {
-  console.log('🔄 adaptEgresosProgramados - Iniciando adaptación');
+  console.log('🔄 adaptEgresosProgramados - Adaptando datos reales');
   
-  if (!pagos || !Array.isArray(pagos)) {
-    console.warn('⚠️ No se recibieron pagos programados para adaptar');
+  if (!pagos) {
+    console.warn('⚠️ No se recibieron datos de pagos');
     return [];
   }
 
-  const egresosAdaptados = pagos.map((pago, index) => {
+  // Manejar respuesta directa o con items
+  let items = [];
+  if (Array.isArray(pagos)) {
+    items = pagos;
+  } else if (pagos.items && Array.isArray(pagos.items)) {
+    items = pagos.items;
+  } else {
+    console.warn('⚠️ Formato de datos de pagos no reconocido');
+    return [];
+  }
+
+  const egresosAdaptados = items.map((pago, index) => {
     try {
-      const fechaPago = pago.fechaProgramada || pago.fecha || new Date().toISOString();
+      const fechaPago = pago.fecha_pago || pago.fecha_programada || pago.fecha || new Date().toISOString();
       
       return {
         id: pago.id || `egreso_${index}`,
         fechaPago: fechaPago,
         diasParaPago: calcularDiasParaPago(fechaPago),
         beneficiario: {
-          nombre: pago.razonSocial || pago.proveedor || pago.beneficiario || 'Beneficiario sin nombre',
-          rut: pago.rutBeneficiario || pago.rut_beneficiario || 'Sin RUT'
+          nombre: pago.beneficiario || pago.razon_social || pago.proveedor || 'Beneficiario sin nombre',
+          rut: pago.rut_beneficiario || pago.rut_proveedor || 'Sin RUT'
         },
-        concepto: pago.descripcion || pago.concepto || `Pago a ${pago.razonSocial || pago.proveedor}`,
-        monto: parseFloat(pago.monto || 0),
+        concepto: pago.concepto || pago.descripcion || `Pago a ${pago.beneficiario || pago.razon_social}`,
+        monto: parseFloat(pago.monto || pago.total || 0),
         moneda: pago.moneda || 'CLP',
         estado: pago.estado || 'programado',
         categoria: pago.categoria || pago.tipo || 'pago_proveedor',
@@ -505,29 +453,39 @@ const adaptEgresosProgramados = (pagos) => {
 };
 
 /**
- * 🏦 Adapta información de bancos
+ * 🏦 Adapta información de bancos desde cuentas corrientes
  */
 const adaptBancos = (response) => {
-  console.log('🔄 adaptBancos - Iniciando adaptación');
+  console.log('🔄 adaptBancos - Adaptando datos reales');
   
-  if (!response || !response.arrFlujoCaja) {
-    console.warn('⚠️ No hay datos de flujo de caja para extraer bancos');
+  if (!response) {
+    console.warn('⚠️ No hay datos de cuentas corrientes para extraer bancos');
+    return [];
+  }
+
+  // Manejar respuesta directa o con items
+  let cuentas = [];
+  if (Array.isArray(response)) {
+    cuentas = response;
+  } else if (response.items && Array.isArray(response.items)) {
+    cuentas = response.items;
+  } else {
     return [];
   }
 
   const bancosUnicos = new Map();
   
-  response.arrFlujoCaja.forEach(flujo => {
-    if (flujo.idCuentaCorriente && flujo.nombreCuenta) {
-      const id = flujo.idCuentaCorriente;
+  cuentas.forEach(cuenta => {
+    if (cuenta.banco && cuenta.id) {
+      const bancoKey = cuenta.banco;
       
-      if (!bancosUnicos.has(id)) {
-        bancosUnicos.set(id, {
-          id: id,
-          nombre: flujo.nombreCuenta,
-          nombreBanco: flujo.nombreBanco || flujo.nombreCuenta,
-          tipo: 'cuenta_corriente',
-          moneda: 'CLP'
+      if (!bancosUnicos.has(bancoKey)) {
+        bancosUnicos.set(bancoKey, {
+          id: cuenta.banco_id || bancoKey,
+          nombre: cuenta.banco,
+          nombreCompleto: cuenta.nombre_banco || cuenta.banco,
+          tipo: 'banco',
+          moneda: cuenta.moneda || 'CLP'
         });
       }
     }
@@ -610,54 +568,9 @@ const calcularDiasEnEspera = (fechaRecepcion) => {
   }
 };
 
-/**
- * Valida y limpia un valor numérico
- */
-const sanitizeNumber = (value, defaultValue = 0) => {
-  const num = parseFloat(value);
-  return isNaN(num) ? defaultValue : num;
-};
-
-/**
- * Valida y formatea una fecha
- */
-const sanitizeDate = (dateValue, defaultValue = null) => {
-  if (!dateValue) return defaultValue;
-  
-  try {
-    const date = new Date(dateValue);
-    if (isNaN(date.getTime())) return defaultValue;
-    return date.toISOString();
-  } catch (error) {
-    return defaultValue;
-  }
-};
-
-/**
- * Obtiene información del cliente/proveedor de manera robusta
- */
-const extractEntityInfo = (entity, fallbackName = 'Sin nombre') => {
-  if (!entity) {
-    return { nombre: fallbackName, rut: 'Sin RUT' };
-  }
-  
-  if (typeof entity === 'string') {
-    return { nombre: entity, rut: 'Sin RUT' };
-  }
-  
-  if (typeof entity === 'object') {
-    return {
-      nombre: entity.nombre || entity.razonSocial || entity.razon_social || fallbackName,
-      rut: entity.rut || entity.rut_cliente || entity.rut_proveedor || 'Sin RUT'
-    };
-  }
-  
-  return { nombre: fallbackName, rut: 'Sin RUT' };
-};
-
 // ==================== EXPORTACIONES ====================
 
-console.log('✅ chipaxAdapter mejorado cargado correctamente');
+console.log('✅ chipaxAdapter para datos reales cargado correctamente');
 
 export default {
   adaptSaldosBancarios,
@@ -667,11 +580,8 @@ export default {
   adaptFlujoCaja,
   adaptEgresosProgramados,
   adaptBancos,
-  // Funciones auxiliares también exportadas para testing
+  // Funciones auxiliares
   calcularDiasVencidos,
   calcularDiasParaPago,
-  calcularDiasEnEspera,
-  sanitizeNumber,
-  sanitizeDate,
-  extractEntityInfo
+  calcularDiasEnEspera
 };
