@@ -1,30 +1,25 @@
-// ChipaxDataUpdater.jsx - Componente completo con toda la lógica integrada
+// DashboardFinancieroIntegrado.jsx - Versión completa con integración Chipax
 import React, { useState, useEffect } from 'react';
 import { 
-  Clock, RefreshCw, AlertTriangle, CheckCircle, Database, 
-  TrendingUp, TrendingDown, Info, AlertCircle, BarChart,
-  Download, Eye, EyeOff, Loader2
+  AlertCircle, Calendar, Filter, Info, Wallet, PieChart, 
+  TrendingUp, AlertTriangle, BarChart3, DollarSign,
+  FileText, Clock, Users, Building2, Database, RefreshCw,
+  Loader2, CheckCircle, Eye, EyeOff, Download, ChevronRight,
+  TrendingDown, X, Bell, Activity, ChevronLeft
 } from 'lucide-react';
 
-// ===== CONFIGURACIÓN Y CONSTANTES =====
+// ===== CONFIGURACIÓN CHIPAX =====
 const CHIPAX_API_URL = '/v2';
 const APP_ID = '605e0aa5-ca0c-4513-b6ef-0030ac1f0849';
 const SECRET_KEY = 'f01974df-86e1-45a0-924f-75961ea926fc';
 
-const PAGINATION_CONFIG = {
-  MAX_CONCURRENT_REQUESTS: 3,
-  RETRY_ATTEMPTS: 3,
-  RETRY_DELAY: 1000,
-  REQUEST_DELAY: 200,
-  TIMEOUT: 30000
-};
-
-// ===== SERVICIO CHIPAX (chipaxService integrado) =====
+// Cache del token
 let tokenCache = {
   token: null,
   expiresAt: null
 };
 
+// ===== SERVICIOS CHIPAX INTEGRADOS =====
 const getChipaxToken = async () => {
   const now = new Date();
   
@@ -40,12 +35,10 @@ const getChipaxToken = async () => {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Error de autenticación ${response.status}: ${errorText}`);
+      throw new Error(`Error de autenticación ${response.status}`);
     }
 
     const data = await response.json();
-    
     tokenCache = {
       token: data.token,
       expiresAt: new Date(data.tokenExpiration * 1000)
@@ -53,615 +46,514 @@ const getChipaxToken = async () => {
     
     return tokenCache.token;
   } catch (error) {
-    console.error('❌ Error obteniendo token:', error);
+    console.error('Error obteniendo token:', error);
     throw error;
   }
 };
 
-const fetchFromChipaxWithRetry = async (endpoint, options = {}, retryCount = PAGINATION_CONFIG.RETRY_ATTEMPTS) => {
-  try {
-    const token = await getChipaxToken();
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), PAGINATION_CONFIG.TIMEOUT);
-    
-    const response = await fetch(`${CHIPAX_API_URL}${endpoint}`, {
-      ...options,
-      headers: {
-        ...options.headers,
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      
-      if (response.status === 404) {
-        return { items: [], paginationAttributes: null };
-      }
-      
-      throw new Error(`Error ${response.status}: ${errorText}`);
+const fetchFromChipax = async (endpoint) => {
+  const token = await getChipaxToken();
+  
+  const response = await fetch(`${CHIPAX_API_URL}${endpoint}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
     }
-
-    const data = await response.json();
-    return data;
-    
-  } catch (error) {
-    if (retryCount > 0 && !error.message.includes('404')) {
-      await new Promise(resolve => setTimeout(resolve, PAGINATION_CONFIG.RETRY_DELAY));
-      return fetchFromChipaxWithRetry(endpoint, options, retryCount - 1);
-    }
-    
-    throw error;
-  }
-};
-
-const fetchAllPaginatedData = async (baseEndpoint) => {
-  console.log(`📊 Iniciando carga paginada de ${baseEndpoint}...`);
-  
-  const paginationStats = {
-    totalPages: 0,
-    loadedPages: 0,
-    failedPages: [],
-    totalItems: 0,
-    loadedItems: 0,
-    startTime: new Date()
-  };
-  
-  try {
-    const separator = baseEndpoint.includes('?') ? '&' : '?';
-    const firstPageEndpoint = `${baseEndpoint}${separator}page=1&limit=50`;
-    
-    const firstPageData = await fetchFromChipaxWithRetry(firstPageEndpoint);
-    
-    if (!firstPageData.paginationAttributes) {
-      if (Array.isArray(firstPageData)) {
-        return {
-          items: firstPageData,
-          paginationStats: {
-            ...paginationStats,
-            totalItems: firstPageData.length,
-            loadedItems: firstPageData.length
-          }
-        };
-      }
-      
-      if (firstPageData.items) {
-        return {
-          items: firstPageData.items,
-          paginationStats: {
-            ...paginationStats,
-            totalItems: firstPageData.items.length,
-            loadedItems: firstPageData.items.length
-          }
-        };
-      }
-      
-      return { items: [], paginationStats };
-    }
-    
-    const { totalPages, totalCount } = firstPageData.paginationAttributes;
-    paginationStats.totalPages = totalPages;
-    paginationStats.totalItems = totalCount;
-    paginationStats.loadedPages = 1;
-    paginationStats.loadedItems = firstPageData.items.length;
-    
-    if (totalPages === 1) {
-      return {
-        items: firstPageData.items,
-        paginationStats
-      };
-    }
-    
-    let allItems = [...firstPageData.items];
-    
-    // Cargar páginas restantes
-    const pageNumbers = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
-    const batches = [];
-    
-    for (let i = 0; i < pageNumbers.length; i += PAGINATION_CONFIG.MAX_CONCURRENT_REQUESTS) {
-      batches.push(pageNumbers.slice(i, i + PAGINATION_CONFIG.MAX_CONCURRENT_REQUESTS));
-    }
-    
-    for (const batch of batches) {
-      const batchPromises = batch.map(page => {
-        const endpoint = `${baseEndpoint}${separator}page=${page}&limit=50`;
-        return fetchFromChipaxWithRetry(endpoint)
-          .then(data => ({ page, data, success: true }))
-          .catch(error => ({ page, error, success: false }));
-      });
-      
-      const results = await Promise.all(batchPromises);
-      
-      results.forEach(result => {
-        if (result.success && result.data.items) {
-          allItems = [...allItems, ...result.data.items];
-          paginationStats.loadedPages++;
-          paginationStats.loadedItems += result.data.items.length;
-        } else {
-          paginationStats.failedPages.push(result.page);
-        }
-      });
-      
-      await new Promise(resolve => setTimeout(resolve, PAGINATION_CONFIG.REQUEST_DELAY));
-    }
-    
-    return {
-      items: allItems,
-      paginationStats
-    };
-    
-  } catch (error) {
-    console.error('Error en carga paginada:', error);
-    return {
-      items: [],
-      paginationStats,
-      error: error.message
-    };
-  }
-};
-
-// ===== ADAPTADORES (chipaxAdapter integrado) =====
-const calcularDiasVencidos = (fecha) => {
-  if (!fecha) return 0;
-  
-  try {
-    const fechaVencimiento = new Date(fecha);
-    const hoy = new Date();
-    const diffTime = hoy - fechaVencimiento;
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  } catch (error) {
-    return 0;
-  }
-};
-
-const adaptSaldosBancarios = (response) => {
-  if (!response || !response.items) {
-    return [];
-  }
-
-  return response.items.map(cuenta => ({
-    id: cuenta.id,
-    nombre: cuenta.nombre || `Cuenta ${cuenta.numero_cuenta || cuenta.id}`,
-    banco: cuenta.banco?.nombre || cuenta.nombre_banco || 'Banco no especificado',
-    numeroCuenta: cuenta.numero_cuenta || cuenta.numero || '',
-    tipo: cuenta.tipo || 'cuenta_corriente',
-    moneda: cuenta.moneda || 'CLP',
-    saldo: parseFloat(cuenta.saldo || cuenta.saldo_actual || 0),
-    disponible: parseFloat(cuenta.saldo_disponible || cuenta.saldo || 0),
-    ultimoMovimiento: cuenta.ultimo_movimiento || cuenta.fecha_actualizacion || new Date().toISOString()
-  }));
-};
-
-const adaptCuentasPendientes = (response) => {
-  if (!response || !response.items) {
-    return [];
-  }
-
-  return response.items
-    .filter(factura => 
-      !factura.pagado || 
-      factura.saldo_pendiente > 0 ||
-      factura.estado === 'pendiente'
-    )
-    .map(factura => {
-      const montoTotal = parseFloat(factura.monto_total || factura.total || 0);
-      const montoPagado = parseFloat(factura.monto_pagado || 0);
-      const saldoPendiente = parseFloat(factura.saldo_pendiente || factura.saldo || (montoTotal - montoPagado) || montoTotal);
-      const diasVencidos = calcularDiasVencidos(factura.fecha_vencimiento || factura.fecha_emision);
-      
-      return {
-        id: factura.id,
-        folio: factura.folio || factura.numero || 'Sin folio',
-        cliente: {
-          nombre: factura.razon_social_receptor || factura.nombre_receptor || 'Cliente no especificado',
-          rut: factura.rut_receptor || 'Sin RUT'
-        },
-        monto: montoTotal,
-        saldo: saldoPendiente,
-        moneda: factura.moneda || 'CLP',
-        fechaEmision: factura.fecha_emision || factura.fecha,
-        fechaVencimiento: factura.fecha_vencimiento,
-        diasVencidos: diasVencidos,
-        estado: factura.estado || 'pendiente'
-      };
-    });
-};
-
-const adaptCuentasPorPagar = (response) => {
-  if (!response || !response.items) {
-    return [];
-  }
-
-  return response.items
-    .filter(factura => 
-      factura.pagado === false || 
-      factura.fecha_pago_interna === null ||
-      factura.estado === 'pendiente'
-    )
-    .map(factura => {
-      const montoTotal = parseFloat(factura.monto_total || factura.total || 0);
-      const montoPagado = parseFloat(factura.monto_pagado || 0);
-      const saldoPendiente = parseFloat(factura.saldo_pendiente || factura.saldo || (montoTotal - montoPagado) || montoTotal);
-      
-      return {
-        id: factura.id,
-        folio: factura.folio || factura.numero || 'Sin folio',
-        proveedor: {
-          nombre: factura.razon_social || factura.nombre_emisor || 'Proveedor no especificado',
-          rut: factura.rut_emisor || 'Sin RUT'
-        },
-        monto: montoTotal,
-        saldo: saldoPendiente,
-        moneda: factura.moneda || 'CLP',
-        fechaEmision: factura.fecha_emision || factura.fecha,
-        fechaVencimiento: factura.fecha_vencimiento,
-        estado: factura.estado || 'pendiente'
-      };
-    });
-};
-
-const adaptFlujoCaja = (data, saldoInicial = 0) => {
-  const { compras, ventas, saldosBancarios } = data;
-  
-  const saldoActual = saldosBancarios?.reduce((sum, cuenta) => sum + cuenta.saldo, 0) || saldoInicial;
-  const transaccionesPorMes = new Map();
-  
-  // Procesar ingresos
-  if (ventas?.items) {
-    ventas.items.forEach(venta => {
-      const fecha = new Date(venta.fecha_emision || venta.fecha);
-      const mesKey = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
-      
-      if (!transaccionesPorMes.has(mesKey)) {
-        transaccionesPorMes.set(mesKey, {
-          fecha: mesKey,
-          ingresos: 0,
-          egresos: 0
-        });
-      }
-      
-      const periodo = transaccionesPorMes.get(mesKey);
-      periodo.ingresos += parseFloat(venta.monto_total || venta.total || 0);
-    });
-  }
-  
-  // Procesar egresos
-  if (compras?.items) {
-    compras.items.forEach(compra => {
-      const fecha = new Date(compra.fecha_emision || compra.fecha);
-      const mesKey = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
-      
-      if (!transaccionesPorMes.has(mesKey)) {
-        transaccionesPorMes.set(mesKey, {
-          fecha: mesKey,
-          ingresos: 0,
-          egresos: 0
-        });
-      }
-      
-      const periodo = transaccionesPorMes.get(mesKey);
-      periodo.egresos += parseFloat(compra.monto_total || compra.total || 0);
-    });
-  }
-  
-  const periodos = Array.from(transaccionesPorMes.values())
-    .sort((a, b) => a.fecha.localeCompare(b.fecha))
-    .map((periodo, index, array) => {
-      periodo.flujoNeto = periodo.ingresos - periodo.egresos;
-      
-      if (index === 0) {
-        periodo.saldoAcumulado = saldoActual + periodo.flujoNeto;
-      } else {
-        periodo.saldoAcumulado = array[index - 1].saldoAcumulado + periodo.flujoNeto;
-      }
-      
-      return periodo;
-    });
-  
-  const totalIngresos = periodos.reduce((sum, p) => sum + p.ingresos, 0);
-  const totalEgresos = periodos.reduce((sum, p) => sum + p.egresos, 0);
-  
-  return {
-    saldoInicial: saldoActual,
-    saldoFinal: saldoActual + (totalIngresos - totalEgresos),
-    periodos
-  };
-};
-
-// ===== COMPONENTE PRINCIPAL =====
-const ChipaxDataUpdater = ({ 
-  onUpdateSaldos,
-  onUpdateCuentasPendientes,
-  onUpdateCuentasPorPagar,
-  onUpdateFacturasPendientes,
-  onUpdateFlujoCaja,
-  onUpdateClientes,
-  onUpdateEgresosProgramados,
-  onUpdateBancos,
-  saldoInicial = 0,
-  onDataSourceChange
-}) => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [lastUpdate, setLastUpdate] = useState(null);
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  
-  const [moduleStatus, setModuleStatus] = useState({
-    compras: { status: 'idle', message: 'Sin cargar', items: 0, completitud: 0 },
-    ventas: { status: 'idle', message: 'Sin cargar', items: 0, completitud: 0 },
-    cuentasCorrientes: { status: 'idle', message: 'Sin cargar', items: 0, completitud: 0 },
-    clientes: { status: 'idle', message: 'Sin cargar', items: 0, completitud: 0 },
-    flujoCaja: { status: 'idle', message: 'Sin cargar', items: 0, completitud: 0 }
   });
   
-  const [generalStats, setGeneralStats] = useState({
-    totalItems: 0,
-    totalFacturas: 0,
-    montoPorCobrar: 0,
-    montoPorPagar: 0,
-    saldoTotal: 0,
-    completitudGeneral: 0,
-    tiempoCarga: 0
-  });
+  if (!response.ok) {
+    if (response.status === 404) {
+      return { items: [] };
+    }
+    throw new Error(`Error ${response.status}`);
+  }
+  
+  return await response.json();
+};
 
-  const updateModuleStatus = (module, updates) => {
-    setModuleStatus(prev => ({
-      ...prev,
-      [module]: { ...prev[module], ...updates }
-    }));
-  };
-
-  const loadAllChipaxData = async () => {
-    console.log('🚀 Iniciando carga completa de datos Chipax...');
-    setLoading(true);
-    setError(null);
-    setLoadingProgress(0);
-    
-    const startTime = Date.now();
-    
+const fetchAllPages = async (endpoint) => {
+  console.log(`Cargando datos de ${endpoint}...`);
+  
+  // Primera página
+  const firstPage = await fetchFromChipax(`${endpoint}?page=1&limit=50`);
+  
+  if (!firstPage.paginationAttributes || firstPage.paginationAttributes.totalPages === 1) {
+    return firstPage.items || firstPage;
+  }
+  
+  let allItems = [...(firstPage.items || [])];
+  const totalPages = firstPage.paginationAttributes.totalPages;
+  
+  console.log(`Total de páginas a cargar: ${totalPages}`);
+  
+  // Cargar páginas restantes
+  for (let page = 2; page <= totalPages; page++) {
     try {
-      // Resetear estados
-      Object.keys(moduleStatus).forEach(module => {
-        updateModuleStatus(module, { status: 'loading', message: 'Cargando...', items: 0, completitud: 0 });
-      });
-      
-      // 1. Cargar Compras
-      updateModuleStatus('compras', { message: 'Obteniendo facturas de compra...' });
-      const comprasResult = await fetchAllPaginatedData('/compras');
-      
-      if (comprasResult.items) {
-        const cuentasPorPagar = adaptCuentasPorPagar(comprasResult);
-        onUpdateCuentasPorPagar?.(cuentasPorPagar);
-        
-        const completitud = comprasResult.paginationStats 
-          ? (comprasResult.paginationStats.loadedItems / comprasResult.paginationStats.totalItems) * 100
-          : 100;
-          
-        updateModuleStatus('compras', {
-          status: 'success',
-          message: 'Cargado exitosamente',
-          items: cuentasPorPagar.length,
-          completitud: completitud
-        });
+      const pageData = await fetchFromChipax(`${endpoint}?page=${page}&limit=50`);
+      if (pageData.items) {
+        allItems = [...allItems, ...pageData.items];
       }
-      setLoadingProgress(20);
-      
-      // 2. Cargar Ventas
-      updateModuleStatus('ventas', { message: 'Obteniendo facturas de venta...' });
-      const ventasResult = await fetchAllPaginatedData('/ventas');
-      
-      if (ventasResult.items) {
-        const cuentasPorCobrar = adaptCuentasPendientes(ventasResult);
-        onUpdateCuentasPendientes?.(cuentasPorCobrar);
-        
-        const completitud = ventasResult.paginationStats 
-          ? (ventasResult.paginationStats.loadedItems / ventasResult.paginationStats.totalItems) * 100
-          : 100;
-          
-        updateModuleStatus('ventas', {
-          status: 'success',
-          message: 'Cargado exitosamente',
-          items: cuentasPorCobrar.length,
-          completitud: completitud
-        });
-      }
-      setLoadingProgress(40);
-      
-      // 3. Cargar Cuentas Corrientes
-      updateModuleStatus('cuentasCorrientes', { message: 'Obteniendo saldos bancarios...' });
-      const cuentasResult = await fetchAllPaginatedData('/cuentas_corrientes');
-      
-      if (cuentasResult.items) {
-        const saldosBancarios = adaptSaldosBancarios(cuentasResult);
-        onUpdateSaldos?.(saldosBancarios);
-        
-        updateModuleStatus('cuentasCorrientes', {
-          status: 'success',
-          message: 'Cargado exitosamente',
-          items: saldosBancarios.length,
-          completitud: 100
-        });
-      }
-      setLoadingProgress(60);
-      
-      // 4. Cargar Clientes
-      updateModuleStatus('clientes', { message: 'Obteniendo lista de clientes...' });
-      const clientesResult = await fetchAllPaginatedData('/clientes');
-      
-      if (clientesResult.items) {
-        onUpdateClientes?.(clientesResult.items);
-        
-        updateModuleStatus('clientes', {
-          status: 'success',
-          message: 'Cargado exitosamente',
-          items: clientesResult.items.length,
-          completitud: 100
-        });
-      }
-      setLoadingProgress(80);
-      
-      // 5. Generar Flujo de Caja
-      updateModuleStatus('flujoCaja', { message: 'Generando flujo de caja...' });
-      
-      const flujoCajaData = adaptFlujoCaja({
-        compras: comprasResult,
-        ventas: ventasResult,
-        saldosBancarios: adaptSaldosBancarios(cuentasResult)
-      }, saldoInicial);
-      
-      onUpdateFlujoCaja?.(flujoCajaData);
-      
-      updateModuleStatus('flujoCaja', {
-        status: 'success',
-        message: 'Generado exitosamente',
-        items: flujoCajaData.periodos?.length || 0,
-        completitud: 100
-      });
-      
-      setLoadingProgress(100);
-      
-      // Calcular estadísticas generales
-      const endTime = Date.now();
-      const tiempoCarga = (endTime - startTime) / 1000;
-      
-      const completitudes = Object.values(moduleStatus).map(m => m.completitud || 0).filter(c => c > 0);
-      const completitudGeneral = completitudes.length > 0
-        ? completitudes.reduce((sum, c) => sum + c, 0) / completitudes.length
-        : 0;
-      
-      setGeneralStats({
-        totalItems: Object.values(moduleStatus).reduce((sum, m) => sum + (m.items || 0), 0),
-        completitudGeneral,
-        tiempoCarga
-      });
-      
-      setLastUpdate(new Date());
-      onDataSourceChange?.('chipax');
-      
-    } catch (err) {
-      console.error('❌ Error en carga de datos:', err);
-      setError(err.message || 'Error desconocido al cargar datos');
-      
-      Object.keys(moduleStatus).forEach(module => {
-        if (moduleStatus[module].status === 'loading') {
-          updateModuleStatus(module, { status: 'error', message: 'Error al cargar' });
-        }
-      });
-      
-    } finally {
-      setLoading(false);
-      setLoadingProgress(0);
+      console.log(`Página ${page}/${totalPages} cargada`);
+    } catch (error) {
+      console.error(`Error cargando página ${page}:`, error);
     }
-  };
+  }
+  
+  console.log(`Total items cargados: ${allItems.length}`);
+  return allItems;
+};
 
-  const renderModuleStatus = (module, status) => {
-    const getStatusIcon = () => {
-      switch (status.status) {
-        case 'idle': return <Clock size={16} className="text-gray-400" />;
-        case 'loading': return <Loader2 size={16} className="text-blue-500 animate-spin" />;
-        case 'success': return <CheckCircle size={16} className="text-green-500" />;
-        case 'error': return <AlertTriangle size={16} className="text-red-500" />;
-        default: return null;
-      }
-    };
-    
-    const getCompletitudColor = (completitud) => {
-      if (completitud >= 95) return 'text-green-600';
-      if (completitud >= 80) return 'text-yellow-600';
-      return 'text-red-600';
-    };
-    
+// ===== COMPONENTES =====
+
+// Tarjeta de saldo bancario
+const BankBalanceCard = ({ cuenta, loading }) => {
+  if (loading) {
     return (
-      <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-2">
-            {getStatusIcon()}
-            <span className="font-medium text-gray-700 capitalize">
-              {module.replace(/([A-Z])/g, ' $1').trim()}
-            </span>
-          </div>
-          {status.items > 0 && (
-            <span className="text-sm text-gray-500">{status.items} items</span>
-          )}
-        </div>
-        
-        <div className="text-sm text-gray-600 mb-2">{status.message}</div>
-        
-        {status.completitud > 0 && (
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs">
-              <span>Completitud:</span>
-              <span className={getCompletitudColor(status.completitud)}>
-                {status.completitud.toFixed(1)}%
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className={`h-2 rounded-full transition-all duration-500 ${
-                  status.completitud >= 95 ? 'bg-green-500' :
-                  status.completitud >= 80 ? 'bg-yellow-500' : 'bg-red-500'
-                }`}
-                style={{ width: `${status.completitud}%` }}
-              />
-            </div>
-          </div>
-        )}
+      <div className="bg-white rounded-lg shadow p-4 animate-pulse">
+        <div className="h-4 bg-gray-200 rounded w-1/2 mb-3"></div>
+        <div className="h-8 bg-gray-200 rounded w-3/4"></div>
       </div>
     );
+  }
+
+  const formatCurrency = (amount, currency = 'CLP') => {
+    return new Intl.NumberFormat('es-CL', { 
+      style: 'currency', 
+      currency,
+      maximumFractionDigits: currency === 'CLP' ? 0 : 2
+    }).format(amount);
   };
 
   return (
-    <div className="bg-white shadow rounded-lg overflow-hidden">
-      <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-              <Database size={20} className="mr-2 text-blue-600" /> 
-              Integración con Chipax
-            </h2>
-            
+    <div className="bg-white rounded-lg shadow hover:shadow-md transition-shadow p-4 border-l-4 border-blue-500">
+      <h3 className="font-medium text-gray-800 mb-2">{cuenta.nombre || 'Cuenta sin nombre'}</h3>
+      <div className="text-2xl font-bold text-gray-900 mb-1">
+        {formatCurrency(cuenta.saldo, cuenta.moneda)}
+      </div>
+      <p className="text-sm text-gray-600">{cuenta.banco || 'Sin banco'}</p>
+      {cuenta.numeroCuenta && (
+        <p className="text-xs text-gray-500 mt-1">N° {cuenta.numeroCuenta}</p>
+      )}
+    </div>
+  );
+};
+
+// Tabla de cuentas
+const AccountsTable = ({ cuentas, title, type = 'receivable', onViewAll }) => {
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('es-CL', { 
+      style: 'currency', 
+      currency: 'CLP',
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  const calcularDiasVencidos = (fechaVencimiento) => {
+    if (!fechaVencimiento) return 0;
+    const hoy = new Date();
+    const vencimiento = new Date(fechaVencimiento);
+    const diff = Math.floor((hoy - vencimiento) / (1000 * 60 * 60 * 24));
+    return diff;
+  };
+
+  const getStatusColor = (cuenta) => {
+    const dias = calcularDiasVencidos(cuenta.fechaVencimiento);
+    if (dias > 30) return 'text-red-600';
+    if (dias > 15) return 'text-amber-600';
+    if (dias > 0) return 'text-yellow-600';
+    return 'text-green-600';
+  };
+
+  const getStatusText = (cuenta) => {
+    const dias = calcularDiasVencidos(cuenta.fechaVencimiento);
+    if (dias > 0) return `Vencido (${dias} días)`;
+    if (dias === 0) return 'Vence hoy';
+    return `Vence en ${Math.abs(dias)} días`;
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow">
+      <div className="p-4 border-b flex justify-between items-center">
+        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+        <span className="text-sm text-gray-500">{cuentas.length} registros</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Folio</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                {type === 'receivable' ? 'Cliente' : 'Proveedor'}
+              </th>
+              <th className="px-4 py-2 text-right text-sm font-medium text-gray-700">Monto</th>
+              <th className="px-4 py-2 text-right text-sm font-medium text-gray-700">Saldo</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Estado</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {cuentas.slice(0, 5).map((cuenta) => (
+              <tr key={cuenta.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3 text-sm">{cuenta.folio}</td>
+                <td className="px-4 py-3 text-sm">
+                  <div>
+                    <p className="font-medium">
+                      {type === 'receivable' ? cuenta.cliente?.nombre : cuenta.proveedor?.nombre}
+                    </p>
+                    <p className="text-gray-500 text-xs">
+                      {type === 'receivable' ? cuenta.cliente?.rut : cuenta.proveedor?.rut}
+                    </p>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-sm text-right">{formatCurrency(cuenta.monto)}</td>
+                <td className="px-4 py-3 text-sm text-right font-medium">{formatCurrency(cuenta.saldo)}</td>
+                <td className="px-4 py-3 text-sm">
+                  <span className={getStatusColor(cuenta)}>
+                    {getStatusText(cuenta)}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {cuentas.length > 5 && (
+          <div className="p-3 text-center border-t">
+            <button 
+              onClick={onViewAll}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              Ver todos ({cuentas.length} registros)
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Gráfico de flujo de caja
+const CashFlowChart = ({ data }) => {
+  if (!data || !data.periodos || data.periodos.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow p-8 text-center">
+        <BarChart3 size={48} className="mx-auto mb-2 text-gray-300" />
+        <p className="text-gray-500">No hay datos de flujo de caja disponibles</p>
+      </div>
+    );
+  }
+
+  const maxValue = Math.max(...data.periodos.map(p => Math.max(p.ingresos, p.egresos)));
+  const scale = 100 / maxValue;
+
+  return (
+    <div className="bg-white rounded-lg shadow p-4">
+      <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+        <TrendingUp size={20} className="mr-2 text-blue-600" />
+        Flujo de Caja
+      </h2>
+      
+      <div className="space-y-4">
+        {data.periodos.slice(-6).map((periodo, index) => (
+          <div key={index} className="space-y-2">
+            <div className="text-sm text-gray-600">{periodo.fecha}</div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs w-16">Ingresos</span>
+              <div className="flex-1 bg-gray-200 rounded-full h-4 relative">
+                <div
+                  className="absolute top-0 left-0 h-full bg-green-500 rounded-full transition-all"
+                  style={{ width: `${periodo.ingresos * scale}%` }}
+                />
+              </div>
+              <span className="text-xs w-24 text-right">${periodo.ingresos.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs w-16">Egresos</span>
+              <div className="flex-1 bg-gray-200 rounded-full h-4 relative">
+                <div
+                  className="absolute top-0 left-0 h-full bg-red-500 rounded-full transition-all"
+                  style={{ width: `${periodo.egresos * scale}%` }}
+                />
+              </div>
+              <span className="text-xs w-24 text-right">${periodo.egresos.toLocaleString()}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      <div className="mt-4 pt-4 border-t grid grid-cols-3 gap-4 text-center">
+        <div>
+          <p className="text-xs text-gray-500">Saldo Inicial</p>
+          <p className="font-semibold">${(data.saldoInicial || 0).toLocaleString()}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-500">Flujo Neto</p>
+          <p className="font-semibold text-blue-600">
+            ${((data.totalIngresos || 0) - (data.totalEgresos || 0)).toLocaleString()}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-500">Saldo Final</p>
+          <p className="font-semibold">${(data.saldoFinal || 0).toLocaleString()}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ===== COMPONENTE PRINCIPAL =====
+const DashboardFinancieroIntegrado = () => {
+  // Estados
+  const [saldosBancarios, setSaldosBancarios] = useState([]);
+  const [cuentasPendientes, setCuentasPendientes] = useState([]);
+  const [cuentasPorPagar, setCuentasPorPagar] = useState([]);
+  const [flujoCaja, setFlujoCaja] = useState(null);
+  const [clientes, setClientes] = useState([]);
+  
+  const [loading, setLoading] = useState(false);
+  const [loadingModule, setLoadingModule] = useState('');
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const [error, setError] = useState(null);
+  
+  const [dataStats, setDataStats] = useState({
+    compras: { total: 0, filtered: 0, completeness: 0 },
+    ventas: { total: 0, filtered: 0, completeness: 0 },
+    cuentas: { total: 0, completeness: 100 },
+    clientes: { total: 0, completeness: 100 }
+  });
+
+  // Adaptadores de datos
+  const adaptarCuentasCorrientes = (cuentas) => {
+    if (!Array.isArray(cuentas)) return [];
+    
+    return cuentas.map(cuenta => ({
+      id: cuenta.id,
+      nombre: cuenta.nombre || `Cuenta ${cuenta.numero || cuenta.id}`,
+      banco: cuenta.banco?.nombre || cuenta.nombre_banco || 'Banco no especificado',
+      numeroCuenta: cuenta.numero || cuenta.numero_cuenta || '',
+      moneda: cuenta.moneda || 'CLP',
+      saldo: parseFloat(cuenta.saldo || cuenta.saldo_actual || 0)
+    }));
+  };
+
+  const adaptarFacturasVenta = (facturas) => {
+    if (!Array.isArray(facturas)) return [];
+    
+    return facturas
+      .filter(f => !f.pagado || f.saldo_pendiente > 0)
+      .map(f => ({
+        id: f.id,
+        folio: f.folio || f.numero || 'S/N',
+        cliente: {
+          nombre: f.razon_social_receptor || f.cliente?.nombre || 'Sin nombre',
+          rut: f.rut_receptor || f.cliente?.rut || 'Sin RUT'
+        },
+        monto: parseFloat(f.monto_total || f.total || 0),
+        saldo: parseFloat(f.saldo_pendiente || f.saldo || f.monto_total || 0),
+        fechaEmision: f.fecha_emision || f.fecha,
+        fechaVencimiento: f.fecha_vencimiento,
+        moneda: f.moneda || 'CLP'
+      }));
+  };
+
+  const adaptarFacturasCompra = (facturas) => {
+    if (!Array.isArray(facturas)) return [];
+    
+    return facturas
+      .filter(f => f.pagado === false || f.fecha_pago_interna === null)
+      .map(f => ({
+        id: f.id,
+        folio: f.folio || f.numero || 'S/N',
+        proveedor: {
+          nombre: f.razon_social || f.proveedor?.nombre || 'Sin nombre',
+          rut: f.rut_emisor || f.proveedor?.rut || 'Sin RUT'
+        },
+        monto: parseFloat(f.monto_total || f.total || 0),
+        saldo: parseFloat(f.saldo_pendiente || f.saldo || f.monto_total || 0),
+        fechaEmision: f.fecha_emision || f.fecha,
+        fechaVencimiento: f.fecha_vencimiento,
+        moneda: f.moneda || 'CLP'
+      }));
+  };
+
+  const generarFlujoCaja = (ventas, compras, saldos) => {
+    const transaccionesPorMes = new Map();
+    
+    // Procesar ingresos
+    ventas.forEach(venta => {
+      const fecha = new Date(venta.fechaEmision);
+      const key = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+      
+      if (!transaccionesPorMes.has(key)) {
+        transaccionesPorMes.set(key, { fecha: key, ingresos: 0, egresos: 0 });
+      }
+      
+      transaccionesPorMes.get(key).ingresos += venta.monto;
+    });
+    
+    // Procesar egresos
+    compras.forEach(compra => {
+      const fecha = new Date(compra.fechaEmision);
+      const key = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+      
+      if (!transaccionesPorMes.has(key)) {
+        transaccionesPorMes.set(key, { fecha: key, ingresos: 0, egresos: 0 });
+      }
+      
+      transaccionesPorMes.get(key).egresos += compra.monto;
+    });
+    
+    const periodos = Array.from(transaccionesPorMes.values())
+      .sort((a, b) => a.fecha.localeCompare(b.fecha))
+      .map(p => {
+        const [year, month] = p.fecha.split('-');
+        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        p.fecha = `${monthNames[parseInt(month) - 1]} ${year}`;
+        return p;
+      });
+    
+    const saldoInicial = saldos.reduce((sum, s) => sum + s.saldo, 0);
+    const totalIngresos = periodos.reduce((sum, p) => sum + p.ingresos, 0);
+    const totalEgresos = periodos.reduce((sum, p) => sum + p.egresos, 0);
+    
+    return {
+      periodos,
+      saldoInicial,
+      saldoFinal: saldoInicial + totalIngresos - totalEgresos,
+      totalIngresos,
+      totalEgresos
+    };
+  };
+
+  // Cargar datos de Chipax
+  const loadChipaxData = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // 1. Cargar cuentas corrientes
+      setLoadingModule('Cargando cuentas bancarias...');
+      const cuentasData = await fetchAllPages('/cuentas_corrientes');
+      const cuentasAdaptadas = adaptarCuentasCorrientes(cuentasData);
+      setSaldosBancarios(cuentasAdaptadas);
+      
+      // 2. Cargar ventas
+      setLoadingModule('Cargando facturas de venta...');
+      const ventasData = await fetchAllPages('/ventas');
+      const ventasAdaptadas = adaptarFacturasVenta(ventasData);
+      setCuentasPendientes(ventasAdaptadas);
+      
+      setDataStats(prev => ({
+        ...prev,
+        ventas: {
+          total: ventasData.length,
+          filtered: ventasAdaptadas.length,
+          completeness: 100
+        }
+      }));
+      
+      // 3. Cargar compras
+      setLoadingModule('Cargando facturas de compra...');
+      const comprasData = await fetchAllPages('/compras');
+      const comprasAdaptadas = adaptarFacturasCompra(comprasData);
+      setCuentasPorPagar(comprasAdaptadas);
+      
+      setDataStats(prev => ({
+        ...prev,
+        compras: {
+          total: comprasData.length,
+          filtered: comprasAdaptadas.length,
+          completeness: 100
+        }
+      }));
+      
+      // 4. Cargar clientes
+      setLoadingModule('Cargando clientes...');
+      const clientesData = await fetchAllPages('/clientes');
+      setClientes(Array.isArray(clientesData) ? clientesData : []);
+      
+      // 5. Generar flujo de caja
+      setLoadingModule('Generando flujo de caja...');
+      const flujo = generarFlujoCaja(ventasAdaptadas, comprasAdaptadas, cuentasAdaptadas);
+      setFlujoCaja(flujo);
+      
+      setLastUpdate(new Date());
+      console.log('✅ Datos cargados exitosamente');
+      
+    } catch (err) {
+      console.error('Error cargando datos:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+      setLoadingModule('');
+    }
+  };
+
+  // Cálculos
+  const calcularSaldoTotal = () => saldosBancarios.reduce((sum, c) => sum + c.saldo, 0);
+  const calcularTotalPorCobrar = () => cuentasPendientes.reduce((sum, c) => sum + c.saldo, 0);
+  const calcularTotalPorPagar = () => cuentasPorPagar.reduce((sum, c) => sum + c.saldo, 0);
+
+  const formatCurrency = (amount) =>
+    new Intl.NumberFormat('es-CL', { 
+      style: 'currency', 
+      currency: 'CLP',
+      maximumFractionDigits: 0
+    }).format(amount);
+
+  // Componente de métrica
+  const MetricCard = ({ icon: Icon, title, value, subtitle, color = 'blue' }) => (
+    <div className={`bg-white rounded-lg shadow p-4 border-l-4 border-${color}-500`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className={`p-2 bg-${color}-100 rounded-lg`}>
+          <Icon size={20} className={`text-${color}-600`} />
+        </div>
+      </div>
+      <h3 className="text-2xl font-bold text-gray-900">{value}</h3>
+      <p className="text-sm text-gray-600">{title}</p>
+      {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Dashboard Financiero - Chipax</h1>
+              <p className="text-gray-600">Datos en tiempo real desde la API de Chipax</p>
+            </div>
             {lastUpdate && (
-              <p className="text-sm text-gray-600 flex items-center mt-1">
-                <Clock size={14} className="mr-1" />
-                Última actualización: {lastUpdate.toLocaleString()}
-              </p>
-            )}
-            
-            {error && (
-              <p className="text-sm text-red-600 mt-1 flex items-center">
-                <AlertTriangle size={14} className="mr-1" />
-                {error}
-              </p>
+              <div className="flex items-center text-sm text-gray-600">
+                <Clock size={16} className="mr-1" />
+                <span>Actualizado: {lastUpdate.toLocaleString()}</span>
+              </div>
             )}
           </div>
-          
-          <div className="flex items-center space-x-2">
+        </div>
+      </header>
+
+      <div className="container mx-auto px-4 py-6">
+        {/* Panel de sincronización */}
+        <div className="mb-6 bg-white shadow rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center">
+                <Database size={20} className="text-blue-600 mr-2" />
+                <h2 className="text-lg font-semibold">Sincronización con Chipax</h2>
+              </div>
+              {loading && loadingModule && (
+                <p className="text-sm text-gray-600 mt-1">{loadingModule}</p>
+              )}
+            </div>
             <button
-              className="text-gray-600 hover:text-gray-800 p-2"
-              onClick={() => setIsExpanded(!isExpanded)}
-              title={isExpanded ? 'Contraer' : 'Expandir'}
-            >
-              <BarChart size={18} />
-            </button>
-            
-            <button 
-              className={`bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700 flex items-center ${
-                loading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-              onClick={loadAllChipaxData}
+              onClick={loadChipaxData}
               disabled={loading}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700 flex items-center disabled:opacity-50"
             >
               {loading ? (
                 <>
-                  <RefreshCw size={16} className="mr-2 animate-spin" />
-                  Sincronizando... {loadingProgress}%
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                  Sincronizando...
                 </>
               ) : (
                 <>
@@ -671,50 +563,134 @@ const ChipaxDataUpdater = ({
               )}
             </button>
           </div>
-        </div>
-      </div>
-      
-      {loading && loadingProgress > 0 && (
-        <div className="h-1 bg-gray-200">
-          <div
-            className="h-full bg-blue-600 transition-all duration-300"
-            style={{ width: `${loadingProgress}%` }}
-          />
-        </div>
-      )}
-      
-      {isExpanded && (
-        <div className="p-4 bg-gray-50 border-t">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Object.entries(moduleStatus).map(([module, status]) => (
-              <div key={module}>
-                {renderModuleStatus(module, status)}
-              </div>
-            ))}
-          </div>
           
-          {generalStats.tiempoCarga > 0 && (
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-start space-x-2">
-                <Info size={16} className="text-blue-600 mt-0.5" />
-                <div className="text-sm text-blue-800">
-                  <p>
-                    Última sincronización completada en {generalStats.tiempoCarga.toFixed(2)} segundos.
-                  </p>
-                  {generalStats.completitudGeneral < 100 && (
-                    <p className="mt-1 text-amber-700">
-                      ⚠️ La completitud general es del {generalStats.completitudGeneral.toFixed(1)}%. 
-                      Algunos datos podrían estar incompletos.
-                    </p>
-                  )}
-                </div>
+          {/* Estadísticas de carga */}
+          {dataStats.compras.total > 0 && (
+            <div className="mt-4 pt-4 border-t grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-gray-500">Facturas de compra:</span>
+                <p className="font-semibold">{dataStats.compras.filtered} de {dataStats.compras.total}</p>
+              </div>
+              <div>
+                <span className="text-gray-500">Facturas de venta:</span>
+                <p className="font-semibold">{dataStats.ventas.filtered} de {dataStats.ventas.total}</p>
+              </div>
+              <div>
+                <span className="text-gray-500">Cuentas bancarias:</span>
+                <p className="font-semibold">{saldosBancarios.length}</p>
+              </div>
+              <div>
+                <span className="text-gray-500">Clientes:</span>
+                <p className="font-semibold">{clientes.length}</p>
               </div>
             </div>
           )}
         </div>
-      )}
+
+        {/* Error */}
+        {error && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <AlertCircle size={20} className="text-red-600 mr-2 mt-0.5" />
+              <div>
+                <h3 className="text-red-800 font-medium">Error al cargar datos</h3>
+                <p className="text-sm text-red-700 mt-1">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Métricas principales */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <MetricCard
+            icon={Wallet}
+            title="Saldo Total"
+            value={formatCurrency(calcularSaldoTotal())}
+            subtitle={`${saldosBancarios.length} cuentas`}
+            color="blue"
+          />
+          
+          <MetricCard
+            icon={TrendingUp}
+            title="Por Cobrar"
+            value={formatCurrency(calcularTotalPorCobrar())}
+            subtitle={`${cuentasPendientes.length} facturas`}
+            color="green"
+          />
+          
+          <MetricCard
+            icon={DollarSign}
+            title="Por Pagar"
+            value={formatCurrency(calcularTotalPorPagar())}
+            subtitle={`${cuentasPorPagar.length} facturas`}
+            color="red"
+          />
+          
+          <MetricCard
+            icon={Users}
+            title="Clientes"
+            value={clientes.length.toString()}
+            subtitle="Registrados"
+            color="purple"
+          />
+        </div>
+
+        {/* Saldos bancarios */}
+        {saldosBancarios.length > 0 && (
+          <div className="mb-6">
+            <div className="bg-white shadow rounded-lg p-4">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <Wallet size={20} className="mr-2 text-blue-600" />
+                Saldos Bancarios
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {saldosBancarios.map(cuenta => (
+                  <BankBalanceCard key={cuenta.id} cuenta={cuenta} loading={loading} />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Flujo de caja */}
+        {flujoCaja && (
+          <div className="mb-6">
+            <CashFlowChart data={flujoCaja} />
+          </div>
+        )}
+
+        {/* Tablas */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {cuentasPendientes.length > 0 && (
+            <AccountsTable 
+              cuentas={cuentasPendientes} 
+              title="Cuentas por Cobrar" 
+              type="receivable" 
+            />
+          )}
+          
+          {cuentasPorPagar.length > 0 && (
+            <AccountsTable 
+              cuentas={cuentasPorPagar} 
+              title="Cuentas por Pagar" 
+              type="payable" 
+            />
+          )}
+        </div>
+
+        {/* Estado vacío */}
+        {!loading && saldosBancarios.length === 0 && cuentasPendientes.length === 0 && (
+          <div className="text-center py-12">
+            <Database size={48} className="mx-auto mb-4 text-gray-300" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No hay datos cargados</h3>
+            <p className="text-gray-500 mb-4">
+              Haz clic en "Sincronizar con Chipax" para cargar los datos financieros
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
-export default ChipaxDataUpdater;
+export default DashboardFinancieroIntegrado;
