@@ -1,16 +1,172 @@
-// DashboardFinancieroIntegrado.jsx - Versión mejorada con información de paginación
+// DashboardFinancieroIntegrado.jsx - Versión autocontenida
 import React, { useState, useEffect } from 'react';
 import { 
-  AlertCircle, Calendar, Filter, Info, Wallet, PieChart, TrendingUp, 
-  Database, CheckCircle, Clock, RefreshCw, Settings
+  AlertCircle, Calendar, Filter, Info, Wallet, PieChart, 
+  TrendingUp, AlertTriangle, BarChart3, DollarSign,
+  FileText, Clock, Users, Building2, Database, RefreshCw,
+  Loader2, CheckCircle, Eye, EyeOff, Download, ChevronRight,
+  TrendingDown, X, Bell, Activity
 } from 'lucide-react';
-import ChipaxDataUpdater from '../components/ChipaxDataUpdater';
-import BankBalanceCard from '../components/BankBalanceCard';
-import CashFlowChart from '../components/CashFlowChart';
-import AccountsReceivableTable from '../components/AccountsReceivableTable';
-import PendingInvoicesComponent from '../components/PendingInvoicesComponent';
-import PaginationDebugger from '../components/PaginationDebugger';
 
+// ===== MINI COMPONENTES INTEGRADOS =====
+
+// Componente de tarjeta de saldo bancario
+const BankBalanceCard = ({ cuenta, loading }) => {
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow p-4 animate-pulse">
+        <div className="h-4 bg-gray-200 rounded w-1/2 mb-3"></div>
+        <div className="h-8 bg-gray-200 rounded w-3/4"></div>
+      </div>
+    );
+  }
+
+  const formatCurrency = (amount, currency = 'CLP') => {
+    return new Intl.NumberFormat('es-CL', { 
+      style: 'currency', 
+      currency,
+      maximumFractionDigits: currency === 'CLP' ? 0 : 2
+    }).format(amount);
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow hover:shadow-md transition-shadow p-4 border-l-4 border-blue-500">
+      <h3 className="font-medium text-gray-800 mb-2">{cuenta.nombre || 'Cuenta sin nombre'}</h3>
+      <div className="text-2xl font-bold text-gray-900 mb-1">
+        {formatCurrency(cuenta.saldo, cuenta.moneda)}
+      </div>
+      <p className="text-sm text-gray-600">{cuenta.banco || 'Sin banco'}</p>
+    </div>
+  );
+};
+
+// Mini tabla de cuentas por cobrar
+const SimpleAccountsTable = ({ cuentas, title, type = 'receivable' }) => {
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('es-CL', { 
+      style: 'currency', 
+      currency: 'CLP',
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  const getStatusColor = (dias) => {
+    if (type === 'receivable') {
+      if (dias > 30) return 'text-red-600';
+      if (dias > 15) return 'text-amber-600';
+      return 'text-green-600';
+    }
+    return 'text-gray-600';
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow">
+      <div className="p-4 border-b">
+        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Folio</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                {type === 'receivable' ? 'Cliente' : 'Proveedor'}
+              </th>
+              <th className="px-4 py-2 text-right text-sm font-medium text-gray-700">Monto</th>
+              <th className="px-4 py-2 text-right text-sm font-medium text-gray-700">Saldo</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Vencimiento</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {cuentas.slice(0, 5).map((cuenta) => (
+              <tr key={cuenta.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3 text-sm">{cuenta.folio}</td>
+                <td className="px-4 py-3 text-sm">
+                  <div>
+                    <p className="font-medium">
+                      {type === 'receivable' ? cuenta.cliente?.nombre : cuenta.proveedor?.nombre}
+                    </p>
+                    <p className="text-gray-500 text-xs">
+                      {type === 'receivable' ? cuenta.cliente?.rut : cuenta.proveedor?.rut}
+                    </p>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-sm text-right">{formatCurrency(cuenta.monto)}</td>
+                <td className="px-4 py-3 text-sm text-right font-medium">{formatCurrency(cuenta.saldo)}</td>
+                <td className="px-4 py-3 text-sm">
+                  <span className={getStatusColor(cuenta.diasVencidos)}>
+                    {cuenta.diasVencidos > 0 ? `Vencido (${cuenta.diasVencidos} días)` : 'Al día'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {cuentas.length > 5 && (
+          <div className="p-3 text-center border-t">
+            <span className="text-sm text-gray-500">
+              Mostrando 5 de {cuentas.length} registros
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Mini gráfico de flujo de caja
+const SimpleCashFlowChart = ({ data }) => {
+  if (!data || !data.periodos || data.periodos.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow p-8 text-center">
+        <BarChart3 size={48} className="mx-auto mb-2 text-gray-300" />
+        <p className="text-gray-500">No hay datos de flujo de caja disponibles</p>
+      </div>
+    );
+  }
+
+  const maxValue = Math.max(...data.periodos.map(p => Math.max(p.ingresos, p.egresos)));
+  const scale = 100 / maxValue;
+
+  return (
+    <div className="bg-white rounded-lg shadow p-4">
+      <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+        <TrendingUp size={20} className="mr-2 text-blue-600" />
+        Flujo de Caja
+      </h2>
+      
+      <div className="space-y-4">
+        {data.periodos.slice(-6).map((periodo, index) => (
+          <div key={index} className="space-y-2">
+            <div className="text-sm text-gray-600">{periodo.fecha}</div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs w-16">Ingresos</span>
+              <div className="flex-1 bg-gray-200 rounded-full h-4 relative">
+                <div
+                  className="absolute top-0 left-0 h-full bg-green-500 rounded-full"
+                  style={{ width: `${periodo.ingresos * scale}%` }}
+                />
+              </div>
+              <span className="text-xs w-24 text-right">${periodo.ingresos.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs w-16">Egresos</span>
+              <div className="flex-1 bg-gray-200 rounded-full h-4 relative">
+                <div
+                  className="absolute top-0 left-0 h-full bg-red-500 rounded-full"
+                  style={{ width: `${periodo.egresos * scale}%` }}
+                />
+              </div>
+              <span className="text-xs w-24 text-right">${periodo.egresos.toLocaleString()}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ===== COMPONENTE PRINCIPAL DEL DASHBOARD =====
 const DashboardFinancieroIntegrado = () => {
   // Estados principales
   const [saldosBancarios, setSaldosBancarios] = useState([]);
@@ -21,98 +177,112 @@ const DashboardFinancieroIntegrado = () => {
   const [flujoCaja, setFlujoCaja] = useState(null);
   const [clientes, setClientes] = useState([]);
   const [egresosProgramados, setEgresosProgramados] = useState([]);
+  
+  // Estados de control
   const [dataSource, setDataSource] = useState('manual');
-  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const [showDataPanel, setShowDataPanel] = useState(false);
   
-  // Estados para información de paginación
-  const [paginationInfo, setPaginationInfo] = useState({});
-  const [showDebugPanel, setShowDebugPanel] = useState(false);
-  const [lastSyncDetails, setLastSyncDetails] = useState(null);
-  
-  // Estados para configuración
-  const [periodoFlujo, setPeriodoFlujo] = useState('mensual');
-  const [fechasRango, setFechasRango] = useState({
-    fechaInicio: new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().split('T')[0],
-    fechaFin: new Date().toISOString().split('T')[0]
+  // Estado para métricas
+  const [dataCompleteness, setDataCompleteness] = useState({
+    overall: 0,
+    modules: {
+      compras: { loaded: false, completeness: 0, itemCount: 0 },
+      ventas: { loaded: false, completeness: 0, itemCount: 0 },
+      bancos: { loaded: false, completeness: 0, itemCount: 0 },
+      clientes: { loaded: false, completeness: 0, itemCount: 0 }
+    }
   });
 
-  // Handlers principales
-  const handleDataSourceChange = (source) => {
-    setDataSource(source);
-    console.log(`📊 Fuente de datos cambiada a: ${source}`);
+  // Datos de demostración
+  const loadDemoData = () => {
+    setLoading(true);
+    
+    setTimeout(() => {
+      // Saldos bancarios demo
+      setSaldosBancarios([
+        { id: 1, nombre: 'Cuenta Corriente', banco: 'Banco Estado', saldo: 5420000, moneda: 'CLP' },
+        { id: 2, nombre: 'Cuenta Vista', banco: 'Banco Santander', saldo: 1250000, moneda: 'CLP' },
+        { id: 3, nombre: 'Cuenta USD', banco: 'Banco Chile', saldo: 3500, moneda: 'USD' }
+      ]);
+      
+      // Cuentas por cobrar demo
+      setCuentasPendientes([
+        { id: 1, folio: '001', cliente: { nombre: 'Empresa ABC', rut: '76.123.456-7' }, monto: 1500000, saldo: 1500000, diasVencidos: 5 },
+        { id: 2, folio: '002', cliente: { nombre: 'Comercial XYZ', rut: '76.234.567-8' }, monto: 2300000, saldo: 2300000, diasVencidos: 15 },
+        { id: 3, folio: '003', cliente: { nombre: 'Servicios 123', rut: '76.345.678-9' }, monto: 890000, saldo: 890000, diasVencidos: -3 }
+      ]);
+      
+      // Cuentas por pagar demo
+      setCuentasPorPagar([
+        { id: 1, folio: '101', proveedor: { nombre: 'Proveedor Sur', rut: '76.456.789-0' }, monto: 750000, saldo: 750000, diasVencidos: -7 },
+        { id: 2, folio: '102', proveedor: { nombre: 'Distribuidora Norte', rut: '76.567.890-1' }, monto: 1200000, saldo: 1200000, diasVencidos: 0 }
+      ]);
+      
+      // Flujo de caja demo
+      setFlujoCaja({
+        periodos: [
+          { fecha: 'Enero 2024', ingresos: 8500000, egresos: 6200000 },
+          { fecha: 'Febrero 2024', ingresos: 9200000, egresos: 7100000 },
+          { fecha: 'Marzo 2024', ingresos: 7800000, egresos: 8500000 },
+          { fecha: 'Abril 2024', ingresos: 10500000, egresos: 7900000 },
+          { fecha: 'Mayo 2024', ingresos: 9800000, egresos: 8200000 },
+          { fecha: 'Junio 2024', ingresos: 11200000, egresos: 9100000 }
+        ]
+      });
+      
+      setClientes([1, 2, 3, 4, 5]);
+      setBancos([1, 2, 3]);
+      
+      setDataSource('demo');
+      setLastUpdate(new Date());
+      updateDataCompleteness();
+      setLoading(false);
+    }, 1500);
   };
 
-  const handleFlujoCajaPeriodChange = (periodo) => setPeriodoFlujo(periodo);
-  const handleDateRangeChange = (newRange) => setFechasRango(newRange);
+  // Actualizar métricas
+  const updateDataCompleteness = () => {
+    const modules = {
+      compras: {
+        loaded: cuentasPorPagar.length > 0,
+        completeness: 100,
+        itemCount: cuentasPorPagar.length
+      },
+      ventas: {
+        loaded: cuentasPendientes.length > 0,
+        completeness: 100,
+        itemCount: cuentasPendientes.length
+      },
+      bancos: {
+        loaded: saldosBancarios.length > 0,
+        completeness: 100,
+        itemCount: saldosBancarios.length
+      },
+      clientes: {
+        loaded: clientes.length > 0,
+        completeness: 100,
+        itemCount: clientes.length
+      }
+    };
 
-  // Handlers para actualización de datos con información de paginación
-  const handleUpdateSaldos = (saldos) => {
-    setSaldosBancarios(saldos);
-    console.log(`✅ Saldos bancarios actualizados: ${saldos.length} cuentas`);
+    const loadedModules = Object.values(modules).filter(m => m.loaded);
+    const overall = loadedModules.length > 0
+      ? loadedModules.reduce((sum, m) => sum + m.completeness, 0) / loadedModules.length
+      : 0;
+
+    setDataCompleteness({ overall, modules });
   };
 
-  const handleUpdateCuentasPendientes = (cuentas, info = null) => {
-    setCuentasPendientes(cuentas);
-    if (info) {
-      setPaginationInfo(prev => ({ ...prev, cuentasPendientes: info }));
-    }
-    console.log(`✅ Cuentas por cobrar actualizadas: ${cuentas.length} facturas`);
-  };
+  useEffect(() => {
+    updateDataCompleteness();
+  }, [cuentasPorPagar, cuentasPendientes, saldosBancarios, clientes]);
 
-  const handleUpdateCuentasPorPagar = (cuentas, info = null) => {
-    setCuentasPorPagar(cuentas);
-    if (info) {
-      setPaginationInfo(prev => ({ ...prev, cuentasPorPagar: info }));
-    }
-    console.log(`✅ Cuentas por pagar actualizadas: ${cuentas.length} facturas`);
-  };
-
-  const handleUpdateFacturasPendientes = (facturas) => {
-    setFacturasPendientes(facturas);
-    console.log(`✅ Facturas pendientes actualizadas: ${facturas.length} facturas`);
-  };
-
-  const handleUpdateFlujoCaja = (flujo) => {
-    setFlujoCaja(flujo);
-    console.log(`✅ Flujo de caja actualizado`);
-  };
-
-  const handleUpdateClientes = (clientesData, info = null) => {
-    setClientes(clientesData);
-    if (info) {
-      setPaginationInfo(prev => ({ ...prev, clientes: info }));
-    }
-    console.log(`✅ Clientes actualizados: ${clientesData.length || 'N/A'} clientes`);
-  };
-
-  const handleUpdateEgresosProgramados = (egresos) => {
-    setEgresosProgramados(egresos);
-    console.log(`✅ Egresos programados actualizados: ${egresos.length} egresos`);
-  };
-
-  const handleUpdateBancos = (bancosData) => {
-    setBancos(bancosData);
-    console.log(`✅ Bancos actualizados: ${bancosData.length} bancos`);
-  };
-
-  // Handler para detalles de sincronización
-  const handleSyncDetails = (details) => {
-    setLastSyncDetails(details);
-    console.log('📊 Detalles de sincronización recibidos:', details);
-  };
-
-  const handleExportToExcel = (dataType) => {
-    alert(`Exportación a Excel de ${dataType} no implementada.`);
-  };
-
-  // Funciones de cálculo
+  // Cálculos
   const calcularSaldoTotal = () => saldosBancarios.reduce((acc, c) => acc + c.saldo, 0);
   const calcularTotalPorCobrar = () => cuentasPendientes.reduce((acc, c) => acc + c.saldo, 0);
   const calcularTotalPorPagar = () => cuentasPorPagar.reduce((acc, c) => acc + c.saldo, 0);
-
-  const handleAprobarFactura = (id) => setFacturasPendientes(prev => prev.filter(f => f.id !== id));
-  const handleRechazarFactura = (id) => setFacturasPendientes(prev => prev.filter(f => f.id !== id));
 
   const formatCurrency = (amount, currency = 'CLP') =>
     new Intl.NumberFormat('es-CL', { 
@@ -121,326 +291,163 @@ const DashboardFinancieroIntegrado = () => {
       maximumFractionDigits: currency === 'CLP' ? 0 : 2 
     }).format(amount);
 
-  // Componente para mostrar información de paginación
-  const PaginationInfoCard = ({ title, info, total }) => {
-    if (!info) return null;
-
-    const isComplete = info.completenessPercent === 100;
-    const hasFailures = info.failedPages && info.failedPages.length > 0;
-
-    return (
-      <div className={`p-3 rounded border ${
-        isComplete ? 'bg-green-50 border-green-200' : 
-        hasFailures ? 'bg-amber-50 border-amber-200' : 
-        'bg-blue-50 border-blue-200'
-      }`}>
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-sm font-medium text-gray-800">{title}</h4>
-          <div className={`flex items-center text-xs ${
-            isComplete ? 'text-green-600' : 
-            hasFailures ? 'text-amber-600' : 
-            'text-blue-600'
-          }`}>
-            {isComplete ? <CheckCircle size={12} className="mr-1" /> : 
-             hasFailures ? <AlertCircle size={12} className="mr-1" /> : 
-             <Clock size={12} className="mr-1" />}
-            {info.completenessPercent.toFixed(1)}%
-          </div>
+  // Componente de tarjeta de métrica
+  const MetricCard = ({ icon: Icon, title, value, subtitle, color = 'blue' }) => (
+    <div className={`bg-white rounded-lg shadow p-4 border-l-4 border-${color}-500`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className={`p-2 bg-${color}-100 rounded-lg`}>
+          <Icon size={20} className={`text-${color}-600`} />
         </div>
-        
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div>
-            <span className="text-gray-600">Páginas:</span>
-            <p className="font-medium">{info.totalPagesLoaded}/{info.totalPagesRequested}</p>
-          </div>
-          <div>
-            <span className="text-gray-600">Items:</span>
-            <p className="font-medium">{total || info.totalItemsLoaded}</p>
-          </div>
-        </div>
-        
-        {hasFailures && (
-          <div className="mt-2 text-xs text-amber-700">
-            <span>Páginas fallidas: {info.failedPages.join(', ')}</span>
-          </div>
-        )}
       </div>
-    );
-  };
+      <h3 className="text-2xl font-bold text-gray-900">{value}</h3>
+      <p className="text-sm text-gray-600">{title}</p>
+      {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
+          <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Dashboard Financiero</h1>
-              <p className="text-gray-600">Gestiona tus finanzas en tiempo real con datos de Chipax</p>
+              <p className="text-gray-600">Gestiona tus finanzas en tiempo real</p>
             </div>
-            
-            {/* Controles del header */}
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setShowDebugPanel(!showDebugPanel)}
-                className={`px-3 py-1 rounded text-sm flex items-center ${
-                  showDebugPanel 
-                    ? 'bg-purple-100 text-purple-700' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <Settings size={16} className="mr-1" />
-                Debug
-              </button>
-              
-              {dataSource === 'chipax' && (
-                <div className="flex items-center text-sm text-green-600">
-                  <Database size={16} className="mr-1" />
-                  Conectado a Chipax
-                </div>
-              )}
-            </div>
+            {lastUpdate && (
+              <div className="flex items-center text-sm text-gray-600">
+                <Clock size={16} className="mr-1" />
+                <span>Actualizado: {lastUpdate.toLocaleTimeString()}</span>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
       <div className="container mx-auto px-4 py-6">
-        {/* Panel de debug (condicional) */}
-        {showDebugPanel && (
-          <div className="mb-6">
-            <PaginationDebugger />
+        {/* Panel de sincronización simplificado */}
+        <div className="mb-6 bg-white shadow rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Database size={20} className="text-blue-600 mr-2" />
+              <h2 className="text-lg font-semibold">Sincronización de Datos</h2>
+            </div>
+            <button
+              onClick={loadDemoData}
+              disabled={loading}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700 flex items-center disabled:opacity-50"
+            >
+              {loading ? (
+                <>
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                  Cargando...
+                </>
+              ) : (
+                <>
+                  <RefreshCw size={16} className="mr-2" />
+                  Cargar Datos Demo
+                </>
+              )}
+            </button>
           </div>
-        )}
-
-        {/* Chipax Data Updater */}
-        <div className="mb-6">
-          <ChipaxDataUpdater
-            onUpdateSaldos={handleUpdateSaldos}
-            onUpdateCuentasPendientes={handleUpdateCuentasPendientes}
-            onUpdateCuentasPorPagar={handleUpdateCuentasPorPagar}
-            onUpdateFacturasPendientes={handleUpdateFacturasPendientes}
-            onUpdateFlujoCaja={handleUpdateFlujoCaja}
-            onUpdateClientes={handleUpdateClientes}
-            onUpdateEgresosProgramados={handleUpdateEgresosProgramados}
-            onUpdateBancos={handleUpdateBancos}
-            saldoInicial={0}
-            onDataSourceChange={handleDataSourceChange}
-            onSyncDetails={handleSyncDetails}
-          />
         </div>
 
-        {/* Información de paginación */}
-        {Object.keys(paginationInfo).length > 0 && (
-          <div className="mb-6 bg-white rounded-lg shadow p-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-              <Info size={16} className="mr-2 text-blue-600" />
-              Información de Carga de Datos
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {paginationInfo.cuentasPendientes && (
-                <PaginationInfoCard
-                  title="Cuentas por Cobrar"
-                  info={paginationInfo.cuentasPendientes}
-                  total={cuentasPendientes.length}
-                />
-              )}
-              
-              {paginationInfo.cuentasPorPagar && (
-                <PaginationInfoCard
-                  title="Cuentas por Pagar"
-                  info={paginationInfo.cuentasPorPagar}
-                  total={cuentasPorPagar.length}
-                />
-              )}
-              
-              {paginationInfo.clientes && (
-                <PaginationInfoCard
-                  title="Clientes"
-                  info={paginationInfo.clientes}
-                  total={clientes.length}
-                />
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Errores */}
-        {Object.keys(errors).length > 0 && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+        {/* Alerta de completitud */}
+        {dataCompleteness.overall > 0 && dataCompleteness.overall < 100 && (
+          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-4">
             <div className="flex items-start">
-              <AlertCircle size={20} className="text-red-600 mr-2 mt-0.5" />
+              <AlertTriangle size={20} className="text-amber-600 mr-2 mt-0.5" />
               <div>
-                <h3 className="text-red-800 font-medium">Errores al cargar datos</h3>
-                <ul className="mt-1 text-sm text-red-700 space-y-1">
-                  {Object.entries(errors).map(([key, value]) => (
-                    <li key={key}>{key}: {value}</li>
-                  ))}
-                </ul>
+                <h3 className="text-amber-800 font-medium">Datos incompletos</h3>
+                <p className="text-sm text-amber-700 mt-1">
+                  Completitud: {dataCompleteness.overall.toFixed(1)}%
+                </p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Tarjetas principales */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          {/* Saldos Bancarios */}
+        {/* Métricas principales */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <MetricCard
+            icon={Wallet}
+            title="Saldo Total"
+            value={formatCurrency(calcularSaldoTotal())}
+            subtitle={`${saldosBancarios.length} cuentas`}
+            color="blue"
+          />
+          
+          <MetricCard
+            icon={TrendingUp}
+            title="Por Cobrar"
+            value={formatCurrency(calcularTotalPorCobrar())}
+            subtitle={`${cuentasPendientes.length} facturas`}
+            color="green"
+          />
+          
+          <MetricCard
+            icon={DollarSign}
+            title="Por Pagar"
+            value={formatCurrency(calcularTotalPorPagar())}
+            subtitle={`${cuentasPorPagar.length} facturas`}
+            color="red"
+          />
+          
+          <MetricCard
+            icon={FileText}
+            title="Clientes"
+            value={clientes.length.toString()}
+            subtitle="Registrados"
+            color="purple"
+          />
+        </div>
+
+        {/* Saldos bancarios */}
+        <div className="mb-6">
           <div className="bg-white shadow rounded-lg p-4">
-            <div className="flex items-center mb-4">
-              <Wallet size={20} className="text-blue-600 mr-2" />
-              <h2 className="text-lg font-semibold text-gray-900">Saldos Bancarios</h2>
-            </div>
-            <div className="text-3xl font-bold text-gray-900 mb-2">
-              {formatCurrency(calcularSaldoTotal())}
-            </div>
-            <div className="text-sm text-gray-500 mb-4">
-              Total en {saldosBancarios.length} cuentas
-            </div>
-            <div className="grid grid-cols-1 gap-3">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <Wallet size={20} className="mr-2 text-blue-600" />
+              Saldos Bancarios
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {saldosBancarios.map(cuenta => (
                 <BankBalanceCard key={cuenta.id} cuenta={cuenta} loading={loading} />
               ))}
             </div>
           </div>
-
-          {/* Cuentas por Cobrar */}
-          <div className="bg-white shadow rounded-lg p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center">
-                <TrendingUp size={20} className="text-green-600 mr-2" />
-                <h2 className="text-lg font-semibold text-gray-900">Cuentas por Cobrar</h2>
-              </div>
-              {paginationInfo.cuentasPendientes && (
-                <div className={`text-xs px-2 py-1 rounded ${
-                  paginationInfo.cuentasPendientes.completenessPercent === 100
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-amber-100 text-amber-700'
-                }`}>
-                  {paginationInfo.cuentasPendientes.completenessPercent.toFixed(0)}%
-                </div>
-              )}
-            </div>
-            <div className="text-3xl font-bold text-green-600 mb-2">
-              {formatCurrency(calcularTotalPorCobrar())}
-            </div>
-            <div className="text-sm text-gray-500 mb-4">
-              {cuentasPendientes.length} facturas pendientes de cobro
-            </div>
-            <div className="space-y-3">
-              {cuentasPendientes.slice(0, 3).map(cuenta => (
-                <div key={cuenta.id} className="border-b pb-2 last:border-b-0 last:pb-0">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-medium text-gray-900">{cuenta.cliente?.nombre || cuenta.cliente}</p>
-                      <p className="text-sm text-gray-500">Factura #{cuenta.folio}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium text-gray-900">{formatCurrency(cuenta.saldo)}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Cuentas por Pagar */}
-          <div className="bg-white shadow rounded-lg p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center">
-                <PieChart size={20} className="text-red-600 mr-2" />
-                <h2 className="text-lg font-semibold text-gray-900">Cuentas por Pagar</h2>
-              </div>
-              {paginationInfo.cuentasPorPagar && (
-                <div className={`text-xs px-2 py-1 rounded ${
-                  paginationInfo.cuentasPorPagar.completenessPercent === 100
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-amber-100 text-amber-700'
-                }`}>
-                  {paginationInfo.cuentasPorPagar.completenessPercent.toFixed(0)}%
-                </div>
-              )}
-            </div>
-            <div className="text-3xl font-bold text-red-600 mb-2">
-              {formatCurrency(calcularTotalPorPagar())}
-            </div>
-            <div className="text-sm text-gray-500 mb-4">
-              {cuentasPorPagar.length} facturas pendientes de pago
-            </div>
-            <div className="space-y-3">
-              {cuentasPorPagar.slice(0, 3).map(factura => (
-                <div key={factura.id} className="border-b pb-2 last:border-b-0 last:pb-0">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-medium text-gray-900">{factura.proveedor?.nombre || factura.proveedor}</p>
-                      <p className="text-sm text-gray-500">Factura #{factura.folio}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium text-gray-900">{formatCurrency(factura.saldo)}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
-        {/* Gráfico de flujo de caja */}
+        {/* Flujo de caja */}
         <div className="mb-6">
-          <CashFlowChart
-            data={flujoCaja}
-            loading={loading}
-            onExportData={() => handleExportToExcel('flujoCaja')}
-            onPeriodChange={handleFlujoCajaPeriodChange}
-            periodo={periodoFlujo}
+          <SimpleCashFlowChart data={flujoCaja} />
+        </div>
+
+        {/* Tablas */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <SimpleAccountsTable 
+            cuentas={cuentasPendientes} 
+            title="Cuentas por Cobrar" 
+            type="receivable" 
+          />
+          <SimpleAccountsTable 
+            cuentas={cuentasPorPagar} 
+            title="Cuentas por Pagar" 
+            type="payable" 
           />
         </div>
 
-        {/* Tabla de cuentas por cobrar */}
-        <div className="grid grid-cols-1 gap-6 mb-6">
-          <AccountsReceivableTable
-            cuentas={cuentasPendientes}
-            loading={loading}
-            onExportData={() => handleExportToExcel('cuentasPendientes')}
-          />
-        </div>
-
-        {/* Facturas pendientes de aprobación */}
-        <div className="mb-6">
-          <PendingInvoicesComponent
-            facturas={facturasPendientes}
-            loading={loading}
-            onApprove={handleAprobarFactura}
-            onReject={handleRechazarFactura}
-          />
-        </div>
-
-        {/* Información de última sincronización */}
-        {lastSyncDetails && (
-          <div className="bg-white rounded-lg shadow p-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-              <RefreshCw size={16} className="mr-2 text-blue-600" />
-              Última Sincronización
-            </h3>
-            
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-gray-600">Duración:</span>
-                <p className="font-medium">{lastSyncDetails.duration}s</p>
-              </div>
-              <div>
-                <span className="text-gray-600">Módulos cargados:</span>
-                <p className="font-medium">{lastSyncDetails.modulesLoaded || 'N/A'}</p>
-              </div>
-              <div>
-                <span className="text-gray-600">Timestamp:</span>
-                <p className="font-medium">{new Date(lastSyncDetails.timestamp || Date.now()).toLocaleTimeString()}</p>
-              </div>
-              <div>
-                <span className="text-gray-600">Estado:</span>
-                <p className={`font-medium ${lastSyncDetails.success ? 'text-green-600' : 'text-red-600'}`}>
-                  {lastSyncDetails.success ? 'Exitoso' : 'Con errores'}
-                </p>
-              </div>
+        {/* Panel de estado */}
+        {dataSource && (
+          <div className="mt-8 p-4 bg-gray-100 rounded-lg">
+            <div className="text-sm text-gray-600">
+              <span>Fuente de datos: <strong className="capitalize">{dataSource}</strong></span>
+              {dataCompleteness.overall > 0 && (
+                <>
+                  <span className="mx-2">•</span>
+                  <span>Completitud: <strong>{dataCompleteness.overall.toFixed(1)}%</strong></span>
+                </>
+              )}
             </div>
           </div>
         )}
