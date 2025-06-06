@@ -10,7 +10,7 @@ import CashFlowChart from '../components/CashFlowChart';
 import AccountsReceivableTable from '../components/AccountsReceivableTable';
 import PendingInvoicesComponent from '../components/PendingInvoicesComponent';
 import PaginationDebugger from '../components/PaginationDebugger';
-
+import ChipaxDataInspector from '../components/ChipaxDataInspector';
 
 const DashboardFinancieroIntegrado = () => {
   // Estados principales
@@ -30,6 +30,7 @@ const DashboardFinancieroIntegrado = () => {
   const [paginationInfo, setPaginationInfo] = useState({});
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [lastSyncDetails, setLastSyncDetails] = useState(null);
+  const [showInspector, setShowInspector] = useState(false);
   
   // Estados para configuración
   const [periodoFlujo, setPeriodoFlujo] = useState('mensual');
@@ -183,6 +184,18 @@ const DashboardFinancieroIntegrado = () => {
             {/* Controles del header */}
             <div className="flex items-center space-x-2">
               <button
+                onClick={() => setShowInspector(!showInspector)}
+                className={`px-3 py-1 rounded text-sm flex items-center ${
+                  showInspector 
+                    ? 'bg-purple-100 text-purple-700' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Database size={16} className="mr-1" />
+                Inspector
+              </button>
+              
+              <button
                 onClick={() => setShowDebugPanel(!showDebugPanel)}
                 className={`px-3 py-1 rounded text-sm flex items-center ${
                   showDebugPanel 
@@ -210,6 +223,13 @@ const DashboardFinancieroIntegrado = () => {
         {showDebugPanel && (
           <div className="mb-6">
             <PaginationDebugger />
+          </div>
+        )}
+
+        {/* Inspector de datos */}
+        {showInspector && (
+          <div className="mb-6">
+            <ChipaxDataInspector />
           </div>
         )}
 
