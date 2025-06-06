@@ -55,31 +55,30 @@ const adaptarSaldosBancarios = (datos) => {
     return [];
   }
   
-  // Si vienen del endpoint de flujo-caja/init
-  if (datos.arrFlujoCaja) {
-    console.log('💰 Adaptando desde flujo de caja');
-    const cuentasMap = new Map();
+  // Si vienen del endpoint de flujo-caja/init con estructura especial
+  if (datos.cuentasCorrientes) {
+    console.log('💰 Adaptando desde flujo de caja con cuentasCorrientes');
+    const saldosAdaptados = Object.entries(datos.cuentasCorrientes).map(([id, cuenta]) => ({
+      id: parseInt(id),
+      nombre: cuenta.nombre || `Cuenta ${id}`,
+      banco: cuenta.banco || cuenta.nombre || 'Banco no especificado',
+      numeroCuenta: cuenta.numero || id.toString(),
+      tipo: 'cuenta_corriente',
+      moneda: cuenta.moneda || 'CLP',
+      saldo: parseFloat(cuenta.saldo || cuenta.balance || 0),
+      disponible: parseFloat(cuenta.saldo || cuenta.balance || 0),
+      sobregiro: 0,
+      fechaActualizacion: new Date().toISOString()
+    }));
     
-    datos.arrFlujoCaja.forEach(flujo => {
-      if (flujo.idCuentaCorriente && !cuentasMap.has(flujo.idCuentaCorriente)) {
-        cuentasMap.set(flujo.idCuentaCorriente, {
-          id: flujo.idCuentaCorriente,
-          nombre: flujo.nombreCuenta || `Cuenta ${flujo.idCuentaCorriente}`,
-          banco: flujo.nombreBanco || flujo.banco || 'Banco no especificado',
-          numeroCuenta: flujo.numeroCuenta || flujo.idCuentaCorriente.toString(),
-          tipo: 'cuenta_corriente',
-          moneda: flujo.moneda || 'CLP',
-          saldo: parseFloat(flujo.saldoPeriodo || flujo.saldo || 0),
-          disponible: parseFloat(flujo.saldoPeriodo || flujo.saldo || 0),
-          sobregiro: 0,
-          fechaActualizacion: new Date().toISOString()
-        });
-      }
-    });
-    
-    const saldosAdaptados = Array.from(cuentasMap.values());
     console.log(`✅ ${saldosAdaptados.length} cuentas extraídas del flujo de caja`);
     return saldosAdaptados;
+  }
+  
+  // Si vienen del endpoint de flujo-caja/init pero sin estructura
+  if (datos.dateRange && !datos.items) {
+    console.log('⚠️ Flujo de caja sin información de cuentas');
+    return [];
   }
   
   // Si vienen del endpoint tradicional
@@ -123,42 +122,65 @@ const adaptarCuentasPorCobrar = (datos) => {
   const facturas = Array.isArray(datos) ? datos : (datos.items || []);
   
   const cuentasAdaptadas = facturas
-    .filter(factura => {
-      // Filtrar solo facturas pendientes de cobro
-      const tieneSaldoPendiente = (factura.saldo_pendiente || 0) > 0;
-      const noPagada = !factura.pagado || factura.estado_pago !== 'pagado';
-      const montoMayorQueCero = (factura.monto_total || factura.total || 0) > 0;
-      
-      return tieneSaldoPendiente || (noPagada && montoMayorQueCero);
-    })
     .map(factura => {
-      const montoTotal = parseFloat(factura.monto_total || factura.total || 0);
+      // Manejar DTEs con estructura especial
+      if (factura.ClienteNormalizado && factura.Saldo) {
+        const saldoDeudor = parseFloat(factura.Saldo.saldoDeudor || 0);
+        const montoTotal = parseFloat(factura.montoTotal || 0);
+        
+        return {
+          id: factura.id,
+          folio: factura.folio || `Doc-${factura.id}`,
+          tipo: factura.tipo === 33 ? 'Factura' : `Tipo ${factura.tipo}`,
+          cliente: {
+            rut: formatearRut(factura.rut || factura.ClienteNormalizado.rut || ''),
+            nombre: factura.razonSocial || factura.ClienteNormalizado.razonSocial || 'Cliente no especificado'
+          },
+          monto: montoTotal,
+          saldo: saldoDeudor > 0 ? saldoDeudor : 0,
+          moneda: 'CLP',
+          fechaEmision: factura.fechaEmision || factura.fecha || new Date().toISOString(),
+          fechaVencimiento: factura.fechaVencimiento || null,
+          diasVencidos: calcularDiasVencidos(factura.fechaVencimiento),
+          estado: saldoDeudor > 0 ? 'pendiente' : 'pagado',
+          estadoPago: saldoDeudor > 0 ? 'pendiente' : 'pagado',
+          observaciones: factura.referencias || '',
+          // Campos adicionales útiles
+          ordenCompra: '',
+          vendedor: '',
+          condicionPago: factura.ClienteNormalizado?.plazoPago ? `${factura.ClienteNormalizado.plazoPago} días` : ''
+        };
+      }
+      
+      // Estructura estándar de ventas
+      const montoTotal = parseFloat(factura.monto_total || factura.montoTotal || factura.total || 0);
       const montoPagado = parseFloat(factura.monto_pagado || factura.pagado || 0);
-      const saldoPendiente = parseFloat(factura.saldo_pendiente || (montoTotal - montoPagado) || montoTotal);
+      const saldoPendiente = parseFloat(factura.saldo_pendiente || factura.saldo || (montoTotal - montoPagado) || montoTotal);
       
       return {
         id: factura.id,
         folio: factura.folio || factura.numero || `Doc-${factura.id}`,
         tipo: factura.tipo_dte || factura.tipo || 'Factura',
         cliente: {
-          rut: formatearRut(factura.rut_receptor || factura.rut_cliente || ''),
-          nombre: factura.razon_social_receptor || factura.nombre_receptor || factura.cliente || 'Cliente no especificado'
+          rut: formatearRut(factura.rut_receptor || factura.rut_cliente || factura.rut || ''),
+          nombre: factura.razon_social_receptor || factura.nombre_receptor || factura.razonSocial || factura.cliente || 'Cliente no especificado'
         },
         monto: montoTotal,
         saldo: saldoPendiente,
         moneda: factura.moneda || 'CLP',
-        fechaEmision: factura.fecha_emision || factura.fecha || new Date().toISOString(),
-        fechaVencimiento: factura.fecha_vencimiento || factura.fecha_pago || null,
-        diasVencidos: calcularDiasVencidos(factura.fecha_vencimiento || factura.fecha_pago),
+        fechaEmision: factura.fecha_emision || factura.fechaEmision || factura.fecha || new Date().toISOString(),
+        fechaVencimiento: factura.fecha_vencimiento || factura.fechaVencimiento || factura.fecha_pago || null,
+        diasVencidos: calcularDiasVencidos(factura.fecha_vencimiento || factura.fechaVencimiento || factura.fecha_pago),
         estado: factura.estado || 'pendiente',
         estadoPago: factura.estado_pago || 'pendiente',
-        observaciones: factura.observaciones || factura.notas || '',
+        observaciones: factura.observaciones || factura.referencias || factura.notas || '',
         // Campos adicionales útiles
         ordenCompra: factura.orden_compra || factura.oc || '',
         vendedor: factura.vendedor || '',
         condicionPago: factura.condicion_pago || ''
       };
-    });
+    })
+    .filter(cuenta => cuenta.saldo > 0); // Solo facturas con saldo pendiente
   
   console.log(`✅ ${cuentasAdaptadas.length} cuentas por cobrar adaptadas`);
   
@@ -185,42 +207,40 @@ const adaptarCuentasPorPagar = (datos) => {
   const facturas = Array.isArray(datos) ? datos : (datos.items || []);
   
   const cuentasAdaptadas = facturas
-    .filter(factura => {
-      // Filtrar solo facturas pendientes de pago
-      const tieneSaldoPendiente = (factura.saldo_pendiente || 0) > 0;
-      const noPagada = !factura.pagado || factura.estado_pago !== 'pagado';
-      const montoMayorQueCero = (factura.monto_total || factura.total || 0) > 0;
-      
-      return tieneSaldoPendiente || (noPagada && montoMayorQueCero);
-    })
     .map(factura => {
-      const montoTotal = parseFloat(factura.monto_total || factura.total || 0);
-      const montoPagado = parseFloat(factura.monto_pagado || factura.pagado || 0);
-      const saldoPendiente = parseFloat(factura.saldo_pendiente || (montoTotal - montoPagado) || montoTotal);
+      // Para compras, si tiene fechaPagoInterna es porque está programada para pago
+      const estaPagada = factura.pagado === true || factura.pagado === 'true' || factura.pagado === 1;
+      const fechaPagoInterna = factura.fechaPagoInterna;
+      const montoTotal = parseFloat(factura.montoTotal || factura.monto_total || factura.total || 0);
+      
+      // Si no está marcada como pagada y tiene monto, considerar como pendiente
+      const saldoPendiente = estaPagada ? 0 : montoTotal;
       
       return {
         id: factura.id,
         folio: factura.folio || factura.numero || `Doc-${factura.id}`,
-        tipo: factura.tipo_dte || factura.tipo || 'Factura',
+        tipo: factura.tipo === 33 ? 'Factura' : factura.tipo === 34 ? 'Factura Exenta' : `Tipo ${factura.tipo}`,
         proveedor: {
-          rut: formatearRut(factura.rut_emisor || factura.rut_proveedor || ''),
-          nombre: factura.razon_social || factura.razon_social_emisor || factura.proveedor || 'Proveedor no especificado'
+          rut: formatearRut(factura.rutEmisor || factura.rut_emisor || factura.rut_proveedor || ''),
+          nombre: factura.razonSocial || factura.razon_social || factura.razon_social_emisor || factura.proveedor || 'Proveedor no especificado'
         },
         monto: montoTotal,
         saldo: saldoPendiente,
         moneda: factura.moneda || 'CLP',
-        fechaEmision: factura.fecha_emision || factura.fecha || new Date().toISOString(),
-        fechaVencimiento: factura.fecha_vencimiento || factura.fecha_pago || null,
-        diasVencidos: calcularDiasVencidos(factura.fecha_vencimiento || factura.fecha_pago),
+        fechaEmision: factura.fechaEmision || factura.fecha_emision || factura.fecha || new Date().toISOString(),
+        fechaVencimiento: factura.fechaVencimiento || factura.fecha_vencimiento || fechaPagoInterna || null,
+        fechaPagoInterna: fechaPagoInterna || null,
+        diasVencidos: calcularDiasVencidos(factura.fechaVencimiento || factura.fecha_vencimiento || fechaPagoInterna),
         estado: factura.estado || 'pendiente',
-        estadoPago: factura.estado_pago || 'pendiente',
-        observaciones: factura.observaciones || factura.notas || '',
+        estadoPago: estaPagada ? 'pagado' : 'pendiente',
+        observaciones: factura.referencias || factura.observaciones || factura.notas || '',
         // Campos adicionales útiles
         ordenCompra: factura.orden_compra || factura.oc || '',
         centroCosto: factura.centro_costo || '',
-        categoria: factura.categoria || factura.clasificacion || ''
+        categoria: factura.tipoCompra || factura.categoria || factura.clasificacion || ''
       };
-    });
+    })
+    .filter(cuenta => cuenta.saldo > 0); // Solo facturas con saldo pendiente
   
   console.log(`✅ ${cuentasAdaptadas.length} cuentas por pagar adaptadas`);
   
