@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Clock, RefreshCw, AlertTriangle, CheckCircle, Database, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, RefreshCw, AlertTriangle, CheckCircle, Database, Info, ChevronDown, ChevronUp, Activity } from 'lucide-react';
 import chipaxService from '../services/chipaxService';
 import chipaxAdapter, { adaptarDatosChipax } from '../services/chipaxAdapter';
+import ChipaxSyncMonitor from './ChipaxSyncMonitor';
 
 const ChipaxDataUpdater = ({ 
   onUpdateSaldos,
@@ -20,6 +21,7 @@ const ChipaxDataUpdater = ({
   const [lastUpdate, setLastUpdate] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [showMonitor, setShowMonitor] = useState(false);
   
   const [updateStatus, setUpdateStatus] = useState({
     saldos: { status: 'pending', message: 'Pendiente', completeness: 0, items: 0, startTime: null },
@@ -266,12 +268,21 @@ const ChipaxDataUpdater = ({
           <Database className="w-6 h-6 text-blue-600" />
           <h3 className="text-lg font-semibold text-gray-800">Sincronización con Chipax</h3>
         </div>
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="text-gray-500 hover:text-gray-700"
-        >
-          {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setShowMonitor(!showMonitor)}
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+            title="Monitor de sincronización"
+          >
+            <Activity className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -328,6 +339,9 @@ const ChipaxDataUpdater = ({
                 <div className="flex items-center space-x-4">
                   <span className={`text-sm ${getStatusColor(status.status)}`}>
                     {status.message}
+                    {status.elapsedTime > 0 && status.status === 'success' && (
+                      <span className="text-xs text-gray-500 ml-1">({status.elapsedTime}s)</span>
+                    )}
                   </span>
                   {status.items > 0 && (
                     <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">
@@ -357,6 +371,12 @@ const ChipaxDataUpdater = ({
           )}
         </div>
       )}
+      
+      {/* Monitor de sincronización */}
+      <ChipaxSyncMonitor 
+        isActive={showMonitor} 
+        onClose={() => setShowMonitor(false)} 
+      />
     </div>
   );
 };
