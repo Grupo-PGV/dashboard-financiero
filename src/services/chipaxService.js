@@ -366,18 +366,51 @@ const filtrarFacturasPendientes = (facturas) => {
 // === FUNCIONES ESPECÍFICAS DE ENDPOINTS ===
 
 /**
+ * Obtiene todos los DTEs para análisis
+ */
+export const obtenerTodosDTEs = async () => {
+  console.log('\n📄 Obteniendo todos los DTEs...');
+  try {
+    const data = await fetchAllPaginatedData('/dtes');
+    
+    // Analizar tipos de DTEs
+    if (data.items && data.items.length > 0) {
+      const tiposMap = new Map();
+      data.items.forEach(dte => {
+        const tipo = dte.tipo || dte.tipo_dte;
+        if (!tiposMap.has(tipo)) {
+          tiposMap.set(tipo, { count: 0, ejemplo: dte });
+        }
+        tiposMap.get(tipo).count++;
+      });
+      
+      console.log('📊 Tipos de DTEs encontrados:');
+      tiposMap.forEach((info, tipo) => {
+        console.log(`  - Tipo ${tipo}: ${info.count} documentos`);
+      });
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo DTEs:', error);
+    throw error;
+  }
+};
+
+/**
  * Obtiene los saldos bancarios
  */
 export const obtenerSaldosBancarios = async () => {
   console.log('\n💰 Obteniendo saldos bancarios...');
   try {
-    // Intentar con el endpoint de flujo de caja que parece tener info bancaria
-    let data = await fetchFromChipax('/flujo-caja/init');
+    // Primero intentar con cuentas corrientes
+    console.log('🔄 Intentando con /cuentas_corrientes...');
+    let data = await fetchAllPaginatedData('/cuentas_corrientes');
     
-    // Si no hay datos, intentar con cuentas corrientes
-    if (!data || !data.arrFlujoCaja) {
-      console.log('🔄 Intentando con /cuentas_corrientes...');
-      data = await fetchAllPaginatedData('/cuentas_corrientes');
+    // Si no hay datos, intentar con flujo de caja
+    if (!data.items || data.items.length === 0) {
+      console.log('🔄 No hay cuentas corrientes, intentando con /flujo-caja/init...');
+      data = await fetchFromChipax('/flujo-caja/init');
     }
     
     console.log(`✅ Datos bancarios obtenidos`);
