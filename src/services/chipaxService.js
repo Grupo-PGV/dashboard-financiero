@@ -434,29 +434,25 @@ export const obtenerCuentasPorPagar = async (opciones = {}) => {
   console.log(`💰 Estado: ${soloPendientes ? 'Solo pendientes' : 'Todas'}`);
   
   try {
-    // Construir endpoint con filtros
+    // Usar DTEs con tipo_dte=46 para facturas de compra
     const fechaDesde = getFechaFiltro(mesesAtras);
-    let endpoint = `/compras?fecha_desde=${fechaDesde}`;
+    let endpoint = `/dtes?tipo_dte=46&fecha_desde=${fechaDesde}`;
     
     if (soloPendientes) {
       endpoint += '&pagado=false';
     }
     
-    const data = await fetchAllPaginatedData(endpoint);
+    console.log('🔄 Intentando con DTEs tipo 46 (facturas de compra)...');
+    let data = await fetchAllPaginatedData(endpoint);
     
-    // Aplicar filtro adicional para mayor seguridad
-    if (soloPendientes && data.items && data.items.length > 0) {
-      const facturasPendientes = filtrarFacturasPendientes(data.items);
-      
-      console.log(`✅ ${facturasPendientes.length} facturas pendientes de pago (de ${data.items.length} totales)`);
-      
-      return {
-        ...data,
-        items: facturasPendientes
-      };
+    // Si no hay datos con tipo 46, intentar con el endpoint de compras tradicional
+    if (!data.items || data.items.length === 0) {
+      console.log('🔄 No hay DTEs tipo 46, intentando con /compras...');
+      endpoint = `/compras?fecha_desde=${fechaDesde}${soloPendientes ? '&pagado=false' : ''}`;
+      data = await fetchAllPaginatedData(endpoint);
     }
     
-    console.log(`✅ ${data.items.length} cuentas por pagar obtenidas`);
+    console.log(`✅ ${data.items?.length || 0} cuentas por pagar obtenidas`);
     return data;
   } catch (error) {
     console.error('❌ Error obteniendo cuentas por pagar:', error);
