@@ -11,6 +11,30 @@ import AccountsReceivableTable from '../components/AccountsReceivableTable';
 import PendingInvoicesComponent from '../components/PendingInvoicesComponent';
 import PaginationDebugger from '../components/PaginationDebugger';
 import ChipaxDataInspector from '../components/ChipaxDataInspector';
+import ChipaxDTEAnalyzer from '../components/ChipaxDTEAnalyzer';
+
+// Estado
+const [showDTEAnalyzer, setShowDTEAnalyzer] = useState(false);
+
+// Botón en el header
+<button
+  onClick={() => setShowDTEAnalyzer(!showDTEAnalyzer)}
+  className={`px-3 py-1 rounded text-sm flex items-center ${
+    showDTEAnalyzer 
+      ? 'bg-indigo-100 text-indigo-700' 
+      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+  }`}
+>
+  <FileText size={16} className="mr-1" />
+  Analizar DTEs
+</button>
+
+// Componente
+{showDTEAnalyzer && (
+  <div className="mb-6">
+    <ChipaxDTEAnalyzer />
+  </div>
+)}
 
 const DashboardFinancieroIntegrado = () => {
   // Estados principales
