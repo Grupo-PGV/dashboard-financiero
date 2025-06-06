@@ -1,7 +1,8 @@
-// chipaxService.js - Servicio corregido con APP_ID y SECRET_KEY
-const CHIPAX_API_URL = 'https://api.chipax.com/v2'; // URL base de la API v2
+// chipaxService.js - Servicio corregido con configuración confirmada
+const CHIPAX_API_URL = 'https://api.chipax.com/v2'; // URL base confirmada funcionando
 const APP_ID = '605e0aa5-ca0c-4513-b6ef-0030ac1f0849';
 const SECRET_KEY = 'f01974df-86e1-45a0-924f-75961ea926fc';
+const COMPANY_NAME = 'PGR Seguridad S.p.A'; // Nombre de la empresa desde la respuesta
 
 // Cache del token para evitar múltiples autenticaciones
 let tokenCache = {
@@ -58,25 +59,16 @@ export const getChipaxToken = async () => {
     }
 
     const data = await response.json();
-    console.log('✅ Respuesta exitosa, estructura:', Object.keys(data));
+    console.log('✅ Respuesta exitosa:', {
+      message: data.message,
+      empresa: data.nombre,
+      tokenRecibido: !!data.token
+    });
     
-    // La API puede devolver el token en diferentes campos
-    const token = data.token || data.access_token || data.jwt;
-    
-    if (!token) {
-      console.error('❌ No se encontró token en la respuesta:', data);
-      throw new Error('Token no encontrado en la respuesta');
-    }
-    
-    // Guardar token en cache
+    // Guardar token en cache con la estructura correcta
     tokenCache = {
-      token: token,
-      // Manejar diferentes formatos de expiración
-      expiresAt: data.tokenExpiration 
-        ? new Date(data.tokenExpiration * 1000)
-        : data.expires_at 
-        ? new Date(data.expires_at)
-        : new Date(now.getTime() + 3600000) // 1 hora por defecto
+      token: data.token,
+      expiresAt: new Date(data.tokenExpiration * 1000) // tokenExpiration viene en Unix timestamp
     };
     
     console.log('✅ Token obtenido exitosamente. Expira:', tokenCache.expiresAt.toLocaleString());
@@ -105,19 +97,13 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
     // Construir URL completa
     const url = endpoint.startsWith('http') ? endpoint : `${CHIPAX_API_URL}${endpoint}`;
     
+    // Usar JWT como formato de autorización (confirmado por la respuesta)
     const headers = {
       ...options.headers,
+      'Authorization': `JWT ${token}`,
       'Content-Type': 'application/json',
       'Accept': 'application/json'
     };
-    
-    // Probar diferentes formatos de autorización
-    if (token.startsWith('JWT ') || token.startsWith('Bearer ')) {
-      headers['Authorization'] = token;
-    } else {
-      // Por defecto usar JWT
-      headers['Authorization'] = `JWT ${token}`;
-    }
     
     const response = await fetch(url, {
       ...options,
