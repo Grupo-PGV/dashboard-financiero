@@ -145,13 +145,6 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
     
     return data;
   } catch (error) {
-    clearTimeout(timeoutId);
-    
-    if (error.name === 'AbortError') {
-      console.error(`⏱️ Timeout en ${endpoint} después de ${PAGINATION_CONFIG.TIMEOUT}ms`);
-      throw new Error(`Timeout: La petición a ${endpoint} tardó demasiado`);
-    }
-    
     console.error(`❌ Error en petición a ${endpoint}:`, error);
     throw error;
   }
