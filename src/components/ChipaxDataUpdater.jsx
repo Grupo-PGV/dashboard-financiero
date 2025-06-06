@@ -22,19 +22,28 @@ const ChipaxDataUpdater = ({
   const [showDetails, setShowDetails] = useState(false);
   
   const [updateStatus, setUpdateStatus] = useState({
-    saldos: { status: 'pending', message: 'Pendiente', completeness: 0, items: 0 },
-    cuentasPendientes: { status: 'pending', message: 'Pendiente', completeness: 0, items: 0 },
-    cuentasPorPagar: { status: 'pending', message: 'Pendiente', completeness: 0, items: 0 },
-    facturasPendientes: { status: 'pending', message: 'Pendiente', completeness: 0, items: 0 },
-    flujoCaja: { status: 'pending', message: 'Pendiente', completeness: 0, items: 0 },
-    clientes: { status: 'pending', message: 'Pendiente', completeness: 0, items: 0 },
-    proveedores: { status: 'pending', message: 'Pendiente', completeness: 0, items: 0 }
+    saldos: { status: 'pending', message: 'Pendiente', completeness: 0, items: 0, startTime: null },
+    cuentasPendientes: { status: 'pending', message: 'Pendiente', completeness: 0, items: 0, startTime: null },
+    cuentasPorPagar: { status: 'pending', message: 'Pendiente', completeness: 0, items: 0, startTime: null },
+    facturasPendientes: { status: 'pending', message: 'Pendiente', completeness: 0, items: 0, startTime: null },
+    flujoCaja: { status: 'pending', message: 'Pendiente', completeness: 0, items: 0, startTime: null },
+    clientes: { status: 'pending', message: 'Pendiente', completeness: 0, items: 0, startTime: null },
+    proveedores: { status: 'pending', message: 'Pendiente', completeness: 0, items: 0, startTime: null }
   });
 
   const updateModuleStatus = (modulo, status, message, completeness = 0, items = 0) => {
     setUpdateStatus(prev => ({ 
       ...prev, 
-      [modulo]: { status, message, completeness, items } 
+      [modulo]: { 
+        status, 
+        message, 
+        completeness, 
+        items,
+        startTime: status === 'loading' ? Date.now() : prev[modulo].startTime,
+        elapsedTime: status !== 'loading' && prev[modulo].startTime 
+          ? Math.round((Date.now() - prev[modulo].startTime) / 1000) 
+          : 0
+      } 
     }));
   };
 
