@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, Calendar, Filter, Info, Wallet, PieChart, TrendingUp, 
-  Database, CheckCircle, Clock, RefreshCw, Settings
+  Database, CheckCircle, Clock, RefreshCw, Settings, FileText
 } from 'lucide-react';
 import ChipaxDataUpdater from '../components/ChipaxDataUpdater';
 import BankBalanceCard from '../components/BankBalanceCard';
@@ -12,29 +12,6 @@ import PendingInvoicesComponent from '../components/PendingInvoicesComponent';
 import PaginationDebugger from '../components/PaginationDebugger';
 import ChipaxDataInspector from '../components/ChipaxDataInspector';
 import ChipaxDTEAnalyzer from '../components/ChipaxDTEAnalyzer';
-
-// Estado
-const [showDTEAnalyzer, setShowDTEAnalyzer] = useState(false);
-
-// Botón en el header
-<button
-  onClick={() => setShowDTEAnalyzer(!showDTEAnalyzer)}
-  className={`px-3 py-1 rounded text-sm flex items-center ${
-    showDTEAnalyzer 
-      ? 'bg-indigo-100 text-indigo-700' 
-      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-  }`}
->
-  <FileText size={16} className="mr-1" />
-  Analizar DTEs
-</button>
-
-// Componente
-{showDTEAnalyzer && (
-  <div className="mb-6">
-    <ChipaxDTEAnalyzer />
-  </div>
-)}
 
 const DashboardFinancieroIntegrado = () => {
   // Estados principales
@@ -55,6 +32,7 @@ const DashboardFinancieroIntegrado = () => {
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [lastSyncDetails, setLastSyncDetails] = useState(null);
   const [showInspector, setShowInspector] = useState(false);
+  const [showDTEAnalyzer, setShowDTEAnalyzer] = useState(false);
   
   // Estados para configuración
   const [periodoFlujo, setPeriodoFlujo] = useState('mensual');
@@ -208,6 +186,18 @@ const DashboardFinancieroIntegrado = () => {
             {/* Controles del header */}
             <div className="flex items-center space-x-2">
               <button
+                onClick={() => setShowDTEAnalyzer(!showDTEAnalyzer)}
+                className={`px-3 py-1 rounded text-sm flex items-center ${
+                  showDTEAnalyzer 
+                    ? 'bg-indigo-100 text-indigo-700' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <FileText size={16} className="mr-1" />
+                Analizar DTEs
+              </button>
+              
+              <button
                 onClick={() => setShowInspector(!showInspector)}
                 className={`px-3 py-1 rounded text-sm flex items-center ${
                   showInspector 
@@ -247,6 +237,13 @@ const DashboardFinancieroIntegrado = () => {
         {showDebugPanel && (
           <div className="mb-6">
             <PaginationDebugger />
+          </div>
+        )}
+
+        {/* Analizador de DTEs */}
+        {showDTEAnalyzer && (
+          <div className="mb-6">
+            <ChipaxDTEAnalyzer />
           </div>
         )}
 
