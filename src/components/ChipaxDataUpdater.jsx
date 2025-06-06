@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Clock, RefreshCw, AlertTriangle, CheckCircle, Database, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import chipaxService from '../services/chipaxService';
-import { adaptarDatosChipax } from '../services/chipaxAdapter';
+import chipaxAdapter, { adaptarDatosChipax } from '../services/chipaxAdapter';
 
 const ChipaxDataUpdater = ({ 
   onUpdateSaldos,
