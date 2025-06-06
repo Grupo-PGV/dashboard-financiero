@@ -224,10 +224,18 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
     paginationStats.loadedPages = 1;
     paginationStats.loadedItems = firstPageData.items.length;
     
+    // LIMITAR PÁGINAS PARA EVITAR SOBRECARGA
+    const maxPagesToLoad = 20; // Máximo 20 páginas = 2000 items
+    const pagesToLoad = Math.min(totalPages, maxPagesToLoad);
+    
+    if (totalPages > maxPagesToLoad) {
+      console.log(`⚠️ Limitando carga a ${maxPagesToLoad} páginas de ${totalPages} para evitar sobrecarga`);
+    }
+    
     // Función helper para cargar una página
     const loadPage = async (pageNum) => {
       try {
-        const pageEndpoint = `${baseEndpoint}${separator}page=${pageNum}&limit=50`;
+        const pageEndpoint = `${baseEndpoint}${separator}page=${pageNum}&limit=${PAGINATION_CONFIG.PAGE_SIZE}`;
         const pageData = await fetchFromChipax(pageEndpoint, {}, false);
         
         if (pageData.items && pageData.items.length > 0) {
@@ -244,9 +252,9 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
     // Cargar páginas en lotes para evitar sobrecarga
     console.log(`🚀 Cargando ${totalPages - 1} páginas adicionales...`);
     
-    for (let i = 2; i <= totalPages; i += PAGINATION_CONFIG.MAX_CONCURRENT_REQUESTS) {
+    for (let i = 2; i <= pagesToLoad; i += PAGINATION_CONFIG.MAX_CONCURRENT_REQUESTS) {
       const batch = [];
-      const batchEnd = Math.min(i + PAGINATION_CONFIG.MAX_CONCURRENT_REQUESTS - 1, totalPages);
+      const batchEnd = Math.min(i + PAGINATION_CONFIG.MAX_CONCURRENT_REQUESTS - 1, pagesToLoad);
       
       // Crear batch de promesas
       for (let j = i; j <= batchEnd; j++) {
@@ -276,7 +284,7 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
       console.log(`📊 Progreso: ${paginationStats.completenessPercent}% (${paginationStats.loadedItems}/${paginationStats.totalItems})`);
       
       // Delay entre lotes
-      if (batchEnd < totalPages) {
+      if (batchEnd < pagesToLoad) {
         await new Promise(resolve => setTimeout(resolve, PAGINATION_CONFIG.REQUEST_DELAY));
       }
     }
@@ -318,8 +326,16 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
 export const obtenerSaldosBancarios = async () => {
   console.log('\n💰 Obteniendo saldos bancarios...');
   try {
-    const data = await fetchAllPaginatedData('/cuentas_corrientes');
-    console.log(`✅ ${data.items.length} cuentas bancarias obtenidas`);
+    // Intentar con el endpoint de flujo de caja que parece tener info bancaria
+    let data = await fetchFromChipax('/flujo-caja/init');
+    
+    // Si no hay datos, intentar con cuentas corrientes
+    if (!data || !data.arrFlujoCaja) {
+      console.log('🔄 Intentando con /cuentas_corrientes...');
+      data = await fetchAllPaginatedData('/cuentas_corrientes');
+    }
+    
+    console.log(`✅ Datos bancarios obtenidos`);
     return data;
   } catch (error) {
     console.error('❌ Error obteniendo saldos:', error);
@@ -333,14 +349,8 @@ export const obtenerSaldosBancarios = async () => {
 export const obtenerCuentasPorCobrar = async () => {
   console.log('\n📊 Obteniendo cuentas por cobrar...');
   try {
-    // Intentar con diferentes endpoints según la documentación
-    let data = await fetchAllPaginatedData('/ventas?pendiente=true');
-    
-    // Si no hay datos, intentar sin filtro
-    if (!data.items || data.items.length === 0) {
-      console.log('🔄 Intentando sin filtro de pendientes...');
-      data = await fetchAllPaginatedData('/ventas');
-    }
+    // Usar el endpoint de ventas que sí funciona
+    const data = await fetchAllPaginatedData('/ventas?pendiente=true');
     
     console.log(`✅ ${data.items.length} cuentas por cobrar obtenidas`);
     return data;
@@ -356,14 +366,8 @@ export const obtenerCuentasPorCobrar = async () => {
 export const obtenerCuentasPorPagar = async () => {
   console.log('\n💸 Obteniendo cuentas por pagar...');
   try {
-    // Intentar con diferentes endpoints según la documentación
-    let data = await fetchAllPaginatedData('/compras?pendiente=true');
-    
-    // Si no hay datos, intentar sin filtro
-    if (!data.items || data.items.length === 0) {
-      console.log('🔄 Intentando sin filtro de pendientes...');
-      data = await fetchAllPaginatedData('/compras');
-    }
+    // Usar el endpoint que funciona: /compras?pagado=false
+    const data = await fetchAllPaginatedData('/compras?pagado=false');
     
     console.log(`✅ ${data.items.length} cuentas por pagar obtenidas`);
     return data;
@@ -379,9 +383,36 @@ export const obtenerCuentasPorPagar = async () => {
 export const obtenerClientes = async () => {
   console.log('\n👥 Obteniendo clientes...');
   try {
-    const data = await fetchAllPaginatedData('/clientes');
-    console.log(`✅ ${data.items.length} clientes obtenidos`);
-    return data;
+    // El endpoint /clientes devuelve N/A, intentar con /ventas para extraer clientes únicos
+    const ventasData = await fetchAllPaginatedData('/ventas');
+    
+    // Extraer clientes únicos de las ventas
+    const clientesMap = new Map();
+    
+    if (ventasData.items && ventasData.items.length > 0) {
+      ventasData.items.forEach(venta => {
+        if (venta.rut_receptor && !clientesMap.has(venta.rut_receptor)) {
+          clientesMap.set(venta.rut_receptor, {
+            id: venta.rut_receptor,
+            rut: venta.rut_receptor,
+            nombre: venta.razon_social_receptor || 'Sin nombre',
+            email: venta.email_receptor || '',
+            telefono: venta.telefono_receptor || ''
+          });
+        }
+      });
+    }
+    
+    const clientes = Array.from(clientesMap.values());
+    console.log(`✅ ${clientes.length} clientes extraídos de ventas`);
+    
+    return {
+      items: clientes,
+      paginationStats: {
+        totalItems: clientes.length,
+        completenessPercent: 100
+      }
+    };
   } catch (error) {
     console.error('❌ Error obteniendo clientes:', error);
     throw error;
@@ -394,7 +425,41 @@ export const obtenerClientes = async () => {
 export const obtenerProveedores = async () => {
   console.log('\n🏭 Obteniendo proveedores...');
   try {
-    const data = await fetchAllPaginatedData('/proveedores');
+    // Intentar primero con el endpoint directo
+    let data = await fetchAllPaginatedData('/proveedores');
+    
+    // Si no hay datos, extraer de las compras
+    if (!data.items || data.items.length === 0) {
+      console.log('🔄 Extrayendo proveedores de las compras...');
+      const comprasData = await fetchAllPaginatedData('/compras');
+      
+      const proveedoresMap = new Map();
+      
+      if (comprasData.items && comprasData.items.length > 0) {
+        comprasData.items.forEach(compra => {
+          if (compra.rut_emisor && !proveedoresMap.has(compra.rut_emisor)) {
+            proveedoresMap.set(compra.rut_emisor, {
+              id: compra.rut_emisor,
+              rut: compra.rut_emisor,
+              nombre: compra.razon_social || compra.razon_social_emisor || 'Sin nombre',
+              email: compra.email_emisor || '',
+              telefono: compra.telefono_emisor || ''
+            });
+          }
+        });
+      }
+      
+      const proveedores = Array.from(proveedoresMap.values());
+      
+      return {
+        items: proveedores,
+        paginationStats: {
+          totalItems: proveedores.length,
+          completenessPercent: 100
+        }
+      };
+    }
+    
     console.log(`✅ ${data.items.length} proveedores obtenidos`);
     return data;
   } catch (error) {
