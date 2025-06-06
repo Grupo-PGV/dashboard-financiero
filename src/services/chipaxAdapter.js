@@ -45,16 +45,44 @@ const formatearRut = (rut) => {
 };
 
 /**
- * Adapta los saldos bancarios desde cuentas corrientes
+ * Adapta los saldos bancarios desde cuentas corrientes o flujo de caja
  */
 const adaptarSaldosBancarios = (datos) => {
   console.log('🔄 Adaptando saldos bancarios...');
   
-  if (!datos || (!Array.isArray(datos) && !datos.items)) {
-    console.warn('⚠️ No se recibieron datos de cuentas corrientes');
+  if (!datos) {
+    console.warn('⚠️ No se recibieron datos bancarios');
     return [];
   }
   
+  // Si vienen del endpoint de flujo-caja/init
+  if (datos.arrFlujoCaja) {
+    console.log('💰 Adaptando desde flujo de caja');
+    const cuentasMap = new Map();
+    
+    datos.arrFlujoCaja.forEach(flujo => {
+      if (flujo.idCuentaCorriente && !cuentasMap.has(flujo.idCuentaCorriente)) {
+        cuentasMap.set(flujo.idCuentaCorriente, {
+          id: flujo.idCuentaCorriente,
+          nombre: flujo.nombreCuenta || `Cuenta ${flujo.idCuentaCorriente}`,
+          banco: flujo.nombreBanco || flujo.banco || 'Banco no especificado',
+          numeroCuenta: flujo.numeroCuenta || flujo.idCuentaCorriente.toString(),
+          tipo: 'cuenta_corriente',
+          moneda: flujo.moneda || 'CLP',
+          saldo: parseFloat(flujo.saldoPeriodo || flujo.saldo || 0),
+          disponible: parseFloat(flujo.saldoPeriodo || flujo.saldo || 0),
+          sobregiro: 0,
+          fechaActualizacion: new Date().toISOString()
+        });
+      }
+    });
+    
+    const saldosAdaptados = Array.from(cuentasMap.values());
+    console.log(`✅ ${saldosAdaptados.length} cuentas extraídas del flujo de caja`);
+    return saldosAdaptados;
+  }
+  
+  // Si vienen del endpoint tradicional
   const cuentas = Array.isArray(datos) ? datos : (datos.items || []);
   
   const saldosAdaptados = cuentas.map(cuenta => ({
