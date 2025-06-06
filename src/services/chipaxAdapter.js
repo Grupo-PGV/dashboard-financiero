@@ -208,7 +208,34 @@ const adaptarCuentasPorPagar = (datos) => {
   
   const cuentasAdaptadas = facturas
     .map(factura => {
-      // Para compras, si tiene fechaPagoInterna es porque está programada para pago
+      // Si es un DTE tipo 46 (factura de compra)
+      if (factura.tipo === 46 || factura.tipo_dte === 46) {
+        const saldoDeudor = factura.Saldo ? parseFloat(factura.Saldo.saldoDeudor || 0) : 0;
+        const montoTotal = parseFloat(factura.montoTotal || 0);
+        const estaPagada = factura.pagado === true || factura.pagado === 'true' || factura.fecha_pago_interna != null;
+        
+        return {
+          id: factura.id,
+          folio: factura.folio || `Doc-${factura.id}`,
+          tipo: 'Factura de Compra',
+          proveedor: {
+            rut: formatearRut(factura.rut || factura.rutEmisor || ''),
+            nombre: factura.razonSocial || 'Proveedor no especificado'
+          },
+          monto: montoTotal,
+          saldo: estaPagada ? 0 : (saldoDeudor > 0 ? saldoDeudor : montoTotal),
+          moneda: 'CLP',
+          fechaEmision: factura.fechaEmision || factura.fecha || new Date().toISOString(),
+          fechaVencimiento: factura.fechaVencimiento || factura.fecha_pago_interna || null,
+          fechaPagoInterna: factura.fecha_pago_interna || null,
+          diasVencidos: calcularDiasVencidos(factura.fechaVencimiento || factura.fecha_pago_interna),
+          estado: factura.estado || 'pendiente',
+          estadoPago: estaPagada ? 'pagado' : 'pendiente',
+          observaciones: factura.referencias || '',
+        };
+      }
+      
+      // Para compras tradicionales (endpoint /compras)
       const estaPagada = factura.pagado === true || factura.pagado === 'true' || factura.pagado === 1;
       const fechaPagoInterna = factura.fechaPagoInterna;
       const montoTotal = parseFloat(factura.montoTotal || factura.monto_total || factura.total || 0);
