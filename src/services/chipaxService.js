@@ -398,33 +398,21 @@ export const obtenerCuentasPorCobrar = async (opciones = {}) => {
   const { mesesAtras = 3, soloPendientes = true } = opciones;
   
   console.log('\n📊 Obteniendo cuentas por cobrar...');
-  console.log(`📅 Período: últimos ${mesesAtras} meses`);
-  console.log(`💰 Estado: ${soloPendientes ? 'Solo pendientes' : 'Todas'}`);
   
   try {
-    // Construir endpoint con filtros
-    const fechaDesde = getFechaFiltro(mesesAtras);
-    let endpoint = `/ventas?fecha_desde=${fechaDesde}`;
+    // Primero intentar con DTEs que parece tener datos
+    console.log('🔄 Intentando con /dtes?porCobrar=1...');
+    let data = await fetchAllPaginatedData('/dtes?porCobrar=1');
     
-    if (soloPendientes) {
-      endpoint += '&pendiente=true';
+    // Si no hay datos en DTEs, intentar con ventas
+    if (!data.items || data.items.length === 0) {
+      console.log('🔄 Intentando con /ventas...');
+      const fechaDesde = getFechaFiltro(mesesAtras);
+      const endpoint = `/ventas?fecha_desde=${fechaDesde}${soloPendientes ? '&pendiente=true' : ''}`;
+      data = await fetchAllPaginatedData(endpoint);
     }
     
-    const data = await fetchAllPaginatedData(endpoint);
-    
-    // Aplicar filtro adicional si es necesario
-    if (soloPendientes && data.items && data.items.length > 0) {
-      const facturasPendientes = filtrarFacturasPendientes(data.items);
-      
-      console.log(`✅ ${facturasPendientes.length} facturas pendientes de cobro (de ${data.items.length} totales)`);
-      
-      return {
-        ...data,
-        items: facturasPendientes
-      };
-    }
-    
-    console.log(`✅ ${data.items.length} cuentas por cobrar obtenidas`);
+    console.log(`✅ ${data.items?.length || 0} cuentas por cobrar obtenidas`);
     return data;
   } catch (error) {
     console.error('❌ Error obteniendo cuentas por cobrar:', error);
