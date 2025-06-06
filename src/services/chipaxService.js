@@ -17,7 +17,9 @@ const PAGINATION_CONFIG = {
   RETRY_DELAY: 500, // Reducido para reintentos más rápidos
   REQUEST_DELAY: 100, // Reducido para menos espera entre lotes
   TIMEOUT: 15000, // Reducido para detectar problemas más rápido
-  PAGE_SIZE: 100 // Aumentado para menos peticiones totales
+  PAGE_SIZE: 100, // Aumentado para menos peticiones totales
+  MAX_PAGES_DEFAULT: 20, // Límite por defecto de páginas
+  MAX_PAGES_COMPRAS: 10 // Límite específico para compras (muchos datos)
 };
 
 /**
@@ -225,7 +227,14 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
     paginationStats.loadedItems = firstPageData.items.length;
     
     // LIMITAR PÁGINAS PARA EVITAR SOBRECARGA
-    const maxPagesToLoad = 20; // Máximo 20 páginas = 2000 items
+    let maxPagesToLoad = PAGINATION_CONFIG.MAX_PAGES_DEFAULT;
+    
+    // Límite especial para compras
+    if (baseEndpoint.includes('/compras')) {
+      maxPagesToLoad = PAGINATION_CONFIG.MAX_PAGES_COMPRAS;
+      console.log('💸 Aplicando límite especial para compras');
+    }
+    
     const pagesToLoad = Math.min(totalPages, maxPagesToLoad);
     
     if (totalPages > maxPagesToLoad) {
@@ -318,6 +327,42 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
   }
 };
 
+// === FUNCIONES HELPER ===
+
+/**
+ * Genera filtros de fecha para los endpoints
+ * @param {number} meses - Número de meses hacia atrás
+ * @returns {string} String de fecha en formato YYYY-MM-DD
+ */
+const getFechaFiltro = (meses = 3) => {
+  const fecha = new Date();
+  fecha.setMonth(fecha.getMonth() - meses);
+  return fecha.toISOString().split('T')[0];
+};
+
+/**
+ * Filtra facturas por estado de pago
+ * @param {Array} facturas - Array de facturas
+ * @returns {Array} Facturas filtradas
+ */
+const filtrarFacturasPendientes = (facturas) => {
+  return facturas.filter(factura => {
+    // Múltiples verificaciones para asegurar que está pendiente
+    const tieneSaldoPendiente = (factura.saldo_pendiente || 0) > 0;
+    const noEstaPagada = factura.pagado !== true && factura.pagado !== 'true' && factura.pagado !== 1;
+    const estadoNoPagado = factura.estado !== 'pagado' && factura.estado_pago !== 'pagado';
+    const montoMayorQueCero = (factura.monto_total || factura.total || 0) > 0;
+    
+    // Si tiene saldo pendiente, está pendiente
+    if (tieneSaldoPendiente) return true;
+    
+    // Si no está marcada como pagada y tiene monto
+    if (noEstaPagada && estadoNoPagado && montoMayorQueCero) return true;
+    
+    return false;
+  });
+};
+
 // === FUNCIONES ESPECÍFICAS DE ENDPOINTS ===
 
 /**
@@ -345,12 +390,39 @@ export const obtenerSaldosBancarios = async () => {
 
 /**
  * Obtiene las cuentas por cobrar (ventas)
+ * @param {Object} opciones - Opciones de filtrado
+ * @param {number} opciones.mesesAtras - Meses hacia atrás para filtrar (default: 3)
+ * @param {boolean} opciones.soloPendientes - Solo facturas pendientes (default: true)
  */
-export const obtenerCuentasPorCobrar = async () => {
+export const obtenerCuentasPorCobrar = async (opciones = {}) => {
+  const { mesesAtras = 3, soloPendientes = true } = opciones;
+  
   console.log('\n📊 Obteniendo cuentas por cobrar...');
+  console.log(`📅 Período: últimos ${mesesAtras} meses`);
+  console.log(`💰 Estado: ${soloPendientes ? 'Solo pendientes' : 'Todas'}`);
+  
   try {
-    // Usar el endpoint de ventas que sí funciona
-    const data = await fetchAllPaginatedData('/ventas?pendiente=true');
+    // Construir endpoint con filtros
+    const fechaDesde = getFechaFiltro(mesesAtras);
+    let endpoint = `/ventas?fecha_desde=${fechaDesde}`;
+    
+    if (soloPendientes) {
+      endpoint += '&pendiente=true';
+    }
+    
+    const data = await fetchAllPaginatedData(endpoint);
+    
+    // Aplicar filtro adicional si es necesario
+    if (soloPendientes && data.items && data.items.length > 0) {
+      const facturasPendientes = filtrarFacturasPendientes(data.items);
+      
+      console.log(`✅ ${facturasPendientes.length} facturas pendientes de cobro (de ${data.items.length} totales)`);
+      
+      return {
+        ...data,
+        items: facturasPendientes
+      };
+    }
     
     console.log(`✅ ${data.items.length} cuentas por cobrar obtenidas`);
     return data;
@@ -362,12 +434,39 @@ export const obtenerCuentasPorCobrar = async () => {
 
 /**
  * Obtiene las cuentas por pagar (compras)
+ * @param {Object} opciones - Opciones de filtrado
+ * @param {number} opciones.mesesAtras - Meses hacia atrás para filtrar (default: 3)
+ * @param {boolean} opciones.soloPendientes - Solo facturas pendientes (default: true)
  */
-export const obtenerCuentasPorPagar = async () => {
+export const obtenerCuentasPorPagar = async (opciones = {}) => {
+  const { mesesAtras = 3, soloPendientes = true } = opciones;
+  
   console.log('\n💸 Obteniendo cuentas por pagar...');
+  console.log(`📅 Período: últimos ${mesesAtras} meses`);
+  console.log(`💰 Estado: ${soloPendientes ? 'Solo pendientes' : 'Todas'}`);
+  
   try {
-    // Usar el endpoint que funciona: /compras?pagado=false
-    const data = await fetchAllPaginatedData('/compras?pagado=false');
+    // Construir endpoint con filtros
+    const fechaDesde = getFechaFiltro(mesesAtras);
+    let endpoint = `/compras?fecha_desde=${fechaDesde}`;
+    
+    if (soloPendientes) {
+      endpoint += '&pagado=false';
+    }
+    
+    const data = await fetchAllPaginatedData(endpoint);
+    
+    // Aplicar filtro adicional para mayor seguridad
+    if (soloPendientes && data.items && data.items.length > 0) {
+      const facturasPendientes = filtrarFacturasPendientes(data.items);
+      
+      console.log(`✅ ${facturasPendientes.length} facturas pendientes de pago (de ${data.items.length} totales)`);
+      
+      return {
+        ...data,
+        items: facturasPendientes
+      };
+    }
     
     console.log(`✅ ${data.items.length} cuentas por pagar obtenidas`);
     return data;
