@@ -212,7 +212,7 @@ const DashboardFinancieroIntegrado = () => {
             <PaginationDebugger />
           </div>
         )}
-<ChipaxDebugger />
+
         {/* Chipax Data Updater */}
         <div className="mb-6">
           <ChipaxDataUpdater
