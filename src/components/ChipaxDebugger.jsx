@@ -1,496 +1,313 @@
-// ChipaxDebugger.jsx
+// ChipaxDebugger.jsx - Herramienta de diagnóstico para la API de Chipax
 import React, { useState } from 'react';
-import { Play, Code, CheckCircle, AlertTriangle, Clock, Download } from 'lucide-react';
-import chipaxService from '../services/chipaxService';
+import { Play, AlertCircle, CheckCircle, Info, Copy, RefreshCw } from 'lucide-react';
 
-/**
- * Componente para debugging y testing de la API de Chipax
- */
 const ChipaxDebugger = () => {
-  const [results, setResults] = useState({});
+  const [results, setResults] = useState([]);
   const [testing, setTesting] = useState(false);
-  const [selectedEndpoint, setSelectedEndpoint] = useState('all');
+  const [currentTest, setCurrentTest] = useState('');
 
-  // Lista de endpoints a probar (basado en documentación oficial)
-  const endpoints = [
+  // Configuraciones a probar
+  const API_CONFIGS = [
     {
-      id: 'token',
-      name: '🔑 Token de Acceso',
-      description: 'Verificar autenticación',
-      test: () => chipaxService.getChipaxToken()
-    },
-    // === SALDOS Y CUENTAS BANCARIAS ===
-    {
-      id: 'cuentas-corrientes', 
-      name: '🏦 Cuentas Corrientes',
-      description: 'Saldos bancarios principales',
-      test: () => chipaxService.fetchFromChipax('/cuentas_corrientes')
+      name: 'Directo v2',
+      url: 'https://api.chipax.com/v2/login',
+      headers: { 'Content-Type': 'application/json' }
     },
     {
-      id: 'cartolas',
-      name: '🏧 Cartolas Bancarias',
-      description: 'Movimientos bancarios detallados',
-      test: () => chipaxService.fetchFromChipax('/cartolas')
+      name: 'Directo API',
+      url: 'https://api.chipax.com/api/login',
+      headers: { 'Content-Type': 'application/json' }
     },
     {
-      id: 'bancos',
-      name: '🏦 Lista de Bancos',
-      description: 'Bancos disponibles',
-      test: () => chipaxService.fetchFromChipax('/bancos')
-    },
-    // === FACTURAS Y DOCUMENTOS ===
-    {
-      id: 'dtes',
-      name: '📄 DTEs (Todos)',
-      description: 'Documentos tributarios electrónicos',
-      test: () => chipaxService.fetchFromChipax('/dtes')
+      name: 'Proxy Netlify',
+      url: '/api/login',
+      headers: { 'Content-Type': 'application/json' }
     },
     {
-      id: 'dtes-venta',
-      name: '📄 DTEs de Venta (Por Cobrar)',
-      description: 'Facturas de venta pendientes',
-      test: () => chipaxService.fetchFromChipax('/dtes?porCobrar=1')
-    },
-    {
-      id: 'facturas',
-      name: '🧾 Facturas',
-      description: 'Facturas emitidas',
-      test: () => chipaxService.fetchFromChipax('/facturas')
-    },
-    // === COMPRAS Y PROVEEDORES ===
-    {
-      id: 'compras-todas',
-      name: '🛒 Compras (Todas)',
-      description: 'Todas las facturas de compra',
-      test: () => chipaxService.fetchFromChipax('/compras')
-    },
-    {
-      id: 'compras-por-pagar',
-      name: '💸 Compras Por Pagar',
-      description: 'Compras pendientes de pago',
-      test: () => chipaxService.fetchFromChipax('/compras?pagado=false')
-    },
-    {
-      id: 'compras-estado',
-      name: '⏳ Compras Por Estado',
-      description: 'Compras filtradas por estado',
-      test: () => chipaxService.fetchFromChipax('/compras?estado=por_pagar')
-    },
-    {
-      id: 'proveedores',
-      name: '🏢 Proveedores',
-      description: 'Lista de proveedores',
-      test: () => chipaxService.fetchFromChipax('/proveedores')
-    },
-    // === PAGOS Y COBROS ===
-    {
-      id: 'pagos',
-      name: '💰 Pagos',
-      description: 'Pagos realizados',
-      test: () => chipaxService.fetchFromChipax('/pagos')
-    },
-    {
-      id: 'cobros',
-      name: '💳 Cobros',
-      description: 'Cobros realizados',
-      test: () => chipaxService.fetchFromChipax('/cobros')
-    },
-    // === FLUJO DE CAJA Y PROYECCIONES ===
-    {
-      id: 'flujo-caja-init',
-      name: '💰 Flujo de Caja (Init)',
-      description: 'Datos principales de flujo de caja',
-      test: () => chipaxService.fetchFromChipax('/flujo-caja/init')
-    },
-    {
-      id: 'proyecciones',
-      name: '📈 Proyecciones',
-      description: 'Proyecciones financieras',
-      test: () => chipaxService.fetchFromChipax('/proyecciones')
-    },
-    {
-      id: 'kpis',
-      name: '📊 KPIs',
-      description: 'Indicadores clave',
-      test: () => chipaxService.fetchFromChipax('/kpis')
-    },
-    // === CONFIGURACIÓN ===
-    {
-      id: 'clientes',
-      name: '👥 Clientes',
-      description: 'Lista de clientes',
-      test: () => chipaxService.fetchFromChipax('/clientes')
-    },
-    {
-      id: 'productos',
-      name: '📦 Productos',
-      description: 'Catálogo de productos',
-      test: () => chipaxService.fetchFromChipax('/productos')
-    },
-    {
-      id: 'monedas',
-      name: '💱 Monedas',
-      description: 'Monedas disponibles',
-      test: () => chipaxService.fetchFromChipax('/monedas')
-    },
-    // === OTROS DOCUMENTOS ===
-    {
-      id: 'honorarios',
-      name: '🧾 Honorarios',
-      description: 'Boletas de honorarios',
-      test: () => chipaxService.fetchFromChipax('/honorarios')
-    },
-    {
-      id: 'boletas-terceros',
-      name: '🧾 Boletas de Terceros',
-      description: 'Boletas de terceros',
-      test: () => chipaxService.fetchFromChipax('/boletas_terceros')
-    },
-    // === EXPERIMENTAL ===
-    {
-      id: 'empresas',
-      name: '🏢 Empresas',
-      description: 'Empresas disponibles',
-      test: () => chipaxService.fetchFromChipax('/empresas')
-    },
-    {
-      id: 'alertas',
-      name: '🔔 Alertas',
-      description: 'Alertas financieras',
-      test: () => chipaxService.fetchFromChipax('/alertas')
+      name: 'Proxy v2',
+      url: '/v2/login',
+      headers: { 'Content-Type': 'application/json' }
     }
   ];
 
-  // Función para probar un endpoint específico
-  const testEndpoint = async (endpoint) => {
-    const startTime = Date.now();
-    
+  const AUTH_METHODS = [
+    {
+      name: 'app_id/secret_key',
+      body: {
+        app_id: '605e0aa5-ca0c-4513-b6ef-0030ac1f0849',
+        secret_key: 'f01974df-86e1-45a0-924f-75961ea926fc'
+      }
+    },
+    {
+      name: 'email/password',
+      body: {
+        email: 'emilio@quickentrada.com',
+        password: 'Quick2024$$'
+      }
+    }
+  ];
+
+  const testConfiguration = async (config, authMethod) => {
+    const testId = `${config.name}-${authMethod.name}`;
+    setCurrentTest(testId);
+
     try {
-      console.log(`🧪 Probando endpoint: ${endpoint.name}`);
+      const startTime = Date.now();
       
-      const result = await endpoint.test();
+      const response = await fetch(config.url, {
+        method: 'POST',
+        headers: config.headers,
+        body: JSON.stringify(authMethod.body)
+      });
+
       const duration = Date.now() - startTime;
-      
-      // Analizar la respuesta
-      let analysis = {
-        success: true,
-        duration,
-        dataType: typeof result,
-        hasData: false,
-        itemCount: 0,
-        structure: {},
-        sample: null
-      };
+      let responseData = null;
+      let responseText = '';
 
-      // Analizar estructura de datos
-      if (result) {
-        if (result.items && Array.isArray(result.items)) {
-          analysis.hasData = result.items.length > 0;
-          analysis.itemCount = result.items.length;
-          analysis.structure.hasItems = true;
-          analysis.structure.hasPagination = !!result.paginationAttributes;
-          if (result.items.length > 0) {
-            analysis.sample = result.items[0];
-          }
-        } else if (Array.isArray(result)) {
-          analysis.hasData = result.length > 0;
-          analysis.itemCount = result.length;
-          analysis.structure.isArray = true;
-          if (result.length > 0) {
-            analysis.sample = result[0];
-          }
-        } else if (typeof result === 'object') {
-          analysis.hasData = Object.keys(result).length > 0;
-          analysis.structure.isObject = true;
-          analysis.sample = result;
-        } else {
-          analysis.hasData = !!result;
-          analysis.sample = result;
-        }
+      try {
+        responseText = await response.text();
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        responseData = null;
       }
 
       return {
-        status: 'success',
-        data: result,
-        analysis,
-        error: null
+        id: testId,
+        config: config.name,
+        auth: authMethod.name,
+        url: config.url,
+        status: response.status,
+        statusText: response.statusText,
+        success: response.ok,
+        duration: duration,
+        responseData: responseData,
+        responseText: responseText,
+        headers: Object.fromEntries(response.headers.entries()),
+        timestamp: new Date().toISOString()
       };
-
     } catch (error) {
-      console.error(`❌ Error en ${endpoint.name}:`, error);
-      
       return {
-        status: 'error',
-        data: null,
-        analysis: null,
-        error: {
-          message: error.message,
-          duration: Date.now() - startTime
-        }
+        id: testId,
+        config: config.name,
+        auth: authMethod.name,
+        url: config.url,
+        status: 'ERROR',
+        statusText: error.message,
+        success: false,
+        error: error.toString(),
+        timestamp: new Date().toISOString()
       };
     }
   };
 
-  // Función para probar todos los endpoints
-  const testAllEndpoints = async () => {
+  const runAllTests = async () => {
     setTesting(true);
-    setResults({});
+    setResults([]);
     
-    console.log('🚀 Iniciando prueba completa de API de Chipax...');
-    
-    for (const endpoint of endpoints) {
-      console.log(`\n📡 Probando: ${endpoint.name}`);
-      
-      const result = await testEndpoint(endpoint);
-      
-      setResults(prev => ({
-        ...prev,
-        [endpoint.id]: result
-      }));
+    const allResults = [];
 
-      // Pequeña pausa entre requests para no sobrecargar la API
-      await new Promise(resolve => setTimeout(resolve, 500));
+    for (const config of API_CONFIGS) {
+      for (const authMethod of AUTH_METHODS) {
+        const result = await testConfiguration(config, authMethod);
+        allResults.push(result);
+        setResults(prev => [...prev, result]);
+        
+        // Pequeña pausa entre pruebas
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
-    
+
     setTesting(false);
-    console.log('✅ Prueba completa finalizada');
+    setCurrentTest('');
   };
 
-  // Función para probar un endpoint individual
-  const testSingleEndpoint = async (endpointId) => {
-    const endpoint = endpoints.find(e => e.id === endpointId);
-    if (!endpoint) return;
-
-    setTesting(true);
-    
-    const result = await testEndpoint(endpoint);
-    
-    setResults(prev => ({
-      ...prev,
-      [endpoint.id]: result
-    }));
-    
-    setTesting(false);
+  const copyResults = () => {
+    const text = JSON.stringify(results, null, 2);
+    navigator.clipboard.writeText(text);
+    alert('Resultados copiados al portapapeles');
   };
 
-  // Función para exportar resultados
-  const exportResults = () => {
-    const dataToExport = {
-      timestamp: new Date().toISOString(),
-      totalEndpoints: endpoints.length,
-      successfulEndpoints: Object.values(results).filter(r => r.status === 'success').length,
-      failedEndpoints: Object.values(results).filter(r => r.status === 'error').length,
-      results: results
-    };
-
-    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `chipax-api-test-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const getStatusIcon = (result) => {
+    if (result.success) {
+      return <CheckCircle className="w-5 h-5 text-green-500" />;
+    } else if (result.status === 'ERROR') {
+      return <AlertCircle className="w-5 h-5 text-red-500" />;
+    } else {
+      return <AlertCircle className="w-5 h-5 text-yellow-500" />;
+    }
   };
 
-  // Renderizar resultado de un endpoint
-  const renderResult = (endpointId, result) => {
-    if (!result) return null;
-
-    const getStatusIcon = () => {
-      switch (result.status) {
-        case 'success':
-          return <CheckCircle size={16} className="text-green-500" />;
-        case 'error':
-          return <AlertTriangle size={16} className="text-red-500" />;
-        default:
-          return <Clock size={16} className="text-gray-500" />;
-      }
-    };
-
-    const getStatusColor = () => {
-      switch (result.status) {
-        case 'success':
-          return result.analysis?.hasData ? 'border-green-500 bg-green-50' : 'border-yellow-500 bg-yellow-50';
-        case 'error':
-          return 'border-red-500 bg-red-50';
-        default:
-          return 'border-gray-300 bg-gray-50';
-      }
-    };
-
-    return (
-      <div className={`border rounded-lg p-4 ${getStatusColor()}`}>
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center">
-            {getStatusIcon()}
-            <span className="ml-2 font-medium">
-              {endpoints.find(e => e.id === endpointId)?.name}
-            </span>
-          </div>
-          <span className="text-xs text-gray-500">
-            {result.analysis?.duration || result.error?.duration}ms
-          </span>
-        </div>
-
-        {result.status === 'success' && result.analysis && (
-          <div className="space-y-2 text-sm">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <span className="font-medium">Estado:</span>
-                <span className={`ml-1 ${result.analysis.hasData ? 'text-green-600' : 'text-yellow-600'}`}>
-                  {result.analysis.hasData ? '✅ Con datos' : '⚠️ Sin datos'}
-                </span>
-              </div>
-              <div>
-                <span className="font-medium">Elementos:</span>
-                <span className="ml-1">{result.analysis.itemCount}</span>
-              </div>
-            </div>
-
-            {result.analysis.structure && (
-              <div>
-                <span className="font-medium">Estructura:</span>
-                <span className="ml-1 text-gray-600">
-                  {result.analysis.structure.hasItems && '📄 Con items array'}
-                  {result.analysis.structure.hasPagination && ' | 📃 Paginado'}
-                  {result.analysis.structure.isArray && '📋 Array directo'}
-                  {result.analysis.structure.isObject && '📦 Objeto'}
-                </span>
-              </div>
-            )}
-
-            {result.analysis.sample && (
-              <details className="mt-2">
-                <summary className="cursor-pointer text-xs text-blue-600 hover:text-blue-800">
-                  Ver muestra de datos
-                </summary>
-                <pre className="mt-1 text-xs bg-white p-2 rounded border overflow-x-auto">
-                  {JSON.stringify(result.analysis.sample, null, 2).substring(0, 500)}
-                  {JSON.stringify(result.analysis.sample, null, 2).length > 500 && '...'}
-                </pre>
-              </details>
-            )}
-          </div>
-        )}
-
-        {result.status === 'error' && (
-          <div className="text-sm text-red-600">
-            <span className="font-medium">Error:</span>
-            <span className="ml-1">{result.error.message}</span>
-          </div>
-        )}
-      </div>
-    );
+  const getStatusColor = (status) => {
+    if (status === 200) return 'text-green-600 bg-green-100';
+    if (status === 401) return 'text-yellow-600 bg-yellow-100';
+    if (status === 404) return 'text-orange-600 bg-orange-100';
+    if (status === 'ERROR') return 'text-red-600 bg-red-100';
+    return 'text-gray-600 bg-gray-100';
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-            <Code size={20} className="mr-2 text-blue-600" />
-            Chipax API Debugger
-          </h2>
-          <p className="text-sm text-gray-500">
-            Prueba y analiza todos los endpoints disponibles de la API de Chipax
-          </p>
-        </div>
-
-        <div className="flex space-x-2">
-          <button
-            onClick={exportResults}
-            disabled={Object.keys(results).length === 0}
-            className="flex items-center px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
-          >
-            <Download size={16} className="mr-1" />
-            Exportar
-          </button>
-          
-          <button
-            onClick={testAllEndpoints}
-            disabled={testing}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            <Play size={16} className="mr-1" />
-            {testing ? 'Probando...' : 'Probar Todos'}
-          </button>
-        </div>
+    <div className="bg-white rounded-lg shadow-lg p-6 max-w-6xl mx-auto">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">
+          🔧 Diagnóstico de Conexión Chipax
+        </h2>
+        <p className="text-gray-600">
+          Esta herramienta prueba diferentes configuraciones de URL y autenticación
+        </p>
       </div>
 
-      {/* Selector de endpoint individual */}
-      <div className="mb-4">
-        <div className="flex space-x-2">
-          <select
-            value={selectedEndpoint}
-            onChange={(e) => setSelectedEndpoint(e.target.value)}
-            className="border border-gray-300 rounded px-3 py-1 text-sm"
-            disabled={testing}
-          >
-            <option value="all">Seleccionar endpoint individual</option>
-            {endpoints.map(endpoint => (
-              <option key={endpoint.id} value={endpoint.id}>
-                {endpoint.name}
-              </option>
-            ))}
-          </select>
-          
-          <button
-            onClick={() => testSingleEndpoint(selectedEndpoint)}
-            disabled={testing || selectedEndpoint === 'all'}
-            className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
-          >
-            Probar
-          </button>
-        </div>
-      </div>
-
-      {/* Resumen de resultados */}
-      {Object.keys(results).length > 0 && (
-        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-          <h3 className="font-medium mb-2">Resumen de Pruebas:</h3>
-          <div className="grid grid-cols-3 gap-4 text-sm">
-            <div>
-              <span className="text-green-600">✅ Exitosos:</span>
-              <span className="ml-1 font-medium">
-                {Object.values(results).filter(r => r.status === 'success').length}
-              </span>
-            </div>
-            <div>
-              <span className="text-red-600">❌ Con errores:</span>
-              <span className="ml-1 font-medium">
-                {Object.values(results).filter(r => r.status === 'error').length}
-              </span>
-            </div>
-            <div>
-              <span className="text-blue-600">📊 Con datos:</span>
-              <span className="ml-1 font-medium">
-                {Object.values(results).filter(r => r.status === 'success' && r.analysis?.hasData).length}
-              </span>
-            </div>
+      <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+        <div className="flex items-start space-x-2">
+          <Info className="w-5 h-5 text-blue-500 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-blue-900">Información de pruebas:</p>
+            <ul className="mt-1 space-y-1 text-blue-800">
+              <li>• Se probarán {API_CONFIGS.length} configuraciones de URL</li>
+              <li>• Se probarán {AUTH_METHODS.length} métodos de autenticación</li>
+              <li>• Total: {API_CONFIGS.length * AUTH_METHODS.length} pruebas</li>
+            </ul>
           </div>
+        </div>
+      </div>
+
+      <div className="flex gap-4 mb-6">
+        <button
+          onClick={runAllTests}
+          disabled={testing}
+          className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          {testing ? (
+            <>
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              Probando {currentTest}...
+            </>
+          ) : (
+            <>
+              <Play className="w-4 h-4" />
+              Ejecutar Todas las Pruebas
+            </>
+          )}
+        </button>
+
+        {results.length > 0 && (
+          <button
+            onClick={copyResults}
+            className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center gap-2"
+          >
+            <Copy className="w-4 h-4" />
+            Copiar Resultados
+          </button>
+        )}
+      </div>
+
+      {results.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-800">Resultados:</h3>
+          
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Estado
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Configuración
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Autenticación
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    URL
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Respuesta
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Tiempo
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {results.map((result) => (
+                  <tr key={result.id}>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {getStatusIcon(result)}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {result.config}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                      {result.auth}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-500">
+                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                        {result.url}
+                      </code>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(result.status)}`}>
+                        {result.status} {result.statusText}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                      {result.duration ? `${result.duration}ms` : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Detalles de respuestas exitosas */}
+          {results.filter(r => r.success).length > 0 && (
+            <div className="mt-6">
+              <h4 className="text-lg font-semibold text-green-800 mb-3">
+                ✅ Respuestas Exitosas:
+              </h4>
+              <div className="space-y-3">
+                {results.filter(r => r.success).map(result => (
+                  <div key={result.id} className="bg-green-50 p-4 rounded-lg">
+                    <p className="font-medium text-green-900">
+                      {result.config} + {result.auth}
+                    </p>
+                    <pre className="mt-2 text-xs text-green-800 overflow-x-auto">
+                      {JSON.stringify(result.responseData, null, 2)}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Detalles de errores */}
+          {results.filter(r => !r.success).length > 0 && (
+            <div className="mt-6">
+              <h4 className="text-lg font-semibold text-red-800 mb-3">
+                ❌ Errores Encontrados:
+              </h4>
+              <div className="space-y-3">
+                {results.filter(r => !r.success).map(result => (
+                  <div key={result.id} className="bg-red-50 p-4 rounded-lg">
+                    <p className="font-medium text-red-900">
+                      {result.config} + {result.auth}
+                    </p>
+                    <p className="text-sm text-red-700 mt-1">
+                      Estado: {result.status} - {result.statusText || result.error}
+                    </p>
+                    {result.responseText && (
+                      <pre className="mt-2 text-xs text-red-600 overflow-x-auto">
+                        {result.responseText}
+                      </pre>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
-
-      {/* Resultados de pruebas */}
-      <div className="space-y-3">
-        {endpoints.map(endpoint => (
-          <div key={endpoint.id}>
-            {results[endpoint.id] ? (
-              renderResult(endpoint.id, results[endpoint.id])
-            ) : (
-              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                <div className="flex items-center">
-                  <Clock size={16} className="text-gray-400" />
-                  <span className="ml-2 text-gray-600">{endpoint.name}</span>
-                  <span className="ml-2 text-xs text-gray-500">- {endpoint.description}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
     </div>
   );
 };
