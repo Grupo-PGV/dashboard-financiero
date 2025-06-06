@@ -1,5 +1,5 @@
-// chipaxService.js - Servicio completo con paginación automática y endpoints correctos
-const CHIPAX_API_URL = '/v2'; // Usa proxy configurado
+// chipaxService.js - Servicio corregido con APP_ID y SECRET_KEY
+const CHIPAX_API_URL = 'https://api.chipax.com/v2'; // URL base de la API v2
 const APP_ID = '605e0aa5-ca0c-4513-b6ef-0030ac1f0849';
 const SECRET_KEY = 'f01974df-86e1-45a0-924f-75961ea926fc';
 
@@ -11,11 +11,11 @@ let tokenCache = {
 
 // Configuración de paginación
 const PAGINATION_CONFIG = {
-  MAX_CONCURRENT_REQUESTS: 3, // Máximo de peticiones simultáneas
-  RETRY_ATTEMPTS: 3, // Intentos de reintento por página
-  RETRY_DELAY: 1000, // Delay entre reintentos (ms)
-  REQUEST_DELAY: 200, // Delay entre lotes de peticiones (ms)
-  TIMEOUT: 30000 // Timeout por petición (ms)
+  MAX_CONCURRENT_REQUESTS: 3,
+  RETRY_ATTEMPTS: 3,
+  RETRY_DELAY: 1000,
+  REQUEST_DELAY: 200,
+  TIMEOUT: 30000
 };
 
 /**
@@ -32,25 +32,51 @@ export const getChipaxToken = async () => {
   }
 
   console.log('🔐 Obteniendo nuevo token de Chipax...');
+  console.log('🔑 APP_ID:', APP_ID.substring(0, 8) + '...');
   
   try {
+    // Intentar con la URL directa primero
     const response = await fetch(`${CHIPAX_API_URL}/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ app_id: APP_ID, secret_key: SECRET_KEY })
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({ 
+        app_id: APP_ID, 
+        secret_key: SECRET_KEY 
+      })
     });
+
+    console.log('📡 Respuesta status:', response.status);
+    console.log('📍 URL utilizada:', `${CHIPAX_API_URL}/login`);
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
       throw new Error(`Error de autenticación ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('✅ Respuesta exitosa, estructura:', Object.keys(data));
+    
+    // La API puede devolver el token en diferentes campos
+    const token = data.token || data.access_token || data.jwt;
+    
+    if (!token) {
+      console.error('❌ No se encontró token en la respuesta:', data);
+      throw new Error('Token no encontrado en la respuesta');
+    }
     
     // Guardar token en cache
     tokenCache = {
-      token: data.token,
-      expiresAt: new Date(data.tokenExpiration * 1000)
+      token: token,
+      // Manejar diferentes formatos de expiración
+      expiresAt: data.tokenExpiration 
+        ? new Date(data.tokenExpiration * 1000)
+        : data.expires_at 
+        ? new Date(data.expires_at)
+        : new Date(now.getTime() + 3600000) // 1 hora por defecto
     };
     
     console.log('✅ Token obtenido exitosamente. Expira:', tokenCache.expiresAt.toLocaleString());
@@ -58,6 +84,9 @@ export const getChipaxToken = async () => {
     
   } catch (error) {
     console.error('❌ Error obteniendo token:', error);
+    console.error('💡 Verifica que la URL y credenciales sean correctas');
+    // Limpiar cache en caso de error
+    tokenCache = { token: null, expiresAt: null };
     throw error;
   }
 };
@@ -73,13 +102,26 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
   try {
     const token = await getChipaxToken();
     
-    const response = await fetch(`${CHIPAX_API_URL}${endpoint}`, {
+    // Construir URL completa
+    const url = endpoint.startsWith('http') ? endpoint : `${CHIPAX_API_URL}${endpoint}`;
+    
+    const headers = {
+      ...options.headers,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    
+    // Probar diferentes formatos de autorización
+    if (token.startsWith('JWT ') || token.startsWith('Bearer ')) {
+      headers['Authorization'] = token;
+    } else {
+      // Por defecto usar JWT
+      headers['Authorization'] = `JWT ${token}`;
+    }
+    
+    const response = await fetch(url, {
       ...options,
-      headers: {
-        ...options.headers,
-        'Authorization': `Bearer ${token}`, // Usar Bearer en lugar de JWT
-        'Content-Type': 'application/json'
-      }
+      headers
     });
 
     if (showLogs) {
@@ -89,14 +131,29 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
     if (!response.ok) {
       const text = await response.text();
       if (showLogs) console.error(`❌ Error en ${endpoint}:`, text);
-      if (response.status === 404) return { items: [] };
+      
+      // Si es 401, limpiar cache y reintentar una vez
+      if (response.status === 401 && !options._retry) {
+        console.log('🔄 Token expirado, reintentando...');
+        tokenCache = { token: null, expiresAt: null };
+        return fetchFromChipax(endpoint, { ...options, _retry: true }, showLogs);
+      }
+      
+      if (response.status === 404) {
+        console.log(`⚠️ Endpoint no encontrado: ${url}`);
+        return { items: [] };
+      }
+      
       throw new Error(`Error ${response.status}: ${text}`);
     }
 
     const data = await response.json();
     
-    if (showLogs && data.paginationAttributes) {
-      console.log('📄 Info de paginación:', data.paginationAttributes);
+    if (showLogs) {
+      console.log(`📦 Datos recibidos de ${endpoint}`);
+      if (data.paginationAttributes) {
+        console.log('📄 Info de paginación:', data.paginationAttributes);
+      }
     }
     
     return data;
@@ -137,277 +194,237 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
     if (!firstPageData.paginationAttributes) {
       console.log('📋 No hay paginación, devolviendo respuesta directa');
       
-      const items = Array.isArray(firstPageData) ? firstPageData : (firstPageData.items || []);
+      const items = Array.isArray(firstPageData) ? 
+        firstPageData : 
+        (firstPageData.items || [firstPageData]);
+      
       paginationStats.totalItems = items.length;
       paginationStats.loadedItems = items.length;
       paginationStats.completenessPercent = 100;
+      paginationStats.endTime = new Date();
       
-      return { 
-        items, 
-        paginationInfo: paginationStats 
+      return {
+        items,
+        paginationStats,
+        rawResponse: firstPageData
       };
     }
     
-    // Actualizar estadísticas con información de paginación
-    const { totalPages, totalCount, itemsPerPage } = firstPageData.paginationAttributes;
+    const totalPages = firstPageData.paginationAttributes.totalPages || 1;
+    const totalCount = firstPageData.paginationAttributes.totalCount || 0;
+    
     paginationStats.totalPages = totalPages;
     paginationStats.totalItems = totalCount;
+    
+    console.log(`📊 Total: ${totalCount} items en ${totalPages} páginas`);
+    
+    // Si solo hay una página
+    if (totalPages === 1) {
+      paginationStats.loadedPages = 1;
+      paginationStats.loadedItems = firstPageData.items.length;
+      paginationStats.completenessPercent = 100;
+      paginationStats.endTime = new Date();
+      
+      return {
+        items: firstPageData.items,
+        paginationStats
+      };
+    }
+    
+    // Preparar para cargar múltiples páginas
+    const allItems = [...firstPageData.items];
     paginationStats.loadedPages = 1;
     paginationStats.loadedItems = firstPageData.items.length;
     
-    console.log(`📊 Información de paginación:`);
-    console.log(`   - Total de páginas: ${totalPages}`);
-    console.log(`   - Total de items: ${totalCount}`);
-    console.log(`   - Items por página: ${itemsPerPage}`);
-    
-    // Si solo hay una página, devolver los datos
-    if (totalPages === 1) {
-      paginationStats.completenessPercent = 100;
-      return {
-        items: firstPageData.items,
-        paginationInfo: paginationStats
-      };
-    }
-    
-    // Preparar array para todos los items
-    let allItems = [...firstPageData.items];
-    
-    // Cargar páginas restantes en lotes
-    const pageNumbers = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
-    const batches = [];
-    
-    for (let i = 0; i < pageNumbers.length; i += PAGINATION_CONFIG.MAX_CONCURRENT_REQUESTS) {
-      batches.push(pageNumbers.slice(i, i + PAGINATION_CONFIG.MAX_CONCURRENT_REQUESTS));
-    }
-    
-    console.log(`📦 Cargando ${totalPages - 1} páginas restantes en ${batches.length} lotes...`);
-    
-    // Procesar cada lote
-    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-      const batch = batches[batchIndex];
-      const progress = ((paginationStats.loadedPages / totalPages) * 100).toFixed(1);
-      
-      console.log(`🔄 Procesando lote ${batchIndex + 1}/${batches.length} (Progreso: ${progress}%)`);
-      
+    // Función helper para cargar una página
+    const loadPage = async (pageNum) => {
       try {
-        // Crear promesas para todas las páginas del lote
-        const batchPromises = batch.map(page => {
-          const endpoint = `${baseEndpoint}${separator}page=${page}&limit=50`;
-          return fetchFromChipax(endpoint, {}, false)
-            .then(data => ({ page, data, success: true }))
-            .catch(error => ({ page, error, success: false }));
-        });
+        const pageEndpoint = `${baseEndpoint}${separator}page=${pageNum}&limit=50`;
+        const pageData = await fetchFromChipax(pageEndpoint, {}, false);
         
-        // Esperar a que todas las promesas del lote se resuelvan
-        const results = await Promise.all(batchPromises);
-        
-        // Procesar resultados del lote
-        let batchItemCount = 0;
-        results.forEach(result => {
-          if (result.success && result.data.items) {
-            allItems = [...allItems, ...result.data.items];
-            batchItemCount += result.data.items.length;
-            paginationStats.loadedPages++;
-            paginationStats.loadedItems += result.data.items.length;
-          } else {
-            paginationStats.failedPages.push(result.page);
-            console.error(`   ✗ Página ${result.page} falló`);
-          }
-        });
-        
-        console.log(`   ✓ Lote completado: ${batchItemCount} items nuevos`);
-        
-        // Delay entre lotes
-        if (batchIndex < batches.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, PAGINATION_CONFIG.REQUEST_DELAY));
+        if (pageData.items && pageData.items.length > 0) {
+          return { success: true, items: pageData.items, page: pageNum };
         }
         
+        return { success: false, items: [], page: pageNum, error: 'No items' };
       } catch (error) {
-        console.error(`❌ Error procesando lote ${batchIndex + 1}:`, error);
+        console.error(`❌ Error cargando página ${pageNum}:`, error.message);
+        return { success: false, items: [], page: pageNum, error: error.message };
+      }
+    };
+    
+    // Cargar páginas en lotes para evitar sobrecarga
+    console.log(`🚀 Cargando ${totalPages - 1} páginas adicionales...`);
+    
+    for (let i = 2; i <= totalPages; i += PAGINATION_CONFIG.MAX_CONCURRENT_REQUESTS) {
+      const batch = [];
+      const batchEnd = Math.min(i + PAGINATION_CONFIG.MAX_CONCURRENT_REQUESTS - 1, totalPages);
+      
+      // Crear batch de promesas
+      for (let j = i; j <= batchEnd; j++) {
+        batch.push(loadPage(j));
+      }
+      
+      // Ejecutar batch
+      console.log(`📦 Cargando páginas ${i} a ${batchEnd}...`);
+      const batchResults = await Promise.all(batch);
+      
+      // Procesar resultados
+      for (const result of batchResults) {
+        if (result.success) {
+          allItems.push(...result.items);
+          paginationStats.loadedPages++;
+          paginationStats.loadedItems += result.items.length;
+        } else {
+          paginationStats.failedPages.push(result.page);
+        }
+      }
+      
+      // Actualizar progreso
+      paginationStats.completenessPercent = Math.round(
+        (paginationStats.loadedItems / paginationStats.totalItems) * 100
+      );
+      
+      console.log(`📊 Progreso: ${paginationStats.completenessPercent}% (${paginationStats.loadedItems}/${paginationStats.totalItems})`);
+      
+      // Delay entre lotes
+      if (batchEnd < totalPages) {
+        await new Promise(resolve => setTimeout(resolve, PAGINATION_CONFIG.REQUEST_DELAY));
       }
     }
-    
-    // Calcular completitud
-    paginationStats.completenessPercent = paginationStats.totalItems > 0 
-      ? (paginationStats.loadedItems / paginationStats.totalItems) * 100 
-      : 100;
     
     paginationStats.endTime = new Date();
     const duration = (paginationStats.endTime - paginationStats.startTime) / 1000;
     
-    // Resumen final
     console.log(`\n✅ === CARGA COMPLETADA ===`);
-    console.log(`   - Items cargados: ${paginationStats.loadedItems}/${paginationStats.totalItems} (${paginationStats.completenessPercent.toFixed(1)}%)`);
-    console.log(`   - Páginas cargadas: ${paginationStats.loadedPages}/${paginationStats.totalPages}`);
-    console.log(`   - Tiempo total: ${duration.toFixed(2)} segundos`);
+    console.log(`📊 Items cargados: ${paginationStats.loadedItems}/${paginationStats.totalItems}`);
+    console.log(`📄 Páginas cargadas: ${paginationStats.loadedPages}/${paginationStats.totalPages}`);
+    console.log(`⏱️ Duración: ${duration.toFixed(2)} segundos`);
     
     if (paginationStats.failedPages.length > 0) {
-      console.warn(`⚠️ Páginas que fallaron: ${paginationStats.failedPages.join(', ')}`);
+      console.log(`⚠️ Páginas fallidas: ${paginationStats.failedPages.join(', ')}`);
     }
     
     return {
       items: allItems,
-      paginationInfo: {
-        ...paginationStats,
-        totalPagesRequested: totalPages,
-        totalPagesLoaded: paginationStats.loadedPages,
-        totalItemsExpected: totalCount,
-        totalItemsLoaded: allItems.length,
-        completenessPercent: paginationStats.completenessPercent,
-        failedPages: paginationStats.failedPages
-      }
+      paginationStats
     };
     
   } catch (error) {
     console.error('❌ Error en carga paginada:', error);
+    paginationStats.endTime = new Date();
+    
     return {
       items: [],
-      paginationInfo: paginationStats,
+      paginationStats,
       error: error.message
     };
   }
 };
 
-// ===== SERVICIOS ESPECÍFICOS =====
+// === FUNCIONES ESPECÍFICAS DE ENDPOINTS ===
 
-export const IngresosService = {
-  getFacturasVenta: async () => {
-    console.log('📊 Obteniendo facturas de venta...');
-    return await fetchAllPaginatedData('/ventas');
-  },
-};
-
-export const BancoService = {
-  getSaldosBancarios: async () => {
-    console.log('🏦 Obteniendo saldos bancarios...');
+/**
+ * Obtiene los saldos bancarios
+ */
+export const obtenerSaldosBancarios = async () => {
+  console.log('\n💰 Obteniendo saldos bancarios...');
+  try {
     const data = await fetchAllPaginatedData('/cuentas_corrientes');
+    console.log(`✅ ${data.items.length} cuentas bancarias obtenidas`);
     return data;
-  }
-};
-
-export const ReportesService = {
-  getFlujoCaja: async () => {
-    console.log('💰 Obteniendo flujo de caja...');
-    // El flujo de caja se generará a partir de las transacciones
-    return { message: 'Flujo de caja se generará desde transacciones' };
-  }
-};
-
-export const EgresosService = {
-  getFacturasCompra: async () => {
-    console.log('🛒 Obteniendo TODAS las facturas de compra...');
-    return await fetchAllPaginatedData('/compras');
-  },
-  
-  getFacturasPorPagar: async () => {
-    console.log('💸 Obteniendo facturas de compra PENDIENTES DE PAGO...');
-    return await fetchAllPaginatedData('/compras?pagado=false');
-  },
-  
-  getFacturasPendientesAprobacion: async () => {
-    console.log('⏳ Obteniendo facturas pendientes de aprobación...');
-    const compras = await fetchAllPaginatedData('/compras');
-    // Filtrar las que requieren aprobación
-    if (compras.items) {
-      const pendientes = compras.items.filter(f => 
-        f.estado === 'pendiente_aprobacion' || 
-        f.requiere_aprobacion === true
-      );
-      return { items: pendientes };
-    }
-    return { items: [] };
-  },
-  
-  getPagosProgramados: async () => {
-    console.log('📅 Obteniendo pagos programados...');
-    try {
-      const pagos = await fetchAllPaginatedData('/pagos');
-      return pagos;
-    } catch (error) {
-      return { items: [] };
-    }
-  }
-};
-
-export const AjustesService = {
-  getClientes: async () => {
-    console.log('👥 Obteniendo clientes...');
-    const data = await fetchAllPaginatedData('/clientes');
-    return data;
-  },
-  
-  getProveedores: async () => {
-    console.log('🏢 Obteniendo proveedores...');
-    const data = await fetchAllPaginatedData('/proveedores');
-    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo saldos:', error);
+    throw error;
   }
 };
 
 /**
- * Función principal para obtener todos los datos
+ * Obtiene las cuentas por cobrar (ventas)
  */
-export const fetchAllChipaxData = async (fechaInicio, fechaFin) => {
-  console.log('🚀 Iniciando carga de todos los datos de Chipax...');
-  console.log(`📅 Rango de fechas: ${fechaInicio} - ${fechaFin}`);
-  
-  const results = await Promise.allSettled([
-    BancoService.getSaldosBancarios(),
-    IngresosService.getFacturasVenta(),
-    EgresosService.getFacturasPorPagar(),
-    EgresosService.getFacturasPendientesAprobacion(),
-    AjustesService.getClientes(),
-    AjustesService.getProveedores(),
-    EgresosService.getPagosProgramados()
-  ]);
-
-  console.log('📊 Resultados de todas las peticiones:');
-  const names = ['Saldos', 'Ventas', 'Compras Por Pagar', 'Pendientes', 'Clientes', 'Proveedores', 'Pagos'];
-  results.forEach((result, index) => {
-    console.log(`${names[index]}: ${result.status}`, 
-      result.value ? `✅ (${result.value.items ? result.value.items.length + ' items' : 'OK'})` : '❌'
-    );
-  });
-  
-  const [saldos, ventas, compras, pendientes, clientes, proveedores, pagos] = results;
-  
-  // Construir respuesta con manejo de errores
-  const response = {
-    saldosBancarios: saldos.value || { items: [] },
-    facturasPorCobrar: ventas.value || { items: [] },
-    facturasPorPagar: compras.value || { items: [] },
-    facturasPendientes: pendientes.value || { items: [] },
-    flujoCaja: {}, // Se generará en el adapter
-    clientes: clientes.value || { items: [] },
-    proveedores: proveedores.value || { items: [] },
-    pagosProgramados: pagos.value || { items: [] }
-  };
-  
-  // Agregar métricas de completitud
-  const completitudMetrics = {};
-  Object.entries(response).forEach(([key, value]) => {
-    if (value.paginationInfo) {
-      completitudMetrics[key] = {
-        completitud: value.paginationInfo.completenessPercent || 100,
-        itemsCargados: value.paginationInfo.totalItemsLoaded || 0,
-        itemsEsperados: value.paginationInfo.totalItemsExpected || 0,
-        paginasFallidas: value.paginationInfo.failedPages || []
-      };
+export const obtenerCuentasPorCobrar = async () => {
+  console.log('\n📊 Obteniendo cuentas por cobrar...');
+  try {
+    // Intentar con diferentes endpoints según la documentación
+    let data = await fetchAllPaginatedData('/ventas?pendiente=true');
+    
+    // Si no hay datos, intentar sin filtro
+    if (!data.items || data.items.length === 0) {
+      console.log('🔄 Intentando sin filtro de pendientes...');
+      data = await fetchAllPaginatedData('/ventas');
     }
-  });
-  
-  console.log('📈 Métricas de completitud:', completitudMetrics);
-  
-  return response;
+    
+    console.log(`✅ ${data.items.length} cuentas por cobrar obtenidas`);
+    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo cuentas por cobrar:', error);
+    throw error;
+  }
 };
 
-export default {
+/**
+ * Obtiene las cuentas por pagar (compras)
+ */
+export const obtenerCuentasPorPagar = async () => {
+  console.log('\n💸 Obteniendo cuentas por pagar...');
+  try {
+    // Intentar con diferentes endpoints según la documentación
+    let data = await fetchAllPaginatedData('/compras?pendiente=true');
+    
+    // Si no hay datos, intentar sin filtro
+    if (!data.items || data.items.length === 0) {
+      console.log('🔄 Intentando sin filtro de pendientes...');
+      data = await fetchAllPaginatedData('/compras');
+    }
+    
+    console.log(`✅ ${data.items.length} cuentas por pagar obtenidas`);
+    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo cuentas por pagar:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene la lista de clientes
+ */
+export const obtenerClientes = async () => {
+  console.log('\n👥 Obteniendo clientes...');
+  try {
+    const data = await fetchAllPaginatedData('/clientes');
+    console.log(`✅ ${data.items.length} clientes obtenidos`);
+    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo clientes:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene la lista de proveedores
+ */
+export const obtenerProveedores = async () => {
+  console.log('\n🏭 Obteniendo proveedores...');
+  try {
+    const data = await fetchAllPaginatedData('/proveedores');
+    console.log(`✅ ${data.items.length} proveedores obtenidos`);
+    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo proveedores:', error);
+    throw error;
+  }
+};
+
+// Exportar como objeto default para compatibilidad
+const chipaxService = {
   getChipaxToken,
   fetchFromChipax,
-  fetchAllChipaxData,
   fetchAllPaginatedData,
-  Ingresos: IngresosService,
-  Banco: BancoService,
-  Reportes: ReportesService,
-  Egresos: EgresosService,
-  Ajustes: AjustesService
+  obtenerSaldosBancarios,
+  obtenerCuentasPorCobrar,
+  obtenerCuentasPorPagar,
+  obtenerClientes,
+  obtenerProveedores
 };
+
+export default chipaxService;
