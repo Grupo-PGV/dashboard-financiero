@@ -10,6 +10,9 @@ import CashFlowChart from '../components/CashFlowChart';
 import AccountsReceivableTable from '../components/AccountsReceivableTable';
 import PendingInvoicesComponent from '../components/PendingInvoicesComponent';
 import PaginationDebugger from '../components/PaginationDebugger';
+// En DashboardFinancieroIntegrado.jsx, agrega:
+import ChipaxDebugger from '../components/ChipaxDebugger';
+
 
 const DashboardFinancieroIntegrado = () => {
   // Estados principales
@@ -211,7 +214,7 @@ const DashboardFinancieroIntegrado = () => {
             <PaginationDebugger />
           </div>
         )}
-
+<ChipaxDebugger />
         {/* Chipax Data Updater */}
         <div className="mb-6">
           <ChipaxDataUpdater
