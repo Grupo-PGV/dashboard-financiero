@@ -273,18 +273,7 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
 export const IngresosService = {
   getFacturasVenta: async () => {
     console.log('📊 Obteniendo facturas de venta...');
-    // Primero intentar con /ventas
-    try {
-      const ventas = await fetchAllPaginatedData('/ventas');
-      if (ventas.items && ventas.items.length > 0) {
-        return ventas;
-      }
-    } catch (error) {
-      console.log('⚠️ /ventas no disponible, intentando con /dtes');
-    }
-    
-    // Si falla, intentar con /dtes
-    return await fetchAllPaginatedData('/dtes');
+    return await fetchAllPaginatedData('/ventas');
   },
 };
 
@@ -308,6 +297,11 @@ export const EgresosService = {
   getFacturasCompra: async () => {
     console.log('🛒 Obteniendo TODAS las facturas de compra...');
     return await fetchAllPaginatedData('/compras');
+  },
+  
+  getFacturasPorPagar: async () => {
+    console.log('💸 Obteniendo facturas de compra PENDIENTES DE PAGO...');
+    return await fetchAllPaginatedData('/compras?pagado=false');
   },
   
   getFacturasPendientesAprobacion: async () => {
@@ -359,7 +353,7 @@ export const fetchAllChipaxData = async (fechaInicio, fechaFin) => {
   const results = await Promise.allSettled([
     BancoService.getSaldosBancarios(),
     IngresosService.getFacturasVenta(),
-    EgresosService.getFacturasCompra(),
+    EgresosService.getFacturasPorPagar(),
     EgresosService.getFacturasPendientesAprobacion(),
     AjustesService.getClientes(),
     AjustesService.getProveedores(),
@@ -367,7 +361,7 @@ export const fetchAllChipaxData = async (fechaInicio, fechaFin) => {
   ]);
 
   console.log('📊 Resultados de todas las peticiones:');
-  const names = ['Saldos', 'Ventas', 'Compras', 'Pendientes', 'Clientes', 'Proveedores', 'Pagos'];
+  const names = ['Saldos', 'Ventas', 'Compras Por Pagar', 'Pendientes', 'Clientes', 'Proveedores', 'Pagos'];
   results.forEach((result, index) => {
     console.log(`${names[index]}: ${result.status}`, 
       result.value ? `✅ (${result.value.items ? result.value.items.length + ' items' : 'OK'})` : '❌'
