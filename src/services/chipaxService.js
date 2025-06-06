@@ -10,13 +10,14 @@ let tokenCache = {
   expiresAt: null
 };
 
-// Configuración de paginación
+// Configuración de paginación optimizada
 const PAGINATION_CONFIG = {
-  MAX_CONCURRENT_REQUESTS: 3,
-  RETRY_ATTEMPTS: 3,
-  RETRY_DELAY: 1000,
-  REQUEST_DELAY: 200,
-  TIMEOUT: 30000
+  MAX_CONCURRENT_REQUESTS: 5, // Aumentado para mayor velocidad
+  RETRY_ATTEMPTS: 2, // Reducido para fallar más rápido
+  RETRY_DELAY: 500, // Reducido para reintentos más rápidos
+  REQUEST_DELAY: 100, // Reducido para menos espera entre lotes
+  TIMEOUT: 15000, // Reducido para detectar problemas más rápido
+  PAGE_SIZE: 100 // Aumentado para menos peticiones totales
 };
 
 /**
@@ -144,6 +145,13 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
     
     return data;
   } catch (error) {
+    clearTimeout(timeoutId);
+    
+    if (error.name === 'AbortError') {
+      console.error(`⏱️ Timeout en ${endpoint} después de ${PAGINATION_CONFIG.TIMEOUT}ms`);
+      throw new Error(`Timeout: La petición a ${endpoint} tardó demasiado`);
+    }
+    
     console.error(`❌ Error en petición a ${endpoint}:`, error);
     throw error;
   }
@@ -171,10 +179,11 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
   try {
     // Obtener primera página para conocer el total
     const separator = baseEndpoint.includes('?') ? '&' : '?';
-    const firstPageEndpoint = `${baseEndpoint}${separator}page=1&limit=50`;
+    const firstPageEndpoint = `${baseEndpoint}${separator}page=1&limit=${PAGINATION_CONFIG.PAGE_SIZE}`;
     
-    console.log(`📄 Obteniendo primera página...`);
-    const firstPageData = await fetchFromChipax(firstPageEndpoint, {}, false);
+    console.log(`📄 Obteniendo primera página con límite de ${PAGINATION_CONFIG.PAGE_SIZE} items...`);
+    const startTime = Date.now();
+    const firstPageData = await fetchFromChipax(firstPageEndpoint, { _startTime: startTime }, false);
     
     // Verificar si hay paginación
     if (!firstPageData.paginationAttributes) {
