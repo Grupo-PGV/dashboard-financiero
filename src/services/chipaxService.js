@@ -235,12 +235,12 @@ export const obtenerCuentasPorCobrar = async () => {
 
 /**
  * Obtiene las compras (cuentas por pagar)
- * Endpoint: /compras?porpagar=false
+ * Endpoint: /compras
  */
 export const obtenerCuentasPorPagar = async () => {
   console.log('\n💸 Obteniendo compras (cuentas por pagar)...');
   try {
-    const data = await fetchAllPaginatedData('/compras?porpagar=false');
+    const data = await fetchAllPaginatedData('/compras');
     
     // Filtrar solo las pendientes de pago si es necesario
     if (data.items && data.items.length > 0) {
