@@ -182,9 +182,12 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
 
 // === ENDPOINTS ESPECÍFICOS CORREGIDOS SEGÚN DOCUMENTACIÓN ===
 
+// chipaxService.js - CORRECCIÓN ESPECÍFICA PARA SALDOS BANCARIOS
+
 /**
  * Obtiene los saldos bancarios desde el flujo de caja
  * Como el endpoint /saldos no existe, calculamos los saldos desde los movimientos
+ * VERSIÓN CORREGIDA
  */
 export const obtenerSaldosDesdeFlujoCaja = async () => {
   console.log('\n💰 Calculando saldos desde flujo de caja...');
@@ -195,12 +198,17 @@ export const obtenerSaldosDesdeFlujoCaja = async () => {
     const movimientos = flujoResponse.items;
     console.log(`📊 ${movimientos.length} movimientos encontrados`);
     
+    // Loggear estructura del primer movimiento para debugging
+    if (movimientos.length > 0) {
+      console.log('🔍 Estructura del primer movimiento:', JSON.stringify(movimientos[0], null, 2));
+    }
+    
     // Agrupar movimientos por cuenta corriente
     const saldosPorCuenta = {};
     
     movimientos.forEach(mov => {
-      // El campo cuenta_corriente_id está en la estructura
-      const cuentaId = mov.cuenta_corriente_id;
+      // Verificar diferentes nombres de campo para cuenta
+      const cuentaId = mov.cuenta_corriente_id || mov.cuentaCorrienteId || mov.cuenta_id;
       
       if (cuentaId) {
         if (!saldosPorCuenta[cuentaId]) {
@@ -213,18 +221,34 @@ export const obtenerSaldosDesdeFlujoCaja = async () => {
           };
         }
         
-        // Los campos son 'abono' (ingreso) y 'cargo' (egreso)
+        // Verificar diferentes estructuras de datos
+        // Opción 1: campos 'abono' y 'cargo'
         const abono = mov.abono || 0;
         const cargo = mov.cargo || 0;
         
-        saldosPorCuenta[cuentaId].ingresos += abono;
-        saldosPorCuenta[cuentaId].egresos += cargo;
+        // Opción 2: campo 'monto' con signo
+        const monto = mov.monto || mov.montoMovimiento || 0;
+        
+        if (abono || cargo) {
+          // Usar estructura abono/cargo
+          saldosPorCuenta[cuentaId].ingresos += abono;
+          saldosPorCuenta[cuentaId].egresos += cargo;
+        } else if (monto !== 0) {
+          // Usar estructura con monto con signo
+          if (monto > 0) {
+            saldosPorCuenta[cuentaId].ingresos += monto;
+          } else {
+            saldosPorCuenta[cuentaId].egresos += Math.abs(monto);
+          }
+        }
+        
         saldosPorCuenta[cuentaId].movimientos++;
         
         // Actualizar fecha más reciente
-        if (mov.fecha && (!saldosPorCuenta[cuentaId].ultimaFecha || 
-            new Date(mov.fecha) > new Date(saldosPorCuenta[cuentaId].ultimaFecha))) {
-          saldosPorCuenta[cuentaId].ultimaFecha = mov.fecha;
+        const fechaMovimiento = mov.fecha || mov.fechaMovimiento || mov.created_at;
+        if (fechaMovimiento && (!saldosPorCuenta[cuentaId].ultimaFecha || 
+            new Date(fechaMovimiento) > new Date(saldosPorCuenta[cuentaId].ultimaFecha))) {
+          saldosPorCuenta[cuentaId].ultimaFecha = fechaMovimiento;
         }
       }
     });
@@ -258,7 +282,12 @@ export const obtenerSaldosBancarios = async () => {
     
     console.log(`✅ ${data.items.length} cuentas corrientes obtenidas`);
     
-    // Como sabemos que el endpoint /saldos no existe, ir directo al flujo de caja
+    // Loggear estructura de la primera cuenta para debugging
+    if (data.items.length > 0) {
+      console.log('🔍 Estructura de la primera cuenta corriente:', JSON.stringify(data.items[0], null, 2));
+    }
+    
+    // Calcular saldos desde flujo de caja
     console.log('🔄 Calculando saldos desde flujo de caja...');
     
     try {
@@ -269,22 +298,24 @@ export const obtenerSaldosBancarios = async () => {
         const saldoInfo = saldosPorCuenta[cuenta.id];
         
         if (saldoInfo) {
-          console.log(`✅ Saldo encontrado para cuenta ${cuenta.numeroCuenta}: $${saldoInfo.saldo.toLocaleString('es-CL')}`);
+          console.log(`✅ Saldo encontrado para cuenta ${cuenta.numeroCuenta || cuenta.id}: $${saldoInfo.saldo.toLocaleString('es-CL')}`);
           
           return {
             ...cuenta,
+            // Crear objeto Saldo compatible con el formato esperado
             Saldo: {
               debe: saldoInfo.egresos,
               haber: saldoInfo.ingresos,
-              saldo_deudor: saldoInfo.saldo < 0 ? Math.abs(saldoInfo.saldo) : 0,
-              saldo_acreedor: saldoInfo.saldo > 0 ? saldoInfo.saldo : 0
+              saldo_deudor: saldoInfo.saldo > 0 ? saldoInfo.saldo : 0,
+              saldo_acreedor: saldoInfo.saldo < 0 ? Math.abs(saldoInfo.saldo) : 0
             },
+            // Campos adicionales para el adaptador
             saldoCalculado: saldoInfo.saldo,
             ultimoMovimiento: saldoInfo.ultimaFecha,
             totalMovimientos: saldoInfo.movimientos
           };
         } else {
-          console.log(`⚠️ No se encontraron movimientos para cuenta ${cuenta.numeroCuenta}`);
+          console.log(`⚠️ No se encontraron movimientos para cuenta ${cuenta.numeroCuenta || cuenta.id}`);
           
           return {
             ...cuenta,
@@ -303,6 +334,10 @@ export const obtenerSaldosBancarios = async () => {
       
       const cuentasConSaldo = data.items.filter(c => c.saldoCalculado !== 0);
       console.log(`✅ ${cuentasConSaldo.length} cuentas con saldo calculado desde flujo de caja`);
+      
+      // Mostrar resumen de saldos
+      const saldoTotal = data.items.reduce((sum, cuenta) => sum + (cuenta.saldoCalculado || 0), 0);
+      console.log(`💰 SALDO TOTAL CALCULADO: $${saldoTotal.toLocaleString('es-CL')}`);
       
     } catch (errorFlujo) {
       console.log('❌ Error calculando saldos desde flujo de caja:', errorFlujo.message);
