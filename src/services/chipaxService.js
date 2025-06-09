@@ -183,281 +183,6 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
 // === ENDPOINTS ESPECÍFICOS CORREGIDOS SEGÚN DOCUMENTACIÓN ===
 
 /**
- * Obtiene las cuentas corrientes (saldos bancarios) con información completa
- * Endpoint: /cuentas-corrientes
- * MEJORADO: Incluye logging detallado para verificar estructura de Saldo
- */
-export const obtenerSaldosBancarios = async () => {
-  console.log('\n💰 Obteniendo cuentas corrientes...');
-  try {
-    const data = await fetchAllPaginatedData('/cuentas-corrientes');
-    
-    console.log(`✅ ${data.items.length} cuentas corrientes obtenidas`);
-    
-    // Verificar si las cuentas incluyen el objeto Saldo
-    if (data.items && data.items.length > 0) {
-      const primeraCuenta = data.items[0];
-      
-      // Log detallado de la estructura
-      console.log('📊 Estructura de la primera cuenta corriente:');
-      console.log('- ID:', primeraCuenta.id);
-      console.log('- Número:', primeraCuenta.numeroCuenta);
-      console.log('- Banco:', primeraCuenta.banco);
-      
-      // Verificar si existe el objeto Saldo
-      if (primeraCuenta.Saldo) {
-        console.log('💵 Objeto Saldo encontrado:', primeraCuenta.Saldo);
-      } else {
-        console.log('⚠️ No se encontró objeto Saldo en la cuenta');
-        
-        // Intentar obtener saldos con parámetros adicionales
-        console.log('🔄 Intentando con parámetros adicionales...');
-        
-        // Probar diferentes parámetros que podrían incluir los saldos
-        const parametrosAProbar = [
-          'incluirSaldo=true',
-          'withBalance=true', 
-          'conSaldo=1',
-          'expand=saldo',
-          'include=saldo'
-        ];
-        
-        for (const param of parametrosAProbar) {
-          try {
-            console.log(`🔍 Probando con: /cuentas-corrientes?${param}`);
-            const dataConParam = await fetchAllPaginatedData(`/cuentas-corrientes?${param}`);
-            
-            if (dataConParam.items && dataConParam.items.length > 0 && dataConParam.items[0].Saldo) {
-              console.log(`✅ ¡Éxito! El parámetro '${param}' incluye los saldos`);
-              return dataConParam;
-            }
-          } catch (error) {
-            console.log(`❌ El parámetro '${param}' no funcionó`);
-          }
-        }
-      }
-    }
-    
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo cuentas corrientes:', error);
-    throw error;
-  }
-};
-
-// ALTERNATIVA: Si los saldos vienen en un endpoint separado
-/**
- * Obtiene los saldos de las cuentas corrientes
- * Intenta múltiples estrategias para obtener los saldos
- */
-export const obtenerSaldosBancariosCompletos = async () => {
-  console.log('\n💰 Obteniendo cuentas corrientes con saldos completos...');
-  
-  try {
-    // Paso 1: Obtener las cuentas
-    const cuentasData = await obtenerSaldosBancarios();
-    const cuentas = cuentasData.items;
-    
-    // Verificar si ya tienen saldos
-    if (cuentas.length > 0 && cuentas[0].Saldo) {
-      console.log('✅ Las cuentas ya incluyen saldos');
-      return cuentasData;
-    }
-    
-    // Paso 2: Si no tienen saldos, intentar obtenerlos por separado
-    console.log('🔄 Intentando obtener saldos por separado...');
-    
-    // Opción A: Endpoint específico de saldos
-    try {
-      const saldosResponse = await fetchFromChipax('/cuentas-corrientes/saldos');
-      if (saldosResponse) {
-        console.log('✅ Saldos obtenidos desde endpoint específico');
-        // Combinar cuentas con saldos
-        // ... lógica de combinación
-      }
-    } catch (error) {
-      console.log('❌ No existe endpoint /cuentas-corrientes/saldos');
-    }
-    
-    // Opción B: Obtener saldo individual por cuenta
-    const cuentasConSaldos = [];
-    for (const cuenta of cuentas.slice(0, 3)) { // Probar solo con las primeras 3
-      try {
-        const saldoResponse = await fetchFromChipax(`/cuentas-corrientes/${cuenta.id}/saldo`);
-        cuentasConSaldos.push({
-          ...cuenta,
-          Saldo: saldoResponse
-        });
-        console.log(`✅ Saldo obtenido para cuenta ${cuenta.id}`);
-      } catch (error) {
-        console.log(`❌ No se pudo obtener saldo individual para cuenta ${cuenta.id}`);
-      }
-    }
-    
-    if (cuentasConSaldos.length > 0) {
-      console.log('✅ Se obtuvieron algunos saldos individuales');
-      // Aplicar la misma lógica al resto de cuentas...
-    }
-    
-    return cuentasData;
-    
-  } catch (error) {
-    console.error('❌ Error obteniendo saldos completos:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene los DTEs (facturas de venta/cuentas por cobrar)
- * Endpoint: /dtes?porCobrar=1
- * 
- * REEMPLAZAR LA FUNCIÓN obtenerCuentasPorCobrar EN chipaxService.js CON ESTA VERSIÓN
- */
-export const obtenerCuentasPorCobrar = async () => {
-  console.log('\n📊 Obteniendo DTEs (facturas por cobrar)...');
-  try {
-    const data = await fetchAllPaginatedData('/dtes?porCobrar=1');
-    
-    console.log(`✅ ${data.items.length} DTEs por cobrar obtenidos`);
-    
-    // Log detallado para entender la estructura
-    if (data.items && data.items.length > 0) {
-      console.log('📋 Estructura completa del primer DTE:');
-      console.log(JSON.stringify(data.items[0], null, 2));
-      
-      // Ver qué campos están disponibles
-      console.log('🔍 Campos disponibles:', Object.keys(data.items[0]));
-      
-      // Ver si hay objetos anidados importantes
-      const dte = data.items[0];
-      if (dte.ClienteProveedor) {
-        console.log('👤 ClienteProveedor:', dte.ClienteProveedor);
-      }
-      if (dte.Saldo) {
-        console.log('💰 Saldo:', dte.Saldo);
-      }
-    }
-    
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo DTEs:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene las compras (cuentas por pagar)
- * Endpoint: /compras
- */
-export const obtenerCuentasPorPagar = async () => {
-  console.log('\n💸 Obteniendo compras (cuentas por pagar)...');
-  try {
-    const data = await fetchAllPaginatedData('/compras');
-    
-    // Filtrar solo las pendientes de pago si es necesario
-    if (data.items && data.items.length > 0) {
-      const todasLasCompras = data.items.length;
-      
-      // Filtrar las que no tienen fecha de pago interna o están pendientes
-      data.items = data.items.filter(compra => 
-        !compra.fechaPagoInterna || 
-        compra.estado === 'pendiente' ||
-        compra.estado === 'aceptado' // Las aceptadas pueden estar pendientes de pago
-      );
-      
-      console.log(`📊 De ${todasLasCompras} compras, ${data.items.length} están pendientes de pago`);
-    }
-    
-    console.log(`✅ ${data.items.length} compras por pagar obtenidas`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo compras:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene la lista de clientes
- * Endpoint: /clientes
- */
-export const obtenerClientes = async () => {
-  console.log('\n👥 Obteniendo clientes...');
-  try {
-    const data = await fetchAllPaginatedData('/clientes');
-    console.log(`✅ ${data.items.length} clientes obtenidos`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo clientes:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene la lista de proveedores
- * Endpoint: /proveedores
- */
-export const obtenerProveedores = async () => {
-  console.log('\n🏭 Obteniendo proveedores...');
-  try {
-    const data = await fetchAllPaginatedData('/proveedores');
-    console.log(`✅ ${data.items.length} proveedores obtenidos`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo proveedores:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene el flujo de caja desde cartolas
- * Endpoint: /flujo-caja/cartolas
- */
-export const obtenerFlujoCaja = async () => {
-  console.log('\n💵 Obteniendo flujo de caja...');
-  try {
-    const data = await fetchAllPaginatedData('/flujo-caja/cartolas');
-    console.log(`✅ ${data.items.length} movimientos de flujo de caja obtenidos`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo flujo de caja:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene honorarios
- * Endpoint: /honorarios
- */
-export const obtenerHonorarios = async () => {
-  console.log('\n📄 Obteniendo honorarios...');
-  try {
-    const data = await fetchAllPaginatedData('/honorarios');
-    console.log(`✅ ${data.items.length} honorarios obtenidos`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo honorarios:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene boletas de terceros
- * Endpoint: /boletas-terceros
- */
-export const obtenerBoletasTerceros = async () => {
-  console.log('\n📋 Obteniendo boletas de terceros...');
-  try {
-    const data = await fetchAllPaginatedData('/boletas-terceros');
-    console.log(`✅ ${data.items.length} boletas de terceros obtenidas`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo boletas de terceros:', error);
-    throw error;
-  }
-};
-// ========== AGREGAR ESTAS NUEVAS FUNCIONES ==========
-
-/**
  * Obtiene los saldos desde el endpoint /saldos
  * Filtra por modelo CuentaCorriente
  */
@@ -604,7 +329,247 @@ export const obtenerSaldosBancariosCompletos = async () => {
   }
 };
 
-// ========== FIN DE NUEVAS FUNCIONES ==========
+/**
+ * Obtiene las cuentas corrientes (saldos bancarios) con información completa
+ * Endpoint: /cuentas-corrientes
+ * MEJORADO: Incluye logging detallado y búsqueda de saldos
+ */
+export const obtenerSaldosBancarios = async () => {
+  console.log('\n💰 Obteniendo cuentas corrientes...');
+  try {
+    const data = await fetchAllPaginatedData('/cuentas-corrientes');
+    
+    console.log(`✅ ${data.items.length} cuentas corrientes obtenidas`);
+    
+    // Verificar si las cuentas incluyen el objeto Saldo
+    if (data.items && data.items.length > 0) {
+      const primeraCuenta = data.items[0];
+      
+      // Log detallado de la estructura
+      console.log('📊 Estructura de la primera cuenta corriente:');
+      console.log('- ID:', primeraCuenta.id);
+      console.log('- Número:', primeraCuenta.numeroCuenta);
+      console.log('- Banco:', primeraCuenta.banco);
+      
+      // Verificar si existe el objeto Saldo
+      if (primeraCuenta.Saldo) {
+        console.log('💵 Objeto Saldo encontrado:', primeraCuenta.Saldo);
+        return data;
+      } else {
+        console.log('⚠️ No se encontró objeto Saldo en la cuenta');
+        
+        // Intentar obtener saldos con parámetros adicionales
+        console.log('🔄 Intentando con parámetros adicionales...');
+        
+        // Probar diferentes parámetros que podrían incluir los saldos
+        const parametrosAProbar = [
+          'incluirSaldo=true',
+          'withBalance=true', 
+          'conSaldo=1',
+          'expand=saldo',
+          'include=saldo'
+        ];
+        
+        for (const param of parametrosAProbar) {
+          try {
+            console.log(`🔍 Probando con: /cuentas-corrientes?${param}`);
+            const dataConParam = await fetchAllPaginatedData(`/cuentas-corrientes?${param}`);
+            
+            if (dataConParam.items && dataConParam.items.length > 0 && dataConParam.items[0].Saldo) {
+              console.log(`✅ ¡Éxito! El parámetro '${param}' incluye los saldos`);
+              return dataConParam;
+            }
+          } catch (error) {
+            console.log(`❌ El parámetro '${param}' no funcionó`);
+          }
+        }
+        
+        // Si ningún parámetro funcionó, intentar obtener saldos desde endpoint /saldos
+        console.log('🔄 Intentando obtener saldos desde endpoint /saldos...');
+        
+        try {
+          const saldosPorCuenta = await obtenerSaldosDesdeEndpoint();
+          
+          // Combinar cuentas con saldos
+          data.items = data.items.map(cuenta => {
+            const saldoInfo = saldosPorCuenta[cuenta.id];
+            
+            if (saldoInfo) {
+              return {
+                ...cuenta,
+                Saldo: {
+                  debe: saldoInfo.debe,
+                  haber: saldoInfo.haber,
+                  saldo_deudor: saldoInfo.saldoDeudor,
+                  saldo_acreedor: saldoInfo.saldoAcreedor
+                },
+                saldoCalculado: saldoInfo.saldoReal
+              };
+            }
+            
+            return cuenta;
+          });
+          
+          console.log('✅ Saldos agregados exitosamente a las cuentas');
+        } catch (errorSaldos) {
+          console.log('❌ No se pudieron obtener saldos desde /saldos:', errorSaldos.message);
+        }
+      }
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo cuentas corrientes:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene los DTEs (facturas de venta/cuentas por cobrar)
+ * Endpoint: /dtes?porCobrar=1
+ */
+export const obtenerCuentasPorCobrar = async () => {
+  console.log('\n📊 Obteniendo DTEs (facturas por cobrar)...');
+  try {
+    const data = await fetchAllPaginatedData('/dtes?porCobrar=1');
+    
+    console.log(`✅ ${data.items.length} DTEs por cobrar obtenidos`);
+    
+    // Log detallado para entender la estructura
+    if (data.items && data.items.length > 0) {
+      console.log('📋 Estructura completa del primer DTE:');
+      console.log(JSON.stringify(data.items[0], null, 2));
+      
+      // Ver qué campos están disponibles
+      console.log('🔍 Campos disponibles:', Object.keys(data.items[0]));
+      
+      // Ver si hay objetos anidados importantes
+      const dte = data.items[0];
+      if (dte.ClienteProveedor) {
+        console.log('👤 ClienteProveedor:', dte.ClienteProveedor);
+      }
+      if (dte.Saldo) {
+        console.log('💰 Saldo:', dte.Saldo);
+      }
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo DTEs:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene las compras (cuentas por pagar)
+ * Endpoint: /compras
+ */
+export const obtenerCuentasPorPagar = async () => {
+  console.log('\n💸 Obteniendo compras (cuentas por pagar)...');
+  try {
+    const data = await fetchAllPaginatedData('/compras');
+    
+    // Filtrar solo las pendientes de pago si es necesario
+    if (data.items && data.items.length > 0) {
+      const todasLasCompras = data.items.length;
+      
+      // Filtrar las que no tienen fecha de pago interna o están pendientes
+      data.items = data.items.filter(compra => 
+        !compra.fechaPagoInterna || 
+        compra.estado === 'pendiente' ||
+        compra.estado === 'aceptado' // Las aceptadas pueden estar pendientes de pago
+      );
+      
+      console.log(`📊 De ${todasLasCompras} compras, ${data.items.length} están pendientes de pago`);
+    }
+    
+    console.log(`✅ ${data.items.length} compras por pagar obtenidas`);
+    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo compras:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene la lista de clientes
+ * Endpoint: /clientes
+ */
+export const obtenerClientes = async () => {
+  console.log('\n👥 Obteniendo clientes...');
+  try {
+    const data = await fetchAllPaginatedData('/clientes');
+    console.log(`✅ ${data.items.length} clientes obtenidos`);
+    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo clientes:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene la lista de proveedores
+ * Endpoint: /proveedores
+ */
+export const obtenerProveedores = async () => {
+  console.log('\n🏭 Obteniendo proveedores...');
+  try {
+    const data = await fetchAllPaginatedData('/proveedores');
+    console.log(`✅ ${data.items.length} proveedores obtenidos`);
+    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo proveedores:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene el flujo de caja desde cartolas
+ * Endpoint: /flujo-caja/cartolas
+ */
+export const obtenerFlujoCaja = async () => {
+  console.log('\n💵 Obteniendo flujo de caja...');
+  try {
+    const data = await fetchAllPaginatedData('/flujo-caja/cartolas');
+    console.log(`✅ ${data.items.length} movimientos de flujo de caja obtenidos`);
+    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo flujo de caja:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene honorarios
+ * Endpoint: /honorarios
+ */
+export const obtenerHonorarios = async () => {
+  console.log('\n📄 Obteniendo honorarios...');
+  try {
+    const data = await fetchAllPaginatedData('/honorarios');
+    console.log(`✅ ${data.items.length} honorarios obtenidos`);
+    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo honorarios:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene boletas de terceros
+ * Endpoint: /boletas-terceros
+ */
+export const obtenerBoletasTerceros = async () => {
+  console.log('\n📋 Obteniendo boletas de terceros...');
+  try {
+    const data = await fetchAllPaginatedData('/boletas-terceros');
+    console.log(`✅ ${data.items.length} boletas de terceros obtenidas`);
+    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo boletas de terceros:', error);
+    throw error;
+  }
+};
 
 // Exportar todo
 const chipaxService = {
