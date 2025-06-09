@@ -13,6 +13,7 @@ import PaginationDebugger from '../components/PaginationDebugger';
 import ChipaxDataInspector from '../components/ChipaxDataInspector';
 import ChipaxDTEAnalyzer from '../components/ChipaxDTEAnalyzer';
 import ChipaxDebugPanel from '../components/ChipaxDebugPanel';
+import ChipaxEndpointDiscovery from '../components/ChipaxEndpointDiscovery';
 
 const DashboardFinancieroIntegrado = () => {
   // Estados principales
@@ -257,6 +258,10 @@ const DashboardFinancieroIntegrado = () => {
 
         {/* Chipax Data Updater */}
         <div className="mb-6">
+          {/* Descubrimiento de endpoints - TEMPORAL */}
+<div className="mb-6">
+  <ChipaxEndpointDiscovery />
+</div>
           <ChipaxDataUpdater
             onUpdateSaldos={handleUpdateSaldos}
             onUpdateCuentasPendientes={handleUpdateCuentasPendientes}
