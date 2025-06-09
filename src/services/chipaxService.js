@@ -207,7 +207,7 @@ export const obtenerCuentasPorCobrar = async () => {
   console.log('\n📊 Obteniendo DTEs (facturas por cobrar)...');
   try {
     // Usar el parámetro porCobrar=1 para obtener solo las facturas pendientes de cobro
-    const data = await fetchAllPaginatedData('/dtes?porCobrar=1');
+    const data = await fetchAllPaginatedData('/dte?porCobrar=1');
     
     console.log(`✅ ${data.items.length} DTEs por cobrar obtenidos`);
     
