@@ -49,33 +49,94 @@ const adaptarCuentasCorrientes = (cuentas) => {
   }));
 };
 
-/**
- * Adapta DTEs al formato de cuentas por cobrar
- */
+// En chipaxAdapter.js - función adaptarDTEs corregida con la estructura real
+
 const adaptarDTEs = (dtes) => {
-  return dtes.map(dte => {
-    const fechaVencimiento = dte.fecha_vencimiento || dte.fecha_emision;
+  console.log(`📋 Adaptando ${dtes.length} DTEs`);
+  
+  return dtes.map((dte, index) => {
+    // Log del primer DTE para debugging
+    if (index === 0) {
+      console.log('🔍 Primer DTE adaptado:', {
+        razonSocial: dte.razonSocial,
+        montoTotal: dte.montoTotal,
+        saldoDeudor: dte.Saldo?.saldoDeudor
+      });
+    }
+
+    // Calcular días vencidos
+    const fechaVencimiento = dte.fechaVencimiento;
     const diasVencidos = calcularDiasVencidos(fechaVencimiento);
+    
+    // El saldo pendiente viene en Saldo.saldoDeudor
+    const saldoPendiente = dte.Saldo?.saldoDeudor || 0;
     
     return {
       id: dte.id,
       folio: dte.folio,
       tipo: obtenerTipoDocumento(dte.tipo),
-      cliente: {
-        nombre: dte.razon_social,
-        rut: dte.rut
+      tipoNumero: dte.tipo,
+      // Cliente como string simple para evitar el error de React
+      cliente: dte.razonSocial || dte.ClienteNormalizado?.razonSocial || 'Sin nombre',
+      // Información adicional del cliente en objeto separado
+      clienteInfo: {
+        nombre: dte.razonSocial || dte.ClienteNormalizado?.razonSocial || 'Sin nombre',
+        rut: dte.rut || 'Sin RUT',
+        id: dte.idCliente
       },
-      fechaEmision: dte.fecha_emision,
-      fechaVencimiento: fechaVencimiento,
-      monto: dte.monto_total,
-      montoNeto: dte.monto_neto,
+      fechaEmision: dte.fechaEmision,
+      fechaVencimiento: dte.fechaVencimiento,
+      monto: dte.montoTotal,
+      montoNeto: dte.montoNeto,
       iva: dte.iva,
-      saldo: dte.monto_por_cobrar || dte.Saldo?.saldo_deudor || dte.monto_total,
+      saldo: saldoPendiente,
       diasVencidos: diasVencidos,
-      estado: determinarEstadoDTE(dte),
-      pagado: dte.monto_por_cobrar === 0
+      estado: saldoPendiente > 0 ? 'pendiente' : 'pagado',
+      pagado: saldoPendiente === 0,
+      // Campos adicionales útiles
+      tipoTransaccion: dte.tipoTransaccion,
+      numeroInterno: dte.numeroInterno,
+      urlPDF: dte.urlPDF,
+      urlXML: dte.urlXML,
+      // Información de pagos si existe
+      cartolas: dte.Cartolas || []
     };
   });
+};
+
+// Función auxiliar para calcular días vencidos
+const calcularDiasVencidos = (fechaVencimiento) => {
+  if (!fechaVencimiento) return 0;
+  
+  const hoy = new Date();
+  const vencimiento = new Date(fechaVencimiento);
+  const diferencia = hoy - vencimiento;
+  const dias = Math.floor(diferencia / (1000 * 60 * 60 * 24));
+  
+  return dias > 0 ? dias : 0;
+};
+
+// Función auxiliar para obtener el nombre del tipo de documento
+const obtenerTipoDocumento = (tipo) => {
+  const tipos = {
+    30: 'Factura',
+    32: 'Factura de venta exenta',
+    33: 'Factura electrónica',
+    34: 'Factura no afecta o exenta electrónica',
+    35: 'Boleta',
+    38: 'Boleta exenta',
+    39: 'Boleta electrónica',
+    41: 'Boleta exenta electrónica',
+    46: 'Factura de compra',
+    52: 'Guía de despacho',
+    56: 'Nota de débito',
+    61: 'Nota de crédito',
+    110: 'Factura de exportación',
+    111: 'Nota de débito de exportación',
+    112: 'Nota de crédito de exportación'
+  };
+  
+  return tipos[tipo] || `Tipo ${tipo}`;
 };
 
 /**
