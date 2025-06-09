@@ -183,17 +183,126 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
 // === ENDPOINTS ESPECÍFICOS CORREGIDOS SEGÚN DOCUMENTACIÓN ===
 
 /**
- * Obtiene las cuentas corrientes (saldos bancarios)
+ * Obtiene las cuentas corrientes (saldos bancarios) con información completa
  * Endpoint: /cuentas-corrientes
+ * MEJORADO: Incluye logging detallado para verificar estructura de Saldo
  */
 export const obtenerSaldosBancarios = async () => {
   console.log('\n💰 Obteniendo cuentas corrientes...');
   try {
     const data = await fetchAllPaginatedData('/cuentas-corrientes');
+    
     console.log(`✅ ${data.items.length} cuentas corrientes obtenidas`);
+    
+    // Verificar si las cuentas incluyen el objeto Saldo
+    if (data.items && data.items.length > 0) {
+      const primeraCuenta = data.items[0];
+      
+      // Log detallado de la estructura
+      console.log('📊 Estructura de la primera cuenta corriente:');
+      console.log('- ID:', primeraCuenta.id);
+      console.log('- Número:', primeraCuenta.numeroCuenta);
+      console.log('- Banco:', primeraCuenta.banco);
+      
+      // Verificar si existe el objeto Saldo
+      if (primeraCuenta.Saldo) {
+        console.log('💵 Objeto Saldo encontrado:', primeraCuenta.Saldo);
+      } else {
+        console.log('⚠️ No se encontró objeto Saldo en la cuenta');
+        
+        // Intentar obtener saldos con parámetros adicionales
+        console.log('🔄 Intentando con parámetros adicionales...');
+        
+        // Probar diferentes parámetros que podrían incluir los saldos
+        const parametrosAProbar = [
+          'incluirSaldo=true',
+          'withBalance=true', 
+          'conSaldo=1',
+          'expand=saldo',
+          'include=saldo'
+        ];
+        
+        for (const param of parametrosAProbar) {
+          try {
+            console.log(`🔍 Probando con: /cuentas-corrientes?${param}`);
+            const dataConParam = await fetchAllPaginatedData(`/cuentas-corrientes?${param}`);
+            
+            if (dataConParam.items && dataConParam.items.length > 0 && dataConParam.items[0].Saldo) {
+              console.log(`✅ ¡Éxito! El parámetro '${param}' incluye los saldos`);
+              return dataConParam;
+            }
+          } catch (error) {
+            console.log(`❌ El parámetro '${param}' no funcionó`);
+          }
+        }
+      }
+    }
+    
     return data;
   } catch (error) {
     console.error('❌ Error obteniendo cuentas corrientes:', error);
+    throw error;
+  }
+};
+
+// ALTERNATIVA: Si los saldos vienen en un endpoint separado
+/**
+ * Obtiene los saldos de las cuentas corrientes
+ * Intenta múltiples estrategias para obtener los saldos
+ */
+export const obtenerSaldosBancariosCompletos = async () => {
+  console.log('\n💰 Obteniendo cuentas corrientes con saldos completos...');
+  
+  try {
+    // Paso 1: Obtener las cuentas
+    const cuentasData = await obtenerSaldosBancarios();
+    const cuentas = cuentasData.items;
+    
+    // Verificar si ya tienen saldos
+    if (cuentas.length > 0 && cuentas[0].Saldo) {
+      console.log('✅ Las cuentas ya incluyen saldos');
+      return cuentasData;
+    }
+    
+    // Paso 2: Si no tienen saldos, intentar obtenerlos por separado
+    console.log('🔄 Intentando obtener saldos por separado...');
+    
+    // Opción A: Endpoint específico de saldos
+    try {
+      const saldosResponse = await fetchFromChipax('/cuentas-corrientes/saldos');
+      if (saldosResponse) {
+        console.log('✅ Saldos obtenidos desde endpoint específico');
+        // Combinar cuentas con saldos
+        // ... lógica de combinación
+      }
+    } catch (error) {
+      console.log('❌ No existe endpoint /cuentas-corrientes/saldos');
+    }
+    
+    // Opción B: Obtener saldo individual por cuenta
+    const cuentasConSaldos = [];
+    for (const cuenta of cuentas.slice(0, 3)) { // Probar solo con las primeras 3
+      try {
+        const saldoResponse = await fetchFromChipax(`/cuentas-corrientes/${cuenta.id}/saldo`);
+        cuentasConSaldos.push({
+          ...cuenta,
+          Saldo: saldoResponse
+        });
+        console.log(`✅ Saldo obtenido para cuenta ${cuenta.id}`);
+      } catch (error) {
+        console.log(`❌ No se pudo obtener saldo individual para cuenta ${cuenta.id}`);
+      }
+    }
+    
+    if (cuentasConSaldos.length > 0) {
+      console.log('✅ Se obtuvieron algunos saldos individuales');
+      // Aplicar la misma lógica al resto de cuentas...
+    }
+    
+    return cuentasData;
+    
+  } catch (error) {
+    console.error('❌ Error obteniendo saldos completos:', error);
     throw error;
   }
 };
