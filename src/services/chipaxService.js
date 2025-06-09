@@ -12,7 +12,7 @@ let tokenCache = {
 // Configuración de paginación
 const PAGINATION_CONFIG = {
   PAGE_SIZE: 50,
-  MAX_PAGES: 20,
+  MAX_PAGES: 150, // Aumentado para poder cargar todos los datos de compras
   RETRY_ATTEMPTS: 2,
   RETRY_DELAY: 1000
 };
@@ -199,20 +199,13 @@ export const obtenerSaldosBancarios = async () => {
 
 /**
  * Obtiene los DTEs (facturas de venta/cuentas por cobrar)
- * Endpoint: /dte
+ * Endpoint: /dtes?porCobrar=1
  */
 export const obtenerCuentasPorCobrar = async () => {
   console.log('\n📊 Obteniendo DTEs (facturas por cobrar)...');
   try {
-    const data = await fetchAllPaginatedData('/dte');
-    
-    // Filtrar solo las facturas por cobrar (con saldo pendiente)
-    if (data.items && data.items.length > 0) {
-      data.items = data.items.filter(dte => 
-        dte.monto_por_cobrar > 0 || 
-        (dte.Saldo && dte.Saldo.saldo_deudor > 0)
-      );
-    }
+    // Usar el parámetro porCobrar=1 para obtener solo las facturas pendientes de cobro
+    const data = await fetchAllPaginatedData('/dtes?porCobrar=1');
     
     console.log(`✅ ${data.items.length} facturas por cobrar obtenidas`);
     return data;
