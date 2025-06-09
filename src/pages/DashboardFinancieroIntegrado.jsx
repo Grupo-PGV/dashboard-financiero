@@ -12,6 +12,7 @@ import PendingInvoicesComponent from '../components/PendingInvoicesComponent';
 import PaginationDebugger from '../components/PaginationDebugger';
 import ChipaxDataInspector from '../components/ChipaxDataInspector';
 import ChipaxDTEAnalyzer from '../components/ChipaxDTEAnalyzer';
+import ChipaxDebugPanel from '../components/ChipaxDebugPanel';
 
 const DashboardFinancieroIntegrado = () => {
   // Estados principales
@@ -487,6 +488,7 @@ const DashboardFinancieroIntegrado = () => {
           </div>
         )}
       </div>
+      <ChipaxDebugPanel />
     </div>
   );
 };
