@@ -13,6 +13,7 @@ import PaginationDebugger from '../components/PaginationDebugger';
 import ChipaxDataInspector from '../components/ChipaxDataInspector';
 import ChipaxDTEAnalyzer from '../components/ChipaxDTEAnalyzer';
 import ChipaxDebugPanel from '../components/ChipaxDebugPanel';
+import ChipaxSaldosDebugger from './components/ChipaxSaldosDebugger';
 
 const DashboardFinancieroIntegrado = () => {
   // Estados principales
@@ -472,7 +473,7 @@ const DashboardFinancieroIntegrado = () => {
           </div>
         )}
       </div>
-      
+      <ChipaxSaldosDebugger />
       <ChipaxDebugPanel />
     </div>
   );
