@@ -200,6 +200,8 @@ export const obtenerSaldosBancarios = async () => {
 /**
  * Obtiene los DTEs (facturas de venta/cuentas por cobrar)
  * Endpoint: /dtes?porCobrar=1
+ * 
+ * REEMPLAZAR LA FUNCIÓN obtenerCuentasPorCobrar EN chipaxService.js CON ESTA VERSIÓN
  */
 export const obtenerCuentasPorCobrar = async () => {
   console.log('\n📊 Obteniendo DTEs (facturas por cobrar)...');
@@ -207,7 +209,23 @@ export const obtenerCuentasPorCobrar = async () => {
     // Usar el parámetro porCobrar=1 para obtener solo las facturas pendientes de cobro
     const data = await fetchAllPaginatedData('/dtes?porCobrar=1');
     
-    console.log(`✅ ${data.items.length} facturas por cobrar obtenidas`);
+    console.log(`✅ ${data.items.length} DTEs por cobrar obtenidos`);
+    
+    // Log de muestra para debugging
+    if (data.items.length > 0) {
+      console.log('📋 Muestra del primer DTE:', {
+        id: data.items[0].id,
+        folio: data.items[0].folio,
+        tipo: data.items[0].tipo,
+        razon_social: data.items[0].razon_social,
+        monto_total: data.items[0].monto_total,
+        monto_por_cobrar: data.items[0].monto_por_cobrar,
+        fecha_emision: data.items[0].fecha_emision,
+        fecha_vencimiento: data.items[0].fecha_vencimiento,
+        Saldo: data.items[0].Saldo
+      });
+    }
+    
     return data;
   } catch (error) {
     console.error('❌ Error obteniendo DTEs:', error);
@@ -217,12 +235,12 @@ export const obtenerCuentasPorCobrar = async () => {
 
 /**
  * Obtiene las compras (cuentas por pagar)
- * Endpoint: /compras
+ * Endpoint: /compras?porpagar=false
  */
 export const obtenerCuentasPorPagar = async () => {
   console.log('\n💸 Obteniendo compras (cuentas por pagar)...');
   try {
-    const data = await fetchAllPaginatedData('/compras');
+    const data = await fetchAllPaginatedData('/compras?porpagar=false');
     
     // Filtrar solo las pendientes de pago si es necesario
     if (data.items && data.items.length > 0) {
