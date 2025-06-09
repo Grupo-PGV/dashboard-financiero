@@ -91,18 +91,65 @@ export const adaptarDatosChipax = (tipo, datos) => {
 
 /**
  * Adapta cuentas corrientes al formato de saldos bancarios
+ * CORREGIDO: Ahora extrae los saldos del objeto Saldo
  */
 const adaptarCuentasCorrientes = (cuentas) => {
-  return cuentas.map(cuenta => ({
-    id: cuenta.id,
-    nombre: cuenta.numeroCuenta || cuenta.nombre || 'Cuenta sin número',
-    banco: cuenta.banco || cuenta.TipoCuentaCorriente?.tipoCuenta || cuenta.Banco?.banco || 'Banco no especificado',
-    saldo: cuenta.saldo || cuenta.saldoContable || 0,
-    moneda: cuenta.Moneda?.moneda || cuenta.moneda || 'CLP',
-    simboloMoneda: cuenta.Moneda?.simbolo || cuenta.simboloMoneda || '$',
-    tipo: cuenta.TipoCuentaCorriente?.nombreCorto || cuenta.tipo || 'Cuenta Corriente',
-    ultimaActualizacion: cuenta.fechaUltimaActualizacion || cuenta.updated_at || new Date().toISOString()
-  }));
+  console.log(`💰 Adaptando ${cuentas.length} cuentas corrientes`);
+  
+  return cuentas.map((cuenta, index) => {
+    // Log detallado para la primera cuenta
+    if (index === 0) {
+      console.log('🔍 Estructura de la primera cuenta corriente:', {
+        id: cuenta.id,
+        numeroCuenta: cuenta.numeroCuenta,
+        banco: cuenta.banco,
+        Saldo: cuenta.Saldo,
+        TipoCuentaCorriente: cuenta.TipoCuentaCorriente,
+        Moneda: cuenta.Moneda
+      });
+    }
+
+    // Calcular el saldo real de la cuenta
+    let saldoCalculado = 0;
+    
+    if (cuenta.Saldo) {
+      // El saldo real es la diferencia entre debe y haber
+      const debe = cuenta.Saldo.debe || 0;
+      const haber = cuenta.Saldo.haber || 0;
+      const saldoDeudor = cuenta.Saldo.saldo_deudor || 0;
+      const saldoAcreedor = cuenta.Saldo.saldo_acreedor || 0;
+      
+      // En contabilidad bancaria:
+      // - Si saldo_deudor > 0: la cuenta tiene saldo positivo (a favor del cliente)
+      // - Si saldo_acreedor > 0: la cuenta tiene saldo negativo (sobregiro)
+      saldoCalculado = saldoDeudor - saldoAcreedor;
+      
+      // Log para debugging
+      if (index === 0) {
+        console.log('💵 Cálculo de saldo:', {
+          debe,
+          haber,
+          saldoDeudor,
+          saldoAcreedor,
+          saldoCalculado
+        });
+      }
+    }
+    
+    return {
+      id: cuenta.id,
+      nombre: cuenta.numeroCuenta || cuenta.nombre || 'Cuenta sin número',
+      banco: cuenta.banco || cuenta.Banco?.nombre || cuenta.TipoCuentaCorriente?.tipoCuenta || 'Banco no especificado',
+      saldo: saldoCalculado,
+      moneda: cuenta.Moneda?.moneda || cuenta.moneda || 'CLP',
+      simboloMoneda: cuenta.Moneda?.simbolo || cuenta.simboloMoneda || '$',
+      tipo: cuenta.TipoCuentaCorriente?.nombreCorto || cuenta.tipo || 'Cuenta Corriente',
+      ultimaActualizacion: cuenta.fechaUltimaActualizacion || cuenta.updated_at || new Date().toISOString(),
+      // Campos adicionales para debugging
+      saldoDeudor: cuenta.Saldo?.saldo_deudor || 0,
+      saldoAcreedor: cuenta.Saldo?.saldo_acreedor || 0
+    };
+  });
 };
 
 /**
