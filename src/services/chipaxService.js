@@ -179,6 +179,7 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
   }
 };
 
+
 // === ENDPOINTS ESPECÍFICOS CORREGIDOS SEGÚN DOCUMENTACIÓN ===
 
 /**
@@ -206,24 +207,26 @@ export const obtenerSaldosBancarios = async () => {
 export const obtenerCuentasPorCobrar = async () => {
   console.log('\n📊 Obteniendo DTEs (facturas por cobrar)...');
   try {
-    // Usar el parámetro porCobrar=1 para obtener solo las facturas pendientes de cobro
     const data = await fetchAllPaginatedData('/dtes?porCobrar=1');
     
     console.log(`✅ ${data.items.length} DTEs por cobrar obtenidos`);
     
-    // Log de muestra para debugging
-    if (data.items.length > 0) {
-      console.log('📋 Muestra del primer DTE:', {
-        id: data.items[0].id,
-        folio: data.items[0].folio,
-        tipo: data.items[0].tipo,
-        razon_social: data.items[0].razon_social,
-        monto_total: data.items[0].monto_total,
-        monto_por_cobrar: data.items[0].monto_por_cobrar,
-        fecha_emision: data.items[0].fecha_emision,
-        fecha_vencimiento: data.items[0].fecha_vencimiento,
-        Saldo: data.items[0].Saldo
-      });
+    // Log detallado para entender la estructura
+    if (data.items && data.items.length > 0) {
+      console.log('📋 Estructura completa del primer DTE:');
+      console.log(JSON.stringify(data.items[0], null, 2));
+      
+      // Ver qué campos están disponibles
+      console.log('🔍 Campos disponibles:', Object.keys(data.items[0]));
+      
+      // Ver si hay objetos anidados importantes
+      const dte = data.items[0];
+      if (dte.ClienteProveedor) {
+        console.log('👤 ClienteProveedor:', dte.ClienteProveedor);
+      }
+      if (dte.Saldo) {
+        console.log('💰 Saldo:', dte.Saldo);
+      }
     }
     
     return data;
