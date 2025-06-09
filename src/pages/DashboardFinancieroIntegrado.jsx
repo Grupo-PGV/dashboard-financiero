@@ -14,6 +14,7 @@ import ChipaxDataInspector from '../components/ChipaxDataInspector';
 import ChipaxDTEAnalyzer from '../components/ChipaxDTEAnalyzer';
 import ChipaxDebugPanel from '../components/ChipaxDebugPanel';
 import ChipaxSaldosDebugger from '../components/ChipaxSaldosDebugger';
+import ChipaxCartolaDebugger from '../components/ChipaxCartolaDebugger';
 
 const DashboardFinancieroIntegrado = () => {
   // Estados principales
@@ -275,6 +276,10 @@ const DashboardFinancieroIntegrado = () => {
 {/* Debugger de saldos */}
 <div className="mb-6">
   <ChipaxSaldosDebugger />
+</div>
+        {/* Debugger de cartolas */}
+<div className="mb-6">
+  <ChipaxCartolaDebugger />
 </div>
         {/* Información de paginación */}
         {Object.keys(paginationInfo).length > 0 && (
