@@ -1,277 +1,232 @@
-// chipaxAdapter.js - Adaptador completo con exportaciones corregidas
+// chipaxAdapter.js - Adaptador para transformar datos de Chipax al formato del dashboard
 
 /**
- * Formatea un RUT chileno
- */
-const formatearRut = (rut) => {
-  if (!rut) return '';
-  // Mantener formato con guión si ya lo tiene
-  if (rut.includes('-')) return rut;
-  // Si no tiene guión, agregarlo
-  const rutLimpio = rut.replace(/[^0-9kK]/g, '');
-  if (rutLimpio.length > 1) {
-    return rutLimpio.slice(0, -1) + '-' + rutLimpio.slice(-1);
-  }
-  return rut;
-};
-
-/**
- * Calcula los días vencidos de una factura
- */
-const calcularDiasVencidos = (fechaVencimiento) => {
-  if (!fechaVencimiento) return 0;
-  
-  const hoy = new Date();
-  const fechaVenc = new Date(fechaVencimiento);
-  
-  // Limpiar horas para comparar solo fechas
-  hoy.setHours(0, 0, 0, 0);
-  fechaVenc.setHours(0, 0, 0, 0);
-  
-  // Calcula la diferencia en días
-  const diffTime = hoy.getTime() - fechaVenc.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
-  return diffDays;
-};
-
-/**
- * Adapta los saldos bancarios
- */
-const adaptSaldosBancarios = (response) => {
-  console.log('🔄 adaptSaldosBancarios - Iniciando adaptación');
-  
-  if (!response || !response.arrFlujoCaja) {
-    console.warn('⚠️ No se encontraron datos de flujo de caja en la respuesta');
-    return [];
-  }
-
-  const cuentasBancarias = [];
-  
-  response.arrFlujoCaja.forEach(flujo => {
-    if (flujo.idCuentaCorriente) {
-      cuentasBancarias.push({
-        id: flujo.idCuentaCorriente,
-        banco: flujo.nombreCuenta || `Cuenta ${flujo.idCuentaCorriente}`,
-        numeroCuenta: flujo.idCuentaCorriente.toString(),
-        tipo: 'cuenta_corriente',
-        moneda: 'CLP',
-        saldo: flujo.saldoPeriodo || 0,
-        disponible: flujo.saldoPeriodo || 0,
-      });
-    }
-  });
-
-  console.log(`✅ Cuentas bancarias adaptadas: ${cuentasBancarias.length}`);
-  return cuentasBancarias;
-};
-
-/**
- * Adapta las cuentas pendientes (por cobrar)
- */
-const adaptCuentasPendientes = (facturas) => {
-  console.log('🔄 adaptCuentasPendientes - Datos recibidos:', facturas);
-  
-  if (!facturas || !facturas.items) {
-    console.warn('⚠️ No se recibieron facturas para adaptar');
-    return [];
-  }
-
-  console.log('🔄 Items a procesar:', facturas.items.length);
-  
-  return facturas.items.map(factura => {
-    const montoPorCobrar = factura.montoTotal - (factura.montoPagado || 0);
-    
-    return {
-      id: factura.id,
-      cliente: {
-        rut: factura.rutReceptor,
-        nombre: factura.razonSocial || factura.cliente || 'Cliente sin nombre'
-      },
-      numeroFactura: factura.folio,
-      fechaEmision: factura.fechaEmision,
-      fechaVencimiento: factura.fechaVencimiento || factura.fechaEmision,
-      montoTotal: factura.montoTotal || 0,
-      saldo: montoPorCobrar > 0 ? montoPorCobrar : 0,
-      estado: factura.estado || 'pendiente',
-      diasVencido: calcularDiasVencidos(factura.fechaVencimiento || factura.fechaEmision)
-    };
-  }).filter(cuenta => cuenta.saldo > 0);
-};
-
-/**
- * Adapta las cuentas por pagar (facturas de compra) desde Chipax
- */
-const adaptCuentasPorPagar = (datos) => {
-  console.log('🔄 Adaptando cuentas por pagar...');
-  
-  if (!datos) {
-    console.warn('⚠️ No se recibieron datos de compras');
-    return [];
-  }
-  
-  // Manejar tanto array directo como objeto con items
-  const facturas = Array.isArray(datos) ? datos : (datos.items || []);
-  
-  const cuentasAdaptadas = facturas
-    .filter(factura => {
-      // Filtrar solo facturas pendientes de pago
-      // Basándonos en la estructura real de Chipax:
-      // - No tienen campo "pagado" explícito
-      // - fechaPagoInterna podría indicar si está pagada
-      // - Por ahora incluimos todas las facturas con monto > 0
-      return factura.montoTotal > 0;
-    })
-    .map(factura => {
-      // Calcular días vencidos basado en fechaPagoInterna
-      const fechaPago = factura.fechaPagoInterna || factura.fechaVencimiento;
-      const diasVencidos = calcularDiasVencidos(fechaPago);
-      
-      return {
-        id: factura.id,
-        folio: factura.folio || `Doc-${factura.id}`,
-        tipo: factura.tipo === 33 ? 'Factura' : factura.tipo === 34 ? 'Factura Exenta' : 'Documento',
-        proveedor: {
-          rut: formatearRut(factura.rutEmisor || ''),
-          nombre: factura.razonSocial || 'Proveedor no especificado'
-        },
-        monto: factura.montoTotal || 0,
-        saldo: factura.montoTotal || 0, // Asumimos que el saldo es el total si no está pagada
-        moneda: factura.idMoneda === 1000 ? 'CLP' : 'Otra',
-        fechaEmision: factura.fechaEmision || new Date().toISOString(),
-        fechaVencimiento: factura.fechaPagoInterna || factura.fechaVencimiento || null,
-        diasVencidos: diasVencidos,
-        estado: factura.estado || 'pendiente',
-        estadoPago: diasVencidos > 0 ? 'vencido' : 'pendiente',
-        observaciones: factura.referencias || '',
-        // Campos adicionales útiles
-        montoNeto: factura.montoNeto || 0,
-        iva: factura.iva || 0,
-        montoExento: factura.montoExento || 0,
-        eventoReceptor: factura.eventoReceptor,
-        eventoReceptorLeyenda: factura.eventoReceptorLeyenda
-      };
-    });
-  
-  console.log(`✅ ${cuentasAdaptadas.length} cuentas por pagar adaptadas`);
-  
-  // Mostrar resumen
-  const totalPorPagar = cuentasAdaptadas.reduce((sum, c) => sum + c.saldo, 0);
-  const vencidas = cuentasAdaptadas.filter(c => c.diasVencidos > 0).length;
-  console.log(`💸 Total por pagar: ${totalPorPagar.toLocaleString('es-CL', { style: 'currency', currency: 'CLP' })}`);
-  console.log(`⚠️ Facturas vencidas: ${vencidas}`);
-  
-  return cuentasAdaptadas;
-};
-
-/**
- * Adapta bancos desde saldos bancarios
- */
-const adaptBancos = (saldosBancarios) => {
-  if (!saldosBancarios || !Array.isArray(saldosBancarios)) {
-    return [];
-  }
-  
-  // Extraer lista única de bancos
-  const bancosUnicos = {};
-  
-  saldosBancarios.forEach(cuenta => {
-    const banco = cuenta.banco || cuenta.nombreBanco || 'Banco Desconocido';
-    if (!bancosUnicos[banco]) {
-      bancosUnicos[banco] = {
-        nombre: banco,
-        cuentas: []
-      };
-    }
-    bancosUnicos[banco].cuentas.push(cuenta);
-  });
-  
-  return Object.values(bancosUnicos);
-};
-
-/**
- * Adapta facturas pendientes de aprobación
- */
-const adaptFacturasPendientesAprobacion = (facturas) => {
-  if (!facturas || !Array.isArray(facturas)) {
-    return [];
-  }
-  
-  return facturas.filter(f => f.estado === 'pendiente_aprobacion' || f.requiereAprobacion);
-};
-
-/**
- * Adapta flujo de caja
- */
-const adaptFlujoCaja = (datos, saldoInicial = 0) => {
-  // Implementación básica - expandir según estructura real de Chipax
-  return {
-    meses: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio'],
-    ingresos: [1000000, 1200000, 1100000, 1300000, 1150000, 1250000],
-    egresos: [800000, 950000, 900000, 1050000, 920000, 980000],
-    saldoAcumulado: [200000, 450000, 650000, 900000, 1130000, 1400000]
-  };
-};
-
-/**
- * Adapta egresos programados
- */
-const adaptEgresosProgramados = (pagos) => {
-  if (!pagos || !Array.isArray(pagos)) {
-    return [];
-  }
-  
-  return pagos.map(pago => ({
-    id: pago.id,
-    descripcion: pago.descripcion || 'Pago programado',
-    monto: pago.monto || 0,
-    fecha: pago.fechaProgramada || pago.fecha,
-    estado: pago.estado || 'pendiente'
-  }));
-};
-
-/**
- * Función principal de adaptación
+ * Adapta los datos según el tipo de entidad
  */
 export const adaptarDatosChipax = (tipo, datos) => {
-  console.log(`🔄 Adaptando datos tipo: ${tipo}`);
-  
+  if (!datos || !Array.isArray(datos)) {
+    console.warn(`⚠️ Datos inválidos para tipo ${tipo}:`, datos);
+    return [];
+  }
+
   switch (tipo) {
     case 'saldosBancarios':
-    case 'cuentas_corrientes':
-      return adaptSaldosBancarios(datos);
-      
+      return adaptarCuentasCorrientes(datos);
+    
     case 'cuentasPorCobrar':
-    case 'ventas':
-    case 'facturas_venta':
-      return adaptCuentasPendientes(datos);
-      
+      return adaptarDTEs(datos);
+    
     case 'cuentasPorPagar':
-    case 'compras':
-    case 'facturas_compra':
-      return adaptCuentasPorPagar(datos);
-      
+      return adaptarCompras(datos);
+    
+    case 'clientes':
+      return adaptarClientes(datos);
+    
+    case 'proveedores':
+      return adaptarProveedores(datos);
+    
     case 'flujoCaja':
-    case 'flujo_caja':
-      return adaptFlujoCaja(datos);
-      
+      return adaptarFlujoCaja(datos);
+    
     default:
       console.warn(`⚠️ Tipo de adaptación no reconocido: ${tipo}`);
       return datos;
   }
 };
 
-// Exportar objeto por defecto para compatibilidad
-export default {
-  adaptarDatosChipax,
-  adaptSaldosBancarios,
-  adaptCuentasPendientes,
-  adaptCuentasPorPagar,
-  adaptBancos,
-  adaptFacturasPendientesAprobacion,
-  adaptFlujoCaja,
-  adaptEgresosProgramados,
-  // Funciones helper
-  calcularDiasVencidos,
-  formatearRut
+/**
+ * Adapta cuentas corrientes al formato de saldos bancarios
+ */
+const adaptarCuentasCorrientes = (cuentas) => {
+  return cuentas.map(cuenta => ({
+    id: cuenta.id,
+    nombre: cuenta.numeroCuenta || 'Cuenta sin número',
+    banco: cuenta.banco || cuenta.TipoCuentaCorriente?.tipoCuenta || 'Banco no especificado',
+    saldo: cuenta.saldo || 0, // Puede que necesites obtener esto de otro endpoint
+    moneda: cuenta.Moneda?.moneda || 'CLP',
+    simboloMoneda: cuenta.Moneda?.simbolo || '$',
+    tipo: cuenta.TipoCuentaCorriente?.nombreCorto || 'Cuenta Corriente'
+  }));
 };
+
+/**
+ * Adapta DTEs al formato de cuentas por cobrar
+ */
+const adaptarDTEs = (dtes) => {
+  return dtes.map(dte => {
+    const fechaVencimiento = dte.fecha_vencimiento || dte.fecha_emision;
+    const diasVencidos = calcularDiasVencidos(fechaVencimiento);
+    
+    return {
+      id: dte.id,
+      folio: dte.folio,
+      tipo: obtenerTipoDocumento(dte.tipo),
+      cliente: {
+        nombre: dte.razon_social,
+        rut: dte.rut
+      },
+      fechaEmision: dte.fecha_emision,
+      fechaVencimiento: fechaVencimiento,
+      monto: dte.monto_total,
+      montoNeto: dte.monto_neto,
+      iva: dte.iva,
+      saldo: dte.monto_por_cobrar || dte.Saldo?.saldo_deudor || dte.monto_total,
+      diasVencidos: diasVencidos,
+      estado: determinarEstadoDTE(dte),
+      pagado: dte.monto_por_cobrar === 0
+    };
+  });
+};
+
+/**
+ * Adapta compras al formato de cuentas por pagar
+ */
+const adaptarCompras = (compras) => {
+  return compras.map(compra => {
+    const fechaVencimiento = compra.fechaVencimiento || compra.fechaEmision;
+    const diasVencidos = calcularDiasVencidos(fechaVencimiento);
+    
+    return {
+      id: compra.id,
+      folio: compra.folio,
+      tipo: obtenerTipoDocumento(compra.tipo),
+      proveedor: {
+        nombre: compra.razonSocial,
+        rut: compra.rutEmisor
+      },
+      fechaEmision: compra.fechaEmision,
+      fechaVencimiento: fechaVencimiento,
+      fechaPagoInterna: compra.fechaPagoInterna,
+      monto: compra.montoTotal,
+      montoNeto: compra.montoNeto,
+      iva: compra.iva,
+      saldo: compra.fechaPagoInterna ? 0 : compra.montoTotal, // Si tiene fecha de pago, está pagado
+      diasVencidos: diasVencidos,
+      estado: compra.estado,
+      pagado: !!compra.fechaPagoInterna
+    };
+  });
+};
+
+/**
+ * Adapta clientes
+ */
+const adaptarClientes = (clientes) => {
+  return clientes.map(cliente => ({
+    id: cliente.id,
+    nombre: cliente.nombre || cliente.razon_social,
+    razonSocial: cliente.razon_social,
+    rut: cliente.rut,
+    email: cliente.email,
+    telefono: cliente.telefono,
+    direccion: cliente.direccion
+  }));
+};
+
+/**
+ * Adapta proveedores
+ */
+const adaptarProveedores = (proveedores) => {
+  return proveedores.map(proveedor => ({
+    id: proveedor.id,
+    nombre: proveedor.nombre || proveedor.razon_social,
+    razonSocial: proveedor.razon_social,
+    rut: proveedor.rut,
+    email: proveedor.email,
+    telefono: proveedor.telefono,
+    direccion: proveedor.direccion
+  }));
+};
+
+/**
+ * Adapta flujo de caja desde cartolas
+ */
+const adaptarFlujoCaja = (movimientos) => {
+  // Agrupar por mes
+  const flujoMensual = {};
+  
+  movimientos.forEach(mov => {
+    const fecha = new Date(mov.fecha);
+    const mesKey = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+    
+    if (!flujoMensual[mesKey]) {
+      flujoMensual[mesKey] = {
+        mes: obtenerNombreMes(fecha.getMonth()),
+        año: fecha.getFullYear(),
+        ingresos: 0,
+        egresos: 0
+      };
+    }
+    
+    // Sumar abonos como ingresos y cargos como egresos
+    flujoMensual[mesKey].ingresos += mov.abono || 0;
+    flujoMensual[mesKey].egresos += mov.cargo || 0;
+  });
+  
+  // Convertir a array y ordenar por fecha
+  return Object.values(flujoMensual)
+    .sort((a, b) => {
+      const fechaA = new Date(a.año, obtenerNumeroMes(a.mes));
+      const fechaB = new Date(b.año, obtenerNumeroMes(b.mes));
+      return fechaA - fechaB;
+    })
+    .map(item => ({
+      mes: `${item.mes} ${item.año}`,
+      ingresos: item.ingresos,
+      egresos: item.egresos,
+      saldo: item.ingresos - item.egresos
+    }));
+};
+
+// === FUNCIONES AUXILIARES ===
+
+const calcularDiasVencidos = (fechaVencimiento) => {
+  if (!fechaVencimiento) return 0;
+  
+  const hoy = new Date();
+  const vencimiento = new Date(fechaVencimiento);
+  const diferencia = hoy - vencimiento;
+  const dias = Math.floor(diferencia / (1000 * 60 * 60 * 24));
+  
+  return dias > 0 ? dias : 0;
+};
+
+const obtenerTipoDocumento = (codigo) => {
+  const tipos = {
+    33: 'Factura',
+    34: 'Factura Exenta',
+    61: 'Nota de Crédito',
+    56: 'Nota de Débito',
+    39: 'Boleta',
+    41: 'Boleta Exenta'
+  };
+  
+  return tipos[codigo] || `Documento ${codigo}`;
+};
+
+const determinarEstadoDTE = (dte) => {
+  if (dte.anulado) return 'anulado';
+  if (dte.monto_por_cobrar === 0) return 'pagado';
+  if (dte.Saldo && dte.Saldo.saldo_deudor === 0) return 'pagado';
+  return 'pendiente';
+};
+
+const obtenerNombreMes = (numeroMes) => {
+  const meses = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+  return meses[numeroMes];
+};
+
+const obtenerNumeroMes = (nombreMes) => {
+  const meses = {
+    'Enero': 0, 'Febrero': 1, 'Marzo': 2, 'Abril': 3, 
+    'Mayo': 4, 'Junio': 5, 'Julio': 6, 'Agosto': 7,
+    'Septiembre': 8, 'Octubre': 9, 'Noviembre': 10, 'Diciembre': 11
+  };
+  return meses[nombreMes] || 0;
+};
+
+// Exportar
+export default { adaptarDatosChipax };
