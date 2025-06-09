@@ -19,6 +19,7 @@ import SimpleSaldosDebugger from '../components/SimpleSaldosDebugger';
 import ChipaxSaldosExplorer from '../components/ChipaxSaldosExplorer';
 import ChipaxCuentasConSaldosDebugger from '../components/ChipaxCuentasConSaldosDebugger';
 import ChipaxAdvancedExplorer from '../components/ChipaxAdvancedExplorer';
+import ChipaxFinalDebugger from '../components/ChipaxFinalDebugger';
 
 const DashboardFinancieroIntegrado = () => {
   // Estados principales
@@ -277,8 +278,8 @@ const DashboardFinancieroIntegrado = () => {
             onSyncDetails={handleSyncDetails}
           />
         </div>
-        <div className="mb-6">
-  <ChipaxAdvancedExplorer />
+  <div className="mb-6">
+  <ChipaxFinalDebugger />
 </div>
       
         {/* Información de paginación */}
