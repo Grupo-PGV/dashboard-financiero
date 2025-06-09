@@ -91,7 +91,7 @@ export const adaptarDatosChipax = (tipo, datos) => {
 
 /**
  * Adapta cuentas corrientes al formato de saldos bancarios
- * CORREGIDO: Ahora extrae los saldos del objeto Saldo
+ * VERSIÓN CORREGIDA: Ahora extrae los saldos calculados desde flujo de caja
  */
 const adaptarCuentasCorrientes = (cuentas) => {
   console.log(`💰 Adaptando ${cuentas.length} cuentas corrientes`);
@@ -104,50 +104,145 @@ const adaptarCuentasCorrientes = (cuentas) => {
         numeroCuenta: cuenta.numeroCuenta,
         banco: cuenta.banco,
         Saldo: cuenta.Saldo,
+        saldoCalculado: cuenta.saldoCalculado,
         TipoCuentaCorriente: cuenta.TipoCuentaCorriente,
         Moneda: cuenta.Moneda
       });
     }
 
-    // Calcular el saldo real de la cuenta
-    let saldoCalculado = 0;
+    // PRIORIDAD 1: Usar saldo calculado desde flujo de caja
+    let saldoFinal = 0;
     
-    if (cuenta.Saldo) {
-      // El saldo real es la diferencia entre debe y haber
+    if (cuenta.saldoCalculado !== undefined) {
+      saldoFinal = cuenta.saldoCalculado;
+      console.log(`✅ Usando saldo calculado desde flujo de caja: $${saldoFinal.toLocaleString('es-CL')}`);
+    } 
+    // PRIORIDAD 2: Usar objeto Saldo si está disponible
+    else if (cuenta.Saldo) {
       const debe = cuenta.Saldo.debe || 0;
       const haber = cuenta.Saldo.haber || 0;
       const saldoDeudor = cuenta.Saldo.saldo_deudor || 0;
       const saldoAcreedor = cuenta.Saldo.saldo_acreedor || 0;
       
       // En contabilidad bancaria:
-      // - Si saldo_deudor > 0: la cuenta tiene saldo positivo (a favor del cliente)
-      // - Si saldo_acreedor > 0: la cuenta tiene saldo negativo (sobregiro)
-      saldoCalculado = saldoDeudor - saldoAcreedor;
+      // - Saldo deudor = saldo positivo (a favor del cliente)
+      // - Saldo acreedor = saldo negativo (sobregiro)
+      saldoFinal = saldoDeudor - saldoAcreedor;
       
-      // Log para debugging
       if (index === 0) {
-        console.log('💵 Cálculo de saldo:', {
+        console.log('💵 Cálculo de saldo desde objeto Saldo:', {
           debe,
           haber,
           saldoDeudor,
           saldoAcreedor,
-          saldoCalculado
+          saldoFinal
         });
       }
+    }
+    // PRIORIDAD 3: Campo saldo directo (menos confiable)
+    else if (cuenta.saldo !== undefined) {
+      saldoFinal = cuenta.saldo;
+      console.log(`⚠️ Usando campo saldo directo: $${saldoFinal.toLocaleString('es-CL')}`);
     }
     
     return {
       id: cuenta.id,
       nombre: cuenta.numeroCuenta || cuenta.nombre || 'Cuenta sin número',
-      banco: cuenta.banco || cuenta.Banco?.nombre || cuenta.TipoCuentaCorriente?.tipoCuenta || 'Banco no especificado',
-      saldo: saldoCalculado,
+      banco: cuenta.banco || 
+             cuenta.Banco?.nombre || 
+             cuenta.TipoCuentaCorriente?.tipoCuenta || 
+             'Banco no especificado',
+      saldo: saldoFinal,
       moneda: cuenta.Moneda?.moneda || cuenta.moneda || 'CLP',
       simboloMoneda: cuenta.Moneda?.simbolo || cuenta.simboloMoneda || '$',
       tipo: cuenta.TipoCuentaCorriente?.nombreCorto || cuenta.tipo || 'Cuenta Corriente',
-      ultimaActualizacion: cuenta.fechaUltimaActualizacion || cuenta.updated_at || new Date().toISOString(),
+      ultimaActualizacion: cuenta.ultimoMovimiento || 
+                          cuenta.fechaUltimaActualizacion || 
+                          cuenta.updated_at || 
+                          new Date().toISOString(),
       // Campos adicionales para debugging
+      totalMovimientos: cuenta.totalMovimientos || 0,
       saldoDeudor: cuenta.Saldo?.saldo_deudor || 0,
-      saldoAcreedor: cuenta.Saldo?.saldo_acreedor || 0
+      saldoAcreedor: cuenta.Saldo?.saldo_acreedor || 0,
+      // Indicador de origen del saldo para debugging
+      origenSaldo: cuenta.saldoCalculado !== undefined ? 'flujo_caja' : 
+                   cuenta.Saldo ? 'objeto_saldo' : 
+                   cuenta.saldo !== undefined ? 'campo_directo' : 'sin_saldo'
+    };
+  });
+};
+
+/**
+ * CORRECCIÓN ADICIONAL: Adapta compras al formato de cuentas por pagar
+ * CORREGIDO: proveedor ahora es un string simple, no un objeto
+ */
+const adaptarCompras = (compras) => {
+  console.log(`💸 Adaptando ${compras.length} compras`);
+  
+  return compras.map((compra, index) => {
+    // Logging para la primera compra
+    if (index === 0) {
+      console.log('🔍 Estructura de la primera compra:', {
+        id: compra.id,
+        folio: compra.folio,
+        tipo: compra.tipo,
+        razonSocial: compra.razonSocial,
+        montoTotal: compra.montoTotal,
+        Saldo: compra.Saldo,
+        fechaPagoInterna: compra.fechaPagoInterna
+      });
+    }
+
+    // Determinar el monto pendiente
+    let saldoPendiente = 0;
+    if (compra.Saldo?.saldo_acreedor) {
+      saldoPendiente = compra.Saldo.saldo_acreedor;
+    } else if (compra.Saldo?.saldoAcreedor) {
+      saldoPendiente = compra.Saldo.saldoAcreedor;
+    } else if (!compra.fechaPagoInterna && compra.montoTotal) {
+      saldoPendiente = compra.montoTotal;
+    }
+
+    const fechaVencimiento = compra.fechaVencimiento || compra.fecha_vencimiento || compra.fechaEmision;
+    const diasVencidos = calcularDiasVencidos(fechaVencimiento);
+    
+    // CAMBIO CRÍTICO: proveedor ahora es un string simple, no un objeto
+    const proveedorNombre = compra.razonSocial || 
+                           compra.ClienteProveedor?.razonSocial || 
+                           compra.proveedor?.nombre ||
+                           compra.proveedor ||
+                           'Sin nombre';
+    
+    const proveedorRut = compra.rutEmisor || 
+                        compra.ClienteProveedor?.rut || 
+                        compra.proveedor?.rut ||
+                        'Sin RUT';
+    
+    return {
+      id: compra.id,
+      folio: compra.folio || compra.numero || 'S/N',
+      tipo: obtenerTipoDocumento(compra.tipo || compra.tipo_documento),
+      tipoNumero: compra.tipo || compra.tipo_documento,
+      // SOLUCIÓN: proveedor ahora es un string simple
+      proveedor: proveedorNombre,
+      // Información del proveedor en objeto separado
+      proveedorInfo: {
+        nombre: proveedorNombre,
+        rut: proveedorRut
+      },
+      fechaEmision: compra.fechaEmision || compra.fecha_emision,
+      fechaVencimiento: fechaVencimiento,
+      fechaPagoInterna: compra.fechaPagoInterna,
+      monto: compra.montoTotal || compra.monto_total || 0,
+      montoNeto: compra.montoNeto || compra.monto_neto || 0,
+      iva: compra.iva || compra.montoIva || 0,
+      saldo: saldoPendiente,
+      diasVencidos: diasVencidos,
+      estado: compra.estado || (compra.fechaPagoInterna ? 'pagado' : 'pendiente'),
+      pagado: compra.fechaPagoInterna !== null || saldoPendiente === 0,
+      // Campos adicionales
+      observaciones: compra.observaciones || '',
+      centroCosto: compra.CentroCosto?.nombre || ''
     };
   });
 };
