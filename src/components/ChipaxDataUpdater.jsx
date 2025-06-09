@@ -173,28 +173,24 @@ const ChipaxDataUpdater = ({
     }
   };
 
-  const calcularFlujoCaja = () => {
-    updateModuleStatus('flujoCaja', 'loading', 'Calculando flujo de caja...');
+  const calcularFlujoCaja = async () => {
+    updateModuleStatus('flujoCaja', 'loading', 'Obteniendo flujo de caja...');
     try {
-      // Aquí iría la lógica para calcular el flujo de caja
-      // Por ahora, actualizamos con datos de ejemplo
-      const flujoEjemplo = [
-        { mes: 'Enero', ingresos: 15000000, egresos: 12000000 },
-        { mes: 'Febrero', ingresos: 18000000, egresos: 14000000 },
-        { mes: 'Marzo', ingresos: 20000000, egresos: 16000000 }
-      ];
+      // Obtener datos reales del flujo de caja desde Chipax
+      const response = await chipaxService.obtenerFlujoCaja();
+      const flujoAdaptado = adaptarDatosChipax('flujoCaja', response.items);
       
-      onUpdateFlujoCaja(flujoEjemplo);
+      onUpdateFlujoCaja(flujoAdaptado);
       updateModuleStatus(
         'flujoCaja', 
         'success', 
-        'Flujo de caja calculado',
+        `Flujo de caja actualizado: ${flujoAdaptado.length} meses`,
         100,
-        flujoEjemplo.length
+        flujoAdaptado.length
       );
-      console.log('✅ Flujo de caja actualizado');
+      console.log('✅ Flujo de caja actualizado desde Chipax:', flujoAdaptado.length);
     } catch (error) {
-      console.error('❌ Error calculando flujo de caja:', error);
+      console.error('❌ Error obteniendo flujo de caja:', error);
       updateModuleStatus('flujoCaja', 'error', error.message);
       throw error;
     }
@@ -218,7 +214,7 @@ const ChipaxDataUpdater = ({
       await actualizarCuentasPorPagar();
       await actualizarClientes();
       await actualizarProveedores();
-      calcularFlujoCaja();
+      await calcularFlujoCaja(); // Ahora con await
       
       setLastUpdate(new Date());
       console.log('✅ Sincronización completa exitosa');
