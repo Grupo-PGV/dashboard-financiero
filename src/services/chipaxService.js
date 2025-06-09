@@ -1,5 +1,5 @@
-// chipaxService.js - Servicio corregido con endpoints v2 correctos
-const CHIPAX_API_URL = 'https://api.chipax.com/v2'; // URL directa (sin proxy por ahora)
+// chipaxService.js - Versión con debug detallado para encontrar el error 404
+const CHIPAX_API_URL = 'https://api.chipax.com/v2';
 const APP_ID = '605e0aa5-ca0c-4513-b6ef-0030ac1f0849';
 const SECRET_KEY = 'f01974df-86e1-45a0-924f-75961ea926fc';
 
@@ -7,14 +7,6 @@ const SECRET_KEY = 'f01974df-86e1-45a0-924f-75961ea926fc';
 let tokenCache = {
   token: null,
   expiresAt: null
-};
-
-// Configuración de paginación
-const PAGINATION_CONFIG = {
-  PAGE_SIZE: 50,
-  MAX_PAGES: 20,
-  RETRY_ATTEMPTS: 2,
-  RETRY_DELAY: 1000
 };
 
 /**
@@ -28,29 +20,55 @@ export const getChipaxToken = async () => {
     return tokenCache.token;
   }
 
-  console.log('🔐 Obteniendo nuevo token de Chipax...');
+  console.log('🔐 === INICIANDO AUTENTICACIÓN ===');
+  console.log('📍 URL de login:', `${CHIPAX_API_URL}/login`);
+  console.log('🔑 APP_ID:', APP_ID.substring(0, 10) + '...');
   
   try {
-    const response = await fetch(`${CHIPAX_API_URL}/login`, {
+    const loginUrl = `${CHIPAX_API_URL}/login`;
+    const loginBody = { 
+      app_id: APP_ID, 
+      secret_key: SECRET_KEY 
+    };
+    
+    console.log('📤 Enviando petición POST a:', loginUrl);
+    console.log('📦 Body:', { app_id: APP_ID.substring(0, 10) + '...', secret_key: '***' });
+    
+    const response = await fetch(loginUrl, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      body: JSON.stringify({ 
-        app_id: APP_ID, 
-        secret_key: SECRET_KEY 
-      })
+      body: JSON.stringify(loginBody)
     });
+
+    console.log('📨 Respuesta recibida:');
+    console.log('   - Status:', response.status);
+    console.log('   - StatusText:', response.statusText);
+    console.log('   - Headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Error response:', errorText);
+      console.error('❌ Error response body:', errorText);
+      
+      // Intentar parsear el error si es JSON
+      try {
+        const errorJson = JSON.parse(errorText);
+        console.error('❌ Error parseado:', errorJson);
+      } catch (e) {
+        console.error('❌ Error no es JSON válido');
+      }
+      
       throw new Error(`Error de autenticación ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('✅ Token obtenido exitosamente');
+    console.log('✅ Respuesta exitosa:');
+    console.log('   - Mensaje:', data.message);
+    console.log('   - Empresa:', data.nombre);
+    console.log('   - Token recibido:', !!data.token);
+    console.log('   - Token expiration:', new Date(data.tokenExpiration * 1000).toLocaleString());
     
     tokenCache = {
       token: data.token,
@@ -60,19 +78,38 @@ export const getChipaxToken = async () => {
     return tokenCache.token;
     
   } catch (error) {
-    console.error('❌ Error obteniendo token:', error);
+    console.error('❌ === ERROR EN AUTENTICACIÓN ===');
+    console.error('   - Tipo:', error.name);
+    console.error('   - Mensaje:', error.message);
+    console.error('   - Stack:', error.stack);
+    
+    // Verificar si es un error de red
+    if (error.message.includes('Failed to fetch')) {
+      console.error('🌐 Posible problema de CORS o red');
+      console.error('💡 Sugerencias:');
+      console.error('   1. Verificar que la URL es correcta');
+      console.error('   2. Verificar CORS en el navegador');
+      console.error('   3. Probar con un proxy o backend');
+    }
+    
     tokenCache = { token: null, expiresAt: null };
     throw error;
   }
 };
 
 /**
- * Realiza petición a la API
+ * Realiza petición a la API con debug detallado
  */
 export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) => {
+  console.log('\n🔍 === INICIANDO PETICIÓN ===');
+  console.log('📍 Endpoint:', endpoint);
+  
   try {
     const token = await getChipaxToken();
     const url = endpoint.startsWith('http') ? endpoint : `${CHIPAX_API_URL}${endpoint}`;
+    
+    console.log('🌐 URL completa:', url);
+    console.log('🔐 Token:', token.substring(0, 20) + '...');
     
     const headers = {
       ...options.headers,
@@ -81,21 +118,27 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
       'Accept': 'application/json'
     };
     
+    console.log('📋 Headers:', {
+      ...headers,
+      'Authorization': 'JWT ' + token.substring(0, 20) + '...'
+    });
+    
     const response = await fetch(url, {
       ...options,
       headers
     });
 
-    if (showLogs) {
-      console.log(`🔍 ${endpoint} - Status: ${response.status}`);
-    }
+    console.log('📨 Respuesta:');
+    console.log('   - Status:', response.status);
+    console.log('   - StatusText:', response.statusText);
     
     if (!response.ok) {
       const text = await response.text();
+      console.error('❌ Error response:', text);
       
       // Si es 401, reintentar con nuevo token
       if (response.status === 401 && !options._retry) {
-        console.log('🔄 Token expirado, reintentando...');
+        console.log('🔄 Token expirado, obteniendo nuevo token...');
         tokenCache = { token: null, expiresAt: null };
         return fetchFromChipax(endpoint, { ...options, _retry: true }, showLogs);
       }
@@ -103,204 +146,85 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
       throw new Error(`Error ${response.status}: ${text}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    console.log('✅ Datos recibidos correctamente');
+    console.log('   - Tipo:', Array.isArray(data) ? 'Array' : typeof data);
+    if (data.items) {
+      console.log('   - Items:', data.items.length);
+    }
+    if (data.paginationAttributes) {
+      console.log('   - Paginación:', data.paginationAttributes);
+    }
+    
+    return data;
     
   } catch (error) {
-    console.error(`❌ Error en ${endpoint}:`, error.message);
+    console.error('❌ === ERROR EN PETICIÓN ===');
+    console.error('   - Endpoint:', endpoint);
+    console.error('   - Error:', error.message);
+    console.error('   - Stack:', error.stack);
     throw error;
   }
 };
 
 /**
- * Obtiene todas las páginas de un endpoint
+ * Función de prueba simple para verificar conexión
  */
-export const fetchAllPaginatedData = async (baseEndpoint) => {
-  console.log(`📊 Cargando datos paginados de ${baseEndpoint}...`);
-  
-  let allItems = [];
-  let page = 1;
-  let hasMore = true;
+export const testConnection = async () => {
+  console.log('🧪 === INICIANDO TEST DE CONEXIÓN ===');
   
   try {
-    while (hasMore && page <= PAGINATION_CONFIG.MAX_PAGES) {
-      const separator = baseEndpoint.includes('?') ? '&' : '?';
-      const endpoint = `${baseEndpoint}${separator}page=${page}&limit=${PAGINATION_CONFIG.PAGE_SIZE}`;
-      
-      const data = await fetchFromChipax(endpoint, {}, page === 1);
-      
-      if (data.items && Array.isArray(data.items)) {
-        allItems = [...allItems, ...data.items];
-        
-        if (data.paginationAttributes) {
-          const { currentPage, totalPages } = data.paginationAttributes;
-          hasMore = currentPage < totalPages;
-          
-          if (page === 1) {
-            console.log(`📄 Total: ${data.paginationAttributes.totalCount} items en ${totalPages} páginas`);
-          }
-        } else {
-          hasMore = false;
-        }
-      } else if (Array.isArray(data)) {
-        // Si la respuesta es directamente un array
-        allItems = [...allItems, ...data];
-        hasMore = data.length === PAGINATION_CONFIG.PAGE_SIZE;
-      } else {
-        hasMore = false;
-      }
-      
-      page++;
-    }
+    // Paso 1: Obtener token
+    console.log('\n📌 Paso 1: Obteniendo token...');
+    const token = await getChipaxToken();
+    console.log('✅ Token obtenido:', token.substring(0, 30) + '...');
     
-    console.log(`✅ Total cargado: ${allItems.length} items`);
+    // Paso 2: Hacer una petición simple
+    console.log('\n📌 Paso 2: Probando endpoint /clientes...');
+    const response = await fetchFromChipax('/clientes?page=1&limit=1');
+    console.log('✅ Respuesta obtenida:', response);
     
-    return {
-      items: allItems,
-      paginationStats: {
-        totalItems: allItems.length,
-        pagesLoaded: page - 1
-      }
-    };
+    console.log('\n✅ === TEST COMPLETADO EXITOSAMENTE ===');
+    return { success: true, token, response };
     
   } catch (error) {
-    console.error('❌ Error en carga paginada:', error);
-    return {
-      items: allItems,
-      error: error.message
-    };
+    console.error('\n❌ === TEST FALLÓ ===');
+    console.error(error);
+    return { success: false, error: error.message };
   }
 };
 
-// === ENDPOINTS ESPECÍFICOS CORREGIDOS ===
-
-/**
- * Obtiene saldos bancarios
- */
+// Funciones de obtención de datos (simplificadas para debug)
 export const obtenerSaldosBancarios = async () => {
   console.log('\n💰 Obteniendo saldos bancarios...');
-  try {
-    // Primero obtener bancos
-    const bancosData = await fetchAllPaginatedData('/bancos');
-    
-    // Luego obtener cuentas bancarias
-    const cuentasData = await fetchAllPaginatedData('/cuentas_bancarias');
-    
-    // Combinar información
-    const saldos = cuentasData.items.map(cuenta => ({
-      ...cuenta,
-      banco: bancosData.items.find(b => b.id === cuenta.banco_id) || { nombre: 'Banco desconocido' }
-    }));
-    
-    console.log(`✅ ${saldos.length} cuentas bancarias obtenidas`);
-    return { items: saldos };
-    
-  } catch (error) {
-    console.error('❌ Error obteniendo saldos:', error);
-    // Si falla, intentar endpoint alternativo
-    try {
-      const data = await fetchAllPaginatedData('/arrFlujoCaja');
-      return data;
-    } catch (altError) {
-      throw error;
-    }
-  }
+  return fetchFromChipax('/bancos?page=1&limit=10');
 };
 
-/**
- * Obtiene cuentas por cobrar (facturas de venta pendientes)
- */
 export const obtenerCuentasPorCobrar = async () => {
   console.log('\n📊 Obteniendo cuentas por cobrar...');
-  try {
-    // Usar endpoint /dtes con filtro porCobrar
-    const data = await fetchAllPaginatedData('/dtes?porCobrar=1');
-    
-    if (!data.items || data.items.length === 0) {
-      // Alternativa: obtener todas y filtrar localmente
-      console.log('🔄 Intentando con todas las facturas...');
-      const allData = await fetchAllPaginatedData('/dtes');
-      
-      data.items = allData.items.filter(doc => 
-        doc.saldo_pendiente > 0 || 
-        doc.estado === 'pendiente' ||
-        !doc.pagado
-      );
-    }
-    
-    console.log(`✅ ${data.items.length} cuentas por cobrar obtenidas`);
-    return data;
-    
-  } catch (error) {
-    console.error('❌ Error obteniendo cuentas por cobrar:', error);
-    throw error;
-  }
+  return fetchFromChipax('/dtes?page=1&limit=10');
 };
 
-/**
- * Obtiene cuentas por pagar (facturas de compra pendientes)
- */
 export const obtenerCuentasPorPagar = async () => {
   console.log('\n💸 Obteniendo cuentas por pagar...');
-  try {
-    // Usar endpoint /compras con filtro pagado=false
-    let data = await fetchAllPaginatedData('/compras?pagado=false');
-    
-    if (!data.items || data.items.length === 0) {
-      // Alternativa: obtener todas y filtrar
-      console.log('🔄 Intentando con todas las compras...');
-      const allData = await fetchAllPaginatedData('/compras');
-      
-      data.items = allData.items.filter(compra => 
-        !compra.pagado || 
-        compra.saldo_pendiente > 0 ||
-        compra.estado === 'pendiente'
-      );
-    }
-    
-    console.log(`✅ ${data.items.length} cuentas por pagar obtenidas`);
-    return data;
-    
-  } catch (error) {
-    console.error('❌ Error obteniendo cuentas por pagar:', error);
-    throw error;
-  }
+  return fetchFromChipax('/compras?page=1&limit=10');
 };
 
-/**
- * Obtiene lista de clientes
- */
 export const obtenerClientes = async () => {
   console.log('\n👥 Obteniendo clientes...');
-  try {
-    const data = await fetchAllPaginatedData('/clientes');
-    console.log(`✅ ${data.items.length} clientes obtenidos`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo clientes:', error);
-    throw error;
-  }
+  return fetchFromChipax('/clientes?page=1&limit=10');
 };
 
-/**
- * Obtiene lista de proveedores
- */
 export const obtenerProveedores = async () => {
   console.log('\n🏭 Obteniendo proveedores...');
-  try {
-    const data = await fetchAllPaginatedData('/proveedores');
-    console.log(`✅ ${data.items.length} proveedores obtenidos`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo proveedores:', error);
-    throw error;
-  }
+  return fetchFromChipax('/proveedores?page=1&limit=10');
 };
 
 // Exportar todo
 const chipaxService = {
   getChipaxToken,
   fetchFromChipax,
-  fetchAllPaginatedData,
+  testConnection,
   obtenerSaldosBancarios,
   obtenerCuentasPorCobrar,
   obtenerCuentasPorPagar,
