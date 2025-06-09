@@ -328,3 +328,4 @@ const determinarEstadoDTE = (dte, saldoPendiente) => {
   if (saldoPendiente > 0) return 'pendiente';
   return 'desconocido';
 };
+export default AccountsReceivableTable;
