@@ -455,6 +455,156 @@ export const obtenerBoletasTerceros = async () => {
     throw error;
   }
 };
+// ========== AGREGAR ESTAS NUEVAS FUNCIONES ==========
+
+/**
+ * Obtiene los saldos desde el endpoint /saldos
+ * Filtra por modelo CuentaCorriente
+ */
+export const obtenerSaldosDesdeEndpoint = async () => {
+  console.log('\n💰 Obteniendo saldos desde endpoint /saldos...');
+  
+  try {
+    // Primero probar el endpoint general de saldos
+    console.log('🔍 Probando endpoint /saldos con filtro de CuentaCorriente...');
+    
+    // Intentar diferentes formas de filtrar
+    const endpointsAProbar = [
+      '/saldos?modelo=CuentaCorriente',
+      '/saldos?model=CuentaCorriente',
+      '/saldos?tipo=CuentaCorriente',
+      '/saldos' // Sin filtro, filtraremos después
+    ];
+    
+    let saldosData = null;
+    
+    for (const endpoint of endpointsAProbar) {
+      try {
+        console.log(`📡 Probando: ${endpoint}`);
+        const response = await fetchAllPaginatedData(endpoint);
+        
+        if (response.items && response.items.length > 0) {
+          console.log(`✅ Éxito con ${endpoint}: ${response.items.length} saldos encontrados`);
+          saldosData = response;
+          break;
+        }
+      } catch (error) {
+        console.log(`❌ ${endpoint} falló:`, error.message);
+      }
+    }
+    
+    if (!saldosData || !saldosData.items) {
+      throw new Error('No se pudo obtener datos del endpoint /saldos');
+    }
+    
+    // Filtrar solo los saldos de CuentaCorriente
+    const saldosCuentasCorrientes = saldosData.items.filter(saldo => 
+      saldo.modelo === 'CuentaCorriente' || 
+      saldo.model === 'CuentaCorriente' ||
+      saldo.type === 'CuentaCorriente'
+    );
+    
+    console.log(`📊 ${saldosCuentasCorrientes.length} saldos de cuentas corrientes encontrados`);
+    
+    // Crear un mapa de foreign_key -> saldo
+    const saldosPorCuenta = {};
+    
+    saldosCuentasCorrientes.forEach(saldo => {
+      const cuentaId = saldo.foreign_key;
+      
+      // Solo considerar el último registro
+      if (saldo.last_record === 1 || saldo.last_record === true) {
+        // Calcular el saldo real según la lógica de ChatGPT
+        let saldoReal = 0;
+        if (saldo.saldo_acreedor > 0) {
+          saldoReal = saldo.saldo_acreedor;
+        } else if (saldo.saldo_deudor > 0) {
+          saldoReal = -saldo.saldo_deudor;
+        }
+        
+        saldosPorCuenta[cuentaId] = {
+          saldoReal,
+          debe: saldo.debe || 0,
+          haber: saldo.haber || 0,
+          saldoDeudor: saldo.saldo_deudor || 0,
+          saldoAcreedor: saldo.saldo_acreedor || 0,
+          monedaId: saldo.moneda_id
+        };
+        
+        console.log(`💳 Cuenta ID ${cuentaId}: $${saldoReal.toLocaleString('es-CL')}`);
+      }
+    });
+    
+    return saldosPorCuenta;
+    
+  } catch (error) {
+    console.error('❌ Error obteniendo saldos desde endpoint:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene las cuentas corrientes con sus saldos
+ * Combina información de /cuentas-corrientes con /saldos
+ */
+export const obtenerSaldosBancariosCompletos = async () => {
+  console.log('\n💰 Obteniendo cuentas corrientes con saldos completos...');
+  
+  try {
+    // Paso 1: Obtener las cuentas corrientes
+    const cuentasResponse = await fetchAllPaginatedData('/cuentas-corrientes');
+    const cuentas = cuentasResponse.items;
+    console.log(`✅ ${cuentas.length} cuentas obtenidas`);
+    
+    // Paso 2: Obtener los saldos
+    const saldosPorCuenta = await obtenerSaldosDesdeEndpoint();
+    
+    // Paso 3: Combinar cuentas con sus saldos
+    const cuentasConSaldos = cuentas.map(cuenta => {
+      const saldoInfo = saldosPorCuenta[cuenta.id];
+      
+      if (saldoInfo) {
+        return {
+          ...cuenta,
+          Saldo: {
+            debe: saldoInfo.debe,
+            haber: saldoInfo.haber,
+            saldo_deudor: saldoInfo.saldoDeudor,
+            saldo_acreedor: saldoInfo.saldoAcreedor
+          },
+          saldoCalculado: saldoInfo.saldoReal
+        };
+      } else {
+        console.log(`⚠️ No se encontró saldo para cuenta ${cuenta.id} - ${cuenta.numeroCuenta}`);
+        return {
+          ...cuenta,
+          Saldo: {
+            debe: 0,
+            haber: 0,
+            saldo_deudor: 0,
+            saldo_acreedor: 0
+          },
+          saldoCalculado: 0
+        };
+      }
+    });
+    
+    // Verificar resultados
+    const cuentasConSaldo = cuentasConSaldos.filter(c => c.saldoCalculado !== 0);
+    console.log(`✅ ${cuentasConSaldo.length} cuentas con saldo encontradas`);
+    
+    return {
+      items: cuentasConSaldos,
+      paginationStats: cuentasResponse.paginationStats
+    };
+    
+  } catch (error) {
+    console.error('❌ Error obteniendo cuentas con saldos:', error);
+    throw error;
+  }
+};
+
+// ========== FIN DE NUEVAS FUNCIONES ==========
 
 // Exportar todo
 const chipaxService = {
@@ -468,7 +618,9 @@ const chipaxService = {
   obtenerProveedores,
   obtenerFlujoCaja,
   obtenerHonorarios,
-  obtenerBoletasTerceros
+  obtenerBoletasTerceros,
+  obtenerSaldosDesdeEndpoint,
+  obtenerSaldosBancariosCompletos
 };
 
 export default chipaxService;
