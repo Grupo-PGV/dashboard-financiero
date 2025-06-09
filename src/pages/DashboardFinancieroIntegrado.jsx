@@ -372,7 +372,7 @@ const DashboardFinancieroIntegrado = () => {
     {/* Ya no mostramos el detalle de las facturas aquí */}
     <div className="mt-4 pt-4 border-t text-sm text-gray-600">
       <p className="flex items-center">
-        <CalendarDays size={16} className="mr-2" />
+        <Calendar size={16} className="mr-2" />
         Ver detalle completo más abajo
       </p>
     </div>
@@ -404,7 +404,7 @@ const DashboardFinancieroIntegrado = () => {
     {/* Ya no mostramos el detalle de las facturas aquí */}
     <div className="mt-4 pt-4 border-t text-sm text-gray-600">
       <p className="flex items-center">
-        <CalendarDays size={16} className="mr-2" />
+        <Calendar size={16} className="mr-2" />
         Ver detalle completo más abajo
       </p>
     </div>
