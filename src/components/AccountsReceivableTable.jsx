@@ -1,502 +1,330 @@
-// AccountsReceivableTable.jsx
-import React, { useState, useEffect } from 'react';
-import { CalendarDays, Filter, Download, ArrowUp, ArrowDown, Clock, AlertCircle, CheckCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+// chipaxAdapter.js - Adaptador para transformar datos de Chipax al formato del dashboard
 
 /**
- * Componente para mostrar y gestionar las cuentas por cobrar
- * 
- * @param {Object} props
- * @param {Array} props.cuentas - Lista de cuentas por cobrar
- * @param {boolean} props.loading - Indica si está cargando los datos
- * @param {Function} props.onExportData - Función para exportar datos
- * @param {Function} props.onFilterChange - Función al cambiar el filtro
+ * Adapta los datos según el tipo de entidad
  */
-const AccountsReceivableTable = ({ 
-  cuentas = [], 
-  loading = false, 
-  onExportData,
-  onFilterChange
-}) => {
-  // Estados para paginación y filtrado
-  const [currentPage, setCurrentPage] = useState(1);
-  const [sortField, setSortField] = useState('fechaVencimiento');
-  const [sortDirection, setSortDirection] = useState('asc');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [filteredCuentas, setFilteredCuentas] = useState([]);
-  
-  // Items por página
-  const itemsPerPage = 10;
-  
-  // Formatear moneda
-  const formatCurrency = (amount, currency = 'CLP') => {
-    if (!amount && amount !== 0) return '$0';
-    return new Intl.NumberFormat('es-CL', { 
-      style: 'currency', 
-      currency,
-      maximumFractionDigits: currency === 'CLP' ? 0 : 2
-    }).format(amount);
-  };
-  
-  // Formatear fecha
-  const formatDate = (date) => {
-    if (!date) return '-';
-    try {
-      return new Date(date).toLocaleDateString('es-CL');
-    } catch (error) {
-      return '-';
-    }
-  };
-  
-  // Calcular días restantes a partir de la fecha de vencimiento
-  const getDaysRemaining = (dueDate) => {
-    if (!dueDate) return null;
-    
-    try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const vencimiento = new Date(dueDate);
-      vencimiento.setHours(0, 0, 0, 0);
-      
-      const diffTime = vencimiento - today;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      return diffDays;
-    } catch (error) {
-      return null;
-    }
-  };
-  
-  // Obtener clase de estilo según los días restantes
-  const getStatusClass = (vencimiento) => {
-    const days = getDaysRemaining(vencimiento);
-    
-    if (days === null) return 'text-gray-500';
-    if (days < 0) return 'text-red-600';
-    if (days <= 5) return 'text-amber-600';
-    if (days <= 15) return 'text-blue-600';
-    return 'text-green-600';
-  };
-  
-  // Obtener texto de estado según los días restantes
-  const getStatusText = (vencimiento) => {
-    const days = getDaysRemaining(vencimiento);
-    
-    if (days === null) return 'Sin fecha';
-    if (days < 0) return `Vencido (${Math.abs(days)} días)`;
-    if (days === 0) return 'Vence hoy';
-    if (days === 1) return 'Vence mañana';
-    return `Vence en ${days} días`;
-  };
-  
-  // Obtener icono de estado
-  const getStatusIcon = (vencimiento) => {
-    const days = getDaysRemaining(vencimiento);
-    
-    if (days === null) return <Clock size={16} className="text-gray-500" />;
-    if (days < 0) return <AlertCircle size={16} className="text-red-600" />;
-    if (days <= 5) return <Clock size={16} className="text-amber-600" />;
-    if (days <= 15) return <Clock size={16} className="text-blue-600" />;
-    return <CheckCircle size={16} className="text-green-600" />;
-  };
-  
-  // Cambiar orden de la tabla
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-  
-  // Render de la flecha de ordenamiento
-  const renderSortArrow = (field) => {
-    if (sortField !== field) return null;
-    
-    return sortDirection === 'asc' 
-      ? <ArrowUp size={14} className="ml-1" /> 
-      : <ArrowDown size={14} className="ml-1" />;
-  };
-  
-  // Filtrar y ordenar cuentas
-  useEffect(() => {
-    if (loading) return;
-    
-    let filtered = Array.isArray(cuentas) ? [...cuentas] : [];
-    
-    // Aplicar filtro de búsqueda
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(cuenta => {
-        const clienteNombre = cuenta.cliente?.nombre || cuenta.cliente || '';
-        const clienteRut = cuenta.cliente?.rut || '';
-        const folio = (cuenta.folio || cuenta.numeroFactura || '').toString();
-        
-        return clienteNombre.toLowerCase().includes(term) ||
-               clienteRut.toLowerCase().includes(term) ||
-               folio.toLowerCase().includes(term);
-      });
-    }
-    
-    // Aplicar filtro de estado
-    if (statusFilter !== 'all') {
-      if (statusFilter === 'overdue') {
-        filtered = filtered.filter(cuenta => getDaysRemaining(cuenta.fechaVencimiento) < 0);
-      } else if (statusFilter === 'due-soon') {
-        filtered = filtered.filter(cuenta => {
-          const days = getDaysRemaining(cuenta.fechaVencimiento);
-          return days >= 0 && days <= 5;
-        });
-      } else if (statusFilter === 'upcoming') {
-        filtered = filtered.filter(cuenta => {
-          const days = getDaysRemaining(cuenta.fechaVencimiento);
-          return days > 5;
-        });
-      }
-    }
-    
-    // Ordenar las cuentas
-    filtered.sort((a, b) => {
-      let valueA, valueB;
-      
-      // Determinar los valores a comparar según el campo
-      switch (sortField) {
-        case 'fechaVencimiento':
-          valueA = a.fechaVencimiento ? new Date(a.fechaVencimiento).getTime() : Infinity;
-          valueB = b.fechaVencimiento ? new Date(b.fechaVencimiento).getTime() : Infinity;
-          break;
-        case 'cliente':
-          valueA = (a.cliente?.nombre || a.cliente || '').toLowerCase();
-          valueB = (b.cliente?.nombre || b.cliente || '').toLowerCase();
-          break;
-        case 'folio':
-          valueA = parseInt(a.folio || a.numeroFactura || 0) || 0;
-          valueB = parseInt(b.folio || b.numeroFactura || 0) || 0;
-          break;
-        case 'monto':
-          valueA = a.monto || a.montoTotal || 0;
-          valueB = b.monto || b.montoTotal || 0;
-          break;
-        case 'saldo':
-          valueA = a.saldo || 0;
-          valueB = b.saldo || 0;
-          break;
-        default:
-          valueA = a[sortField] || '';
-          valueB = b[sortField] || '';
-      }
-      
-      // Comparar según la dirección de ordenamiento
-      if (sortDirection === 'asc') {
-        return valueA > valueB ? 1 : -1;
-      } else {
-        return valueA < valueB ? 1 : -1;
-      }
-    });
-    
-    setFilteredCuentas(filtered);
-    
-    // Volver a la primera página al cambiar los filtros
-    setCurrentPage(1);
-  }, [cuentas, sortField, sortDirection, searchTerm, statusFilter, loading]);
-  
-  // Calcular paginación
-  const totalPages = Math.ceil(filteredCuentas.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentItems = filteredCuentas.slice(startIndex, endIndex);
-  
-  // Cambiar página
-  const goToPage = (page) => {
-    if (page < 1 || page > totalPages) return;
-    setCurrentPage(page);
-  };
-  
-  // Calcular total de cuentas por cobrar
-  const totalPorCobrar = filteredCuentas.reduce((sum, cuenta) => sum + (cuenta.saldo || 0), 0);
-  
-  // Calcular número de cuentas vencidas
-  const cuentasVencidas = filteredCuentas.filter(cuenta => getDaysRemaining(cuenta.fechaVencimiento) < 0).length;
-  
-  // Generar array de páginas a mostrar
-  const getPaginationItems = () => {
-    const items = [];
-    const maxPages = 5; // Número máximo de páginas a mostrar
-    
-    let startPage = Math.max(1, currentPage - Math.floor(maxPages / 2));
-    let endPage = Math.min(totalPages, startPage + maxPages - 1);
-    
-    if (endPage - startPage + 1 < maxPages) {
-      startPage = Math.max(1, endPage - maxPages + 1);
-    }
-    
-    for (let i = startPage; i <= endPage; i++) {
-      items.push(i);
-    }
-    
-    return items;
-  };
-  
-  // Manejar cambio de filtro de estado
-  const handleStatusFilterChange = (status) => {
-    setStatusFilter(status);
-    if (onFilterChange) {
-      onFilterChange({ status, search: searchTerm });
-    }
-  };
-  
-  // Manejar cambio de búsqueda
-  const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value);
-    if (onFilterChange) {
-      onFilterChange({ status: statusFilter, search: e.target.value });
-    }
-  };
-  
-  // Renderizar tabla de cuentas por cobrar
-  if (loading) {
-    return (
-      <div className="bg-white rounded-lg shadow p-4 animate-pulse">
-        <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
-        <div className="h-10 bg-gray-200 rounded w-full mb-4"></div>
-        <div className="h-64 bg-gray-200 rounded w-full"></div>
-      </div>
-    );
+export const adaptarDatosChipax = (tipo, datos) => {
+  if (!datos || !Array.isArray(datos)) {
+    console.warn(`⚠️ Datos inválidos para tipo ${tipo}:`, datos);
+    return [];
   }
-  
-  return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="p-4 border-b">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-              <CalendarDays size={20} className="mr-2 text-blue-600" />
-              Cuentas por Cobrar
-            </h2>
-            <p className="text-sm text-gray-500">
-              Gestiona tus facturas y cuentas pendientes de cobro
-            </p>
-          </div>
-          
-          {onExportData && (
-            <button 
-              className="flex items-center text-sm py-1 px-3 border border-gray-300 rounded hover:bg-gray-50 mt-2 md:mt-0"
-              onClick={onExportData}
-            >
-              <Download size={16} className="mr-1" />
-              Exportar
-            </button>
-          )}
-        </div>
-        
-        <div className="flex flex-col md:flex-row justify-between space-y-2 md:space-y-0">
-          {/* Estadísticas */}
-          <div className="flex space-x-4">
-            <div className="text-center px-3 py-1 bg-blue-50 rounded border border-blue-100">
-              <p className="text-xs text-blue-700">Total</p>
-              <p className="font-medium text-blue-900">{formatCurrency(totalPorCobrar)}</p>
-            </div>
-            <div className="text-center px-3 py-1 bg-red-50 rounded border border-red-100">
-              <p className="text-xs text-red-700">Vencidas</p>
-              <p className="font-medium text-red-900">{cuentasVencidas}</p>
-            </div>
-          </div>
-          
-          {/* Filtros */}
-          <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-2">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Buscar..."
-                className="pl-8 pr-3 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 w-full"
-                value={searchTerm}
-                onChange={handleSearchChange}
-              />
-              <Search size={16} className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            </div>
-            
-            <div className="relative">
-              <select
-                className="pl-7 pr-3 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white"
-                value={statusFilter}
-                onChange={(e) => handleStatusFilterChange(e.target.value)}
-              >
-                <option value="all">Todos los estados</option>
-                <option value="overdue">Vencidos</option>
-                <option value="due-soon">Vencimiento próximo</option>
-                <option value="upcoming">Próximos</option>
-              </select>
-              <Filter size={16} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Tabla */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50 text-gray-700 text-sm">
-            <tr>
-              <th 
-                className="px-4 py-2 text-left font-medium cursor-pointer hover:text-blue-600"
-                onClick={() => handleSort('folio')}
-              >
-                <div className="flex items-center">
-                  Folio
-                  {renderSortArrow('folio')}
-                </div>
-              </th>
-              <th 
-                className="px-4 py-2 text-left font-medium cursor-pointer hover:text-blue-600"
-                onClick={() => handleSort('cliente')}
-              >
-                <div className="flex items-center">
-                  Cliente
-                  {renderSortArrow('cliente')}
-                </div>
-              </th>
-              <th 
-                className="px-4 py-2 text-right font-medium cursor-pointer hover:text-blue-600"
-                onClick={() => handleSort('monto')}
-              >
-                <div className="flex items-center justify-end">
-                  Monto
-                  {renderSortArrow('monto')}
-                </div>
-              </th>
-              <th 
-                className="px-4 py-2 text-right font-medium cursor-pointer hover:text-blue-600"
-                onClick={() => handleSort('saldo')}
-              >
-                <div className="flex items-center justify-end">
-                  Saldo
-                  {renderSortArrow('saldo')}
-                </div>
-              </th>
-              <th 
-                className="px-4 py-2 text-left font-medium cursor-pointer hover:text-blue-600"
-                onClick={() => handleSort('fechaEmision')}
-              >
-                <div className="flex items-center">
-                  Emisión
-                  {renderSortArrow('fechaEmision')}
-                </div>
-              </th>
-              <th 
-                className="px-4 py-2 text-left font-medium cursor-pointer hover:text-blue-600"
-                onClick={() => handleSort('fechaVencimiento')}
-              >
-                <div className="flex items-center">
-                  Vencimiento
-                  {renderSortArrow('fechaVencimiento')}
-                </div>
-              </th>
-              <th className="px-4 py-2 text-left font-medium">
-                Estado
-              </th>
-            </tr>
-          </thead>
-          <tbody className="text-gray-700 text-sm divide-y divide-gray-100">
-            {currentItems.length > 0 ? (
-              currentItems.map((cuenta, index) => (
-                <tr key={cuenta.id || index} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">
-                    {cuenta.folio || cuenta.numeroFactura || 'Sin folio'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div>
-                      <p className="font-medium">
-                        {cuenta.cliente?.nombre || cuenta.cliente || 'Cliente desconocido'}
-                      </p>
-                      <p className="text-gray-500 text-xs">
-                        {cuenta.cliente?.rut || 'Sin RUT'}
-                      </p>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {formatCurrency(cuenta.monto || cuenta.montoTotal, cuenta.moneda)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium">
-                    {formatCurrency(cuenta.saldo, cuenta.moneda)}
-                  </td>
-                  <td className="px-4 py-3">
-                    {formatDate(cuenta.fechaEmision)}
-                  </td>
-                  <td className="px-4 py-3">
-                    {formatDate(cuenta.fechaVencimiento)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className={`flex items-center ${getStatusClass(cuenta.fechaVencimiento)}`}>
-                      {getStatusIcon(cuenta.fechaVencimiento)}
-                      <span className="ml-1">{getStatusText(cuenta.fechaVencimiento)}</span>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="7" className="px-4 py-6 text-center text-gray-500">
-                  No hay cuentas por cobrar que coincidan con los filtros seleccionados
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      
-      {/* Paginación */}
-      {filteredCuentas.length > 0 && (
-        <div className="px-4 py-3 flex items-center justify-between border-t">
-          <div className="text-xs text-gray-500">
-            Mostrando {startIndex + 1}-{Math.min(endIndex, filteredCuentas.length)} de {filteredCuentas.length} resultados
-          </div>
-          
-          <div className="flex space-x-1">
-            <button
-              className={`p-1 rounded ${
-                currentPage === 1 
-                  ? 'text-gray-300 cursor-not-allowed' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-              onClick={() => goToPage(currentPage - 1)}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft size={18} />
-            </button>
-            
-            {getPaginationItems().map(page => (
-              <button
-                key={page}
-                className={`px-2 py-1 rounded text-sm ${
-                  currentPage === page
-                    ? 'bg-blue-100 text-blue-700 font-medium'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-                onClick={() => goToPage(page)}
-              >
-                {page}
-              </button>
-            ))}
-            
-            <button
-              className={`p-1 rounded ${
-                currentPage === totalPages 
-                  ? 'text-gray-300 cursor-not-allowed' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+
+  console.log(`🔄 Adaptando ${datos.length} registros de tipo ${tipo}`);
+
+  switch (tipo) {
+    case 'saldosBancarios':
+      return adaptarCuentasCorrientes(datos);
+    
+    case 'cuentasPorCobrar':
+      return adaptarDTEs(datos);
+    
+    case 'cuentasPorPagar':
+      return adaptarCompras(datos);
+    
+    case 'clientes':
+      return adaptarClientes(datos);
+    
+    case 'proveedores':
+      return adaptarProveedores(datos);
+    
+    case 'flujoCaja':
+      return adaptarFlujoCaja(datos);
+    
+    default:
+      console.warn(`⚠️ Tipo de adaptación no reconocido: ${tipo}`);
+      return datos;
+  }
 };
 
-// ¡ESTA ES LA LÍNEA MÁS IMPORTANTE!
-export default AccountsReceivableTable;
+/**
+ * Adapta cuentas corrientes al formato de saldos bancarios
+ */
+const adaptarCuentasCorrientes = (cuentas) => {
+  return cuentas.map(cuenta => ({
+    id: cuenta.id,
+    nombre: cuenta.numeroCuenta || cuenta.nombre || 'Cuenta sin número',
+    banco: cuenta.banco || cuenta.TipoCuentaCorriente?.tipoCuenta || cuenta.Banco?.banco || 'Banco no especificado',
+    saldo: cuenta.saldo || cuenta.saldoContable || 0,
+    moneda: cuenta.Moneda?.moneda || cuenta.moneda || 'CLP',
+    simboloMoneda: cuenta.Moneda?.simbolo || cuenta.simboloMoneda || '$',
+    tipo: cuenta.TipoCuentaCorriente?.nombreCorto || cuenta.tipo || 'Cuenta Corriente',
+    ultimaActualizacion: cuenta.fechaUltimaActualizacion || cuenta.updated_at || new Date().toISOString()
+  }));
+};
+
+/**
+ * Adapta DTEs al formato de cuentas por cobrar
+ * Los DTEs vienen del endpoint /dtes?porCobrar=1
+ */
+const adaptarDTEs = (dtes) => {
+  console.log(`📋 Adaptando ${dtes.length} DTEs`);
+  
+  return dtes.map((dte, index) => {
+    // Log del primer DTE para debugging
+    if (index === 0) {
+      console.log('🔍 Primer DTE adaptado:', {
+        razonSocial: dte.razonSocial,
+        montoTotal: dte.montoTotal,
+        saldoDeudor: dte.Saldo?.saldoDeudor
+      });
+    }
+
+    // Calcular días vencidos
+    const fechaVencimiento = dte.fechaVencimiento;
+    const diasVencidos = calcularDiasVencidos(fechaVencimiento);
+    
+    // El saldo pendiente viene en Saldo.saldoDeudor
+    const saldoPendiente = dte.Saldo?.saldoDeudor || 0;
+    
+    return {
+      id: dte.id,
+      folio: dte.folio,
+      tipo: obtenerTipoDocumento(dte.tipo),
+      tipoNumero: dte.tipo,
+      // Cliente como string simple para evitar el error de React
+      cliente: dte.razonSocial || dte.ClienteNormalizado?.razonSocial || 'Sin nombre',
+      // Información adicional del cliente en objeto separado
+      clienteInfo: {
+        nombre: dte.razonSocial || dte.ClienteNormalizado?.razonSocial || 'Sin nombre',
+        rut: dte.rut || 'Sin RUT',
+        id: dte.idCliente
+      },
+      fechaEmision: dte.fechaEmision,
+      fechaVencimiento: dte.fechaVencimiento,
+      monto: dte.montoTotal,
+      montoNeto: dte.montoNeto,
+      iva: dte.iva,
+      saldo: saldoPendiente,
+      diasVencidos: diasVencidos,
+      estado: saldoPendiente > 0 ? 'pendiente' : 'pagado',
+      pagado: saldoPendiente === 0,
+      // Campos adicionales útiles
+      tipoTransaccion: dte.tipoTransaccion,
+      numeroInterno: dte.numeroInterno,
+      urlPDF: dte.urlPDF,
+      urlXML: dte.urlXML,
+      // Información de pagos si existe
+      cartolas: dte.Cartolas || []
+    };
+  });
+};
+
+/**
+ * Adapta compras al formato de cuentas por pagar
+ */
+const adaptarCompras = (compras) => {
+  console.log(`💸 Adaptando ${compras.length} compras`);
+  
+  return compras.map((compra, index) => {
+    // Logging para la primera compra
+    if (index === 0) {
+      console.log('🔍 Estructura de la primera compra:', {
+        id: compra.id,
+        folio: compra.folio,
+        tipo: compra.tipo,
+        razonSocial: compra.razonSocial,
+        montoTotal: compra.montoTotal,
+        Saldo: compra.Saldo,
+        fechaPagoInterna: compra.fechaPagoInterna
+      });
+    }
+
+    // Determinar el monto pendiente
+    let saldoPendiente = 0;
+    if (compra.Saldo?.saldo_acreedor) {
+      saldoPendiente = compra.Saldo.saldo_acreedor;
+    } else if (compra.Saldo?.saldoAcreedor) {
+      saldoPendiente = compra.Saldo.saldoAcreedor;
+    } else if (!compra.fechaPagoInterna && compra.montoTotal) {
+      saldoPendiente = compra.montoTotal;
+    }
+
+    const fechaVencimiento = compra.fechaVencimiento || compra.fecha_vencimiento || compra.fechaEmision;
+    const diasVencidos = calcularDiasVencidos(fechaVencimiento);
+    
+    return {
+      id: compra.id,
+      folio: compra.folio || compra.numero || 'S/N',
+      tipo: obtenerTipoDocumento(compra.tipo || compra.tipo_documento),
+      tipoNumero: compra.tipo || compra.tipo_documento,
+      proveedor: {
+        nombre: compra.razonSocial || compra.ClienteProveedor?.razonSocial || 'Sin nombre',
+        rut: compra.rutEmisor || compra.ClienteProveedor?.rut || 'Sin RUT'
+      },
+      fechaEmision: compra.fechaEmision || compra.fecha_emision,
+      fechaVencimiento: fechaVencimiento,
+      fechaPagoInterna: compra.fechaPagoInterna,
+      monto: compra.montoTotal || compra.monto_total || 0,
+      montoNeto: compra.montoNeto || compra.monto_neto || 0,
+      iva: compra.iva || compra.montoIva || 0,
+      saldo: saldoPendiente,
+      diasVencidos: diasVencidos,
+      estado: compra.estado || (compra.fechaPagoInterna ? 'pagado' : 'pendiente'),
+      pagado: compra.fechaPagoInterna !== null || saldoPendiente === 0,
+      // Campos adicionales
+      observaciones: compra.observaciones || '',
+      centroCosto: compra.CentroCosto?.nombre || ''
+    };
+  });
+};
+
+/**
+ * Adapta clientes al formato esperado
+ */
+const adaptarClientes = (clientes) => {
+  return clientes.map(cliente => ({
+    id: cliente.id,
+    nombre: cliente.razonSocial || cliente.nombre || 'Sin nombre',
+    rut: cliente.rut || 'Sin RUT',
+    email: cliente.email || cliente.correo || '',
+    telefono: cliente.telefono || cliente.fono || '',
+    direccion: cliente.direccion || cliente.direccionComercial || '',
+    comuna: cliente.comuna || '',
+    ciudad: cliente.ciudad || '',
+    giro: cliente.giro || '',
+    contacto: cliente.contacto || cliente.nombreContacto || '',
+    plazoPago: cliente.plazoPago || 30,
+    activo: cliente.activo !== false
+  }));
+};
+
+/**
+ * Adapta proveedores al formato esperado
+ */
+const adaptarProveedores = (proveedores) => {
+  return proveedores.map(proveedor => ({
+    id: proveedor.id,
+    nombre: proveedor.razonSocial || proveedor.nombre || 'Sin nombre',
+    rut: proveedor.rut || 'Sin RUT',
+    email: proveedor.email || proveedor.correo || '',
+    telefono: proveedor.telefono || proveedor.fono || '',
+    direccion: proveedor.direccion || '',
+    comuna: proveedor.comuna || '',
+    ciudad: proveedor.ciudad || '',
+    giro: proveedor.giro || '',
+    contacto: proveedor.contacto || proveedor.nombreContacto || '',
+    banco: proveedor.banco || '',
+    numeroCuenta: proveedor.numeroCuenta || proveedor.cuentaBancaria || '',
+    tipoCuenta: proveedor.tipoCuenta || '',
+    activo: proveedor.activo !== false
+  }));
+};
+
+/**
+ * Adapta flujo de caja al formato esperado
+ */
+const adaptarFlujoCaja = (datos) => {
+  console.log('💵 Adaptando flujo de caja, datos recibidos:', datos);
+  
+  // Si viene un objeto con arrFlujoCaja
+  if (datos.arrFlujoCaja && Array.isArray(datos.arrFlujoCaja)) {
+    return procesarFlujoCaja(datos.arrFlujoCaja);
+  }
+  
+  // Si ya es un array de movimientos
+  if (Array.isArray(datos)) {
+    return procesarFlujoCaja(datos);
+  }
+  
+  // Si no hay datos
+  return {
+    periodos: [],
+    totales: { ingresos: 0, egresos: 0, saldo: 0 }
+  };
+};
+
+/**
+ * Procesa los movimientos del flujo de caja agrupándolos por período
+ */
+const procesarFlujoCaja = (movimientos) => {
+  // Agrupar por mes
+  const periodosPorMes = {};
+  
+  movimientos.forEach(mov => {
+    const fecha = new Date(mov.fecha || mov.fechaMovimiento);
+    const mesKey = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+    
+    if (!periodosPorMes[mesKey]) {
+      periodosPorMes[mesKey] = {
+        fecha: mesKey,
+        ingresos: 0,
+        egresos: 0,
+        movimientos: []
+      };
+    }
+    
+    const monto = mov.monto || mov.montoMovimiento || 0;
+    
+    if (monto > 0) {
+      periodosPorMes[mesKey].ingresos += monto;
+    } else {
+      periodosPorMes[mesKey].egresos += Math.abs(monto);
+    }
+    
+    periodosPorMes[mesKey].movimientos.push(mov);
+  });
+  
+  // Convertir a array y ordenar por fecha
+  const periodos = Object.values(periodosPorMes)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+  
+  // Calcular totales
+  const totales = periodos.reduce((acc, periodo) => ({
+    ingresos: acc.ingresos + periodo.ingresos,
+    egresos: acc.egresos + periodo.egresos,
+    saldo: acc.ingresos + periodo.ingresos - acc.egresos - periodo.egresos
+  }), { ingresos: 0, egresos: 0, saldo: 0 });
+  
+  return { periodos, totales };
+};
+
+// === FUNCIONES AUXILIARES ===
+
+/**
+ * Calcula los días vencidos desde una fecha
+ */
+const calcularDiasVencidos = (fechaVencimiento) => {
+  if (!fechaVencimiento) return 0;
+  
+  const hoy = new Date();
+  const vencimiento = new Date(fechaVencimiento);
+  const diferencia = hoy - vencimiento;
+  const dias = Math.floor(diferencia / (1000 * 60 * 60 * 24));
+  
+  return dias > 0 ? dias : 0;
+};
+
+/**
+ * Obtiene el nombre del tipo de documento según su código
+ */
+const obtenerTipoDocumento = (tipo) => {
+  const tipos = {
+    30: 'Factura',
+    32: 'Factura de venta exenta',
+    33: 'Factura electrónica',
+    34: 'Factura no afecta o exenta electrónica',
+    35: 'Boleta',
+    38: 'Boleta exenta',
+    39: 'Boleta electrónica',
+    41: 'Boleta exenta electrónica',
+    46: 'Factura de compra',
+    52: 'Guía de despacho',
+    56: 'Nota de débito',
+    61: 'Nota de crédito',
+    110: 'Factura de exportación',
+    111: 'Nota de débito de exportación',
+    112: 'Nota de crédito de exportación'
+  };
+  
+  return tipos[tipo] || `Tipo ${tipo}`;
+};
+
+/**
+ * Determina el estado de un DTE basado en su información
+ */
+const determinarEstadoDTE = (dte, saldoPendiente) => {
+  if (dte.anulado) return 'anulado';
+  if (saldoPendiente === 0) return 'pagado';
+  if (saldoPendiente > 0) return 'pendiente';
+  return 'desconocido';
+};
