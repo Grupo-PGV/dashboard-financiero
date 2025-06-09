@@ -22,6 +22,7 @@ import ChipaxAdvancedExplorer from '../components/ChipaxAdvancedExplorer';
 import ChipaxFinalDebugger from '../components/ChipaxFinalDebugger';
 import ChipaxCartolaCalculator from '../components/ChipaxCartolaCalculator';
 import ChipaxSaldoConFechas from '../components/ChipaxSaldoConFechas';
+import ChipaxSaldosTester from '../components/ChipaxSaldosTester';
 
 const DashboardFinancieroIntegrado = () => {
   // Estados principales
@@ -281,7 +282,7 @@ const DashboardFinancieroIntegrado = () => {
           />
         </div>
 <div className="mb-6">
-  <ChipaxSaldoConFechas />
+  <ChipaxSaldosTester />
 </div>
       
         {/* Información de paginación */}
