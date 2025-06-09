@@ -183,148 +183,65 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
 // === ENDPOINTS ESPECÍFICOS CORREGIDOS SEGÚN DOCUMENTACIÓN ===
 
 /**
- * Obtiene los saldos desde el endpoint /saldos
- * Filtra por modelo CuentaCorriente
+ * Obtiene los saldos bancarios desde el flujo de caja
+ * Como el endpoint /saldos no existe, calculamos los saldos desde los movimientos
  */
-export const obtenerSaldosDesdeEndpoint = async () => {
-  console.log('\n💰 Obteniendo saldos desde endpoint /saldos...');
+export const obtenerSaldosDesdeFlujoCaja = async () => {
+  console.log('\n💰 Calculando saldos desde flujo de caja...');
   
   try {
-    // Primero probar el endpoint general de saldos
-    console.log('🔍 Probando endpoint /saldos con filtro de CuentaCorriente...');
+    // Obtener todos los movimientos del flujo de caja
+    const flujoResponse = await fetchAllPaginatedData('/flujo-caja/cartolas');
+    const movimientos = flujoResponse.items;
+    console.log(`📊 ${movimientos.length} movimientos encontrados`);
     
-    // Intentar diferentes formas de filtrar
-    const endpointsAProbar = [
-      '/saldos?modelo=CuentaCorriente',
-      '/saldos?model=CuentaCorriente',
-      '/saldos?tipo=CuentaCorriente',
-      '/saldos' // Sin filtro, filtraremos después
-    ];
-    
-    let saldosData = null;
-    
-    for (const endpoint of endpointsAProbar) {
-      try {
-        console.log(`📡 Probando: ${endpoint}`);
-        const response = await fetchAllPaginatedData(endpoint);
-        
-        if (response.items && response.items.length > 0) {
-          console.log(`✅ Éxito con ${endpoint}: ${response.items.length} saldos encontrados`);
-          saldosData = response;
-          break;
-        }
-      } catch (error) {
-        console.log(`❌ ${endpoint} falló:`, error.message);
-      }
-    }
-    
-    if (!saldosData || !saldosData.items) {
-      throw new Error('No se pudo obtener datos del endpoint /saldos');
-    }
-    
-    // Filtrar solo los saldos de CuentaCorriente
-    const saldosCuentasCorrientes = saldosData.items.filter(saldo => 
-      saldo.modelo === 'CuentaCorriente' || 
-      saldo.model === 'CuentaCorriente' ||
-      saldo.type === 'CuentaCorriente'
-    );
-    
-    console.log(`📊 ${saldosCuentasCorrientes.length} saldos de cuentas corrientes encontrados`);
-    
-    // Crear un mapa de foreign_key -> saldo
+    // Agrupar movimientos por cuenta corriente
     const saldosPorCuenta = {};
     
-    saldosCuentasCorrientes.forEach(saldo => {
-      const cuentaId = saldo.foreign_key;
+    movimientos.forEach(mov => {
+      // El campo cuenta_corriente_id está en la estructura
+      const cuentaId = mov.cuenta_corriente_id;
       
-      // Solo considerar el último registro
-      if (saldo.last_record === 1 || saldo.last_record === true) {
-        // Calcular el saldo real según la lógica de ChatGPT
-        let saldoReal = 0;
-        if (saldo.saldo_acreedor > 0) {
-          saldoReal = saldo.saldo_acreedor;
-        } else if (saldo.saldo_deudor > 0) {
-          saldoReal = -saldo.saldo_deudor;
+      if (cuentaId) {
+        if (!saldosPorCuenta[cuentaId]) {
+          saldosPorCuenta[cuentaId] = {
+            ingresos: 0,
+            egresos: 0,
+            saldo: 0,
+            movimientos: 0,
+            ultimaFecha: null
+          };
         }
         
-        saldosPorCuenta[cuentaId] = {
-          saldoReal,
-          debe: saldo.debe || 0,
-          haber: saldo.haber || 0,
-          saldoDeudor: saldo.saldo_deudor || 0,
-          saldoAcreedor: saldo.saldo_acreedor || 0,
-          monedaId: saldo.moneda_id
-        };
+        // Los campos son 'abono' (ingreso) y 'cargo' (egreso)
+        const abono = mov.abono || 0;
+        const cargo = mov.cargo || 0;
         
-        console.log(`💳 Cuenta ID ${cuentaId}: $${saldoReal.toLocaleString('es-CL')}`);
+        saldosPorCuenta[cuentaId].ingresos += abono;
+        saldosPorCuenta[cuentaId].egresos += cargo;
+        saldosPorCuenta[cuentaId].movimientos++;
+        
+        // Actualizar fecha más reciente
+        if (mov.fecha && (!saldosPorCuenta[cuentaId].ultimaFecha || 
+            new Date(mov.fecha) > new Date(saldosPorCuenta[cuentaId].ultimaFecha))) {
+          saldosPorCuenta[cuentaId].ultimaFecha = mov.fecha;
+        }
       }
+    });
+    
+    // Calcular saldo neto para cada cuenta
+    Object.keys(saldosPorCuenta).forEach(cuentaId => {
+      // Saldo = ingresos (abonos) - egresos (cargos)
+      saldosPorCuenta[cuentaId].saldo = 
+        saldosPorCuenta[cuentaId].ingresos - saldosPorCuenta[cuentaId].egresos;
+      
+      console.log(`💳 Cuenta ID ${cuentaId}: $${saldosPorCuenta[cuentaId].saldo.toLocaleString('es-CL')} (${saldosPorCuenta[cuentaId].movimientos} movimientos)`);
     });
     
     return saldosPorCuenta;
     
   } catch (error) {
-    console.error('❌ Error obteniendo saldos desde endpoint:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene las cuentas corrientes con sus saldos
- * Combina información de /cuentas-corrientes con /saldos
- */
-export const obtenerSaldosBancariosCompletos = async () => {
-  console.log('\n💰 Obteniendo cuentas corrientes con saldos completos...');
-  
-  try {
-    // Paso 1: Obtener las cuentas corrientes
-    const cuentasResponse = await fetchAllPaginatedData('/cuentas-corrientes');
-    const cuentas = cuentasResponse.items;
-    console.log(`✅ ${cuentas.length} cuentas obtenidas`);
-    
-    // Paso 2: Obtener los saldos
-    const saldosPorCuenta = await obtenerSaldosDesdeEndpoint();
-    
-    // Paso 3: Combinar cuentas con sus saldos
-    const cuentasConSaldos = cuentas.map(cuenta => {
-      const saldoInfo = saldosPorCuenta[cuenta.id];
-      
-      if (saldoInfo) {
-        return {
-          ...cuenta,
-          Saldo: {
-            debe: saldoInfo.debe,
-            haber: saldoInfo.haber,
-            saldo_deudor: saldoInfo.saldoDeudor,
-            saldo_acreedor: saldoInfo.saldoAcreedor
-          },
-          saldoCalculado: saldoInfo.saldoReal
-        };
-      } else {
-        console.log(`⚠️ No se encontró saldo para cuenta ${cuenta.id} - ${cuenta.numeroCuenta}`);
-        return {
-          ...cuenta,
-          Saldo: {
-            debe: 0,
-            haber: 0,
-            saldo_deudor: 0,
-            saldo_acreedor: 0
-          },
-          saldoCalculado: 0
-        };
-      }
-    });
-    
-    // Verificar resultados
-    const cuentasConSaldo = cuentasConSaldos.filter(c => c.saldoCalculado !== 0);
-    console.log(`✅ ${cuentasConSaldo.length} cuentas con saldo encontradas`);
-    
-    return {
-      items: cuentasConSaldos,
-      paginationStats: cuentasResponse.paginationStats
-    };
-    
-  } catch (error) {
-    console.error('❌ Error obteniendo cuentas con saldos:', error);
+    console.error('❌ Error calculando saldos desde flujo de caja:', error);
     throw error;
   }
 };
@@ -332,7 +249,7 @@ export const obtenerSaldosBancariosCompletos = async () => {
 /**
  * Obtiene las cuentas corrientes (saldos bancarios) con información completa
  * Endpoint: /cuentas-corrientes
- * MEJORADO: Incluye logging detallado y búsqueda de saldos
+ * MEJORADO: Incluye cálculo de saldos desde flujo de caja
  */
 export const obtenerSaldosBancarios = async () => {
   console.log('\n💰 Obteniendo cuentas corrientes...');
@@ -341,80 +258,55 @@ export const obtenerSaldosBancarios = async () => {
     
     console.log(`✅ ${data.items.length} cuentas corrientes obtenidas`);
     
-    // Verificar si las cuentas incluyen el objeto Saldo
-    if (data.items && data.items.length > 0) {
-      const primeraCuenta = data.items[0];
+    // Como sabemos que el endpoint /saldos no existe, ir directo al flujo de caja
+    console.log('🔄 Calculando saldos desde flujo de caja...');
+    
+    try {
+      const saldosPorCuenta = await obtenerSaldosDesdeFlujoCaja();
       
-      // Log detallado de la estructura
-      console.log('📊 Estructura de la primera cuenta corriente:');
-      console.log('- ID:', primeraCuenta.id);
-      console.log('- Número:', primeraCuenta.numeroCuenta);
-      console.log('- Banco:', primeraCuenta.banco);
+      // Combinar cuentas con saldos calculados
+      data.items = data.items.map(cuenta => {
+        const saldoInfo = saldosPorCuenta[cuenta.id];
+        
+        if (saldoInfo) {
+          console.log(`✅ Saldo encontrado para cuenta ${cuenta.numeroCuenta}: $${saldoInfo.saldo.toLocaleString('es-CL')}`);
+          
+          return {
+            ...cuenta,
+            Saldo: {
+              debe: saldoInfo.egresos,
+              haber: saldoInfo.ingresos,
+              saldo_deudor: saldoInfo.saldo < 0 ? Math.abs(saldoInfo.saldo) : 0,
+              saldo_acreedor: saldoInfo.saldo > 0 ? saldoInfo.saldo : 0
+            },
+            saldoCalculado: saldoInfo.saldo,
+            ultimoMovimiento: saldoInfo.ultimaFecha,
+            totalMovimientos: saldoInfo.movimientos
+          };
+        } else {
+          console.log(`⚠️ No se encontraron movimientos para cuenta ${cuenta.numeroCuenta}`);
+          
+          return {
+            ...cuenta,
+            Saldo: {
+              debe: 0,
+              haber: 0,
+              saldo_deudor: 0,
+              saldo_acreedor: 0
+            },
+            saldoCalculado: 0,
+            ultimoMovimiento: null,
+            totalMovimientos: 0
+          };
+        }
+      });
       
-      // Verificar si existe el objeto Saldo
-      if (primeraCuenta.Saldo) {
-        console.log('💵 Objeto Saldo encontrado:', primeraCuenta.Saldo);
-        return data;
-      } else {
-        console.log('⚠️ No se encontró objeto Saldo en la cuenta');
-        
-        // Intentar obtener saldos con parámetros adicionales
-        console.log('🔄 Intentando con parámetros adicionales...');
-        
-        // Probar diferentes parámetros que podrían incluir los saldos
-        const parametrosAProbar = [
-          'incluirSaldo=true',
-          'withBalance=true', 
-          'conSaldo=1',
-          'expand=saldo',
-          'include=saldo'
-        ];
-        
-        for (const param of parametrosAProbar) {
-          try {
-            console.log(`🔍 Probando con: /cuentas-corrientes?${param}`);
-            const dataConParam = await fetchAllPaginatedData(`/cuentas-corrientes?${param}`);
-            
-            if (dataConParam.items && dataConParam.items.length > 0 && dataConParam.items[0].Saldo) {
-              console.log(`✅ ¡Éxito! El parámetro '${param}' incluye los saldos`);
-              return dataConParam;
-            }
-          } catch (error) {
-            console.log(`❌ El parámetro '${param}' no funcionó`);
-          }
-        }
-        
-        // Si ningún parámetro funcionó, intentar obtener saldos desde endpoint /saldos
-        console.log('🔄 Intentando obtener saldos desde endpoint /saldos...');
-        
-        try {
-          const saldosPorCuenta = await obtenerSaldosDesdeEndpoint();
-          
-          // Combinar cuentas con saldos
-          data.items = data.items.map(cuenta => {
-            const saldoInfo = saldosPorCuenta[cuenta.id];
-            
-            if (saldoInfo) {
-              return {
-                ...cuenta,
-                Saldo: {
-                  debe: saldoInfo.debe,
-                  haber: saldoInfo.haber,
-                  saldo_deudor: saldoInfo.saldoDeudor,
-                  saldo_acreedor: saldoInfo.saldoAcreedor
-                },
-                saldoCalculado: saldoInfo.saldoReal
-              };
-            }
-            
-            return cuenta;
-          });
-          
-          console.log('✅ Saldos agregados exitosamente a las cuentas');
-        } catch (errorSaldos) {
-          console.log('❌ No se pudieron obtener saldos desde /saldos:', errorSaldos.message);
-        }
-      }
+      const cuentasConSaldo = data.items.filter(c => c.saldoCalculado !== 0);
+      console.log(`✅ ${cuentasConSaldo.length} cuentas con saldo calculado desde flujo de caja`);
+      
+    } catch (errorFlujo) {
+      console.log('❌ Error calculando saldos desde flujo de caja:', errorFlujo.message);
+      console.log('⚠️ Devolviendo cuentas sin saldos');
     }
     
     return data;
@@ -584,8 +476,7 @@ const chipaxService = {
   obtenerFlujoCaja,
   obtenerHonorarios,
   obtenerBoletasTerceros,
-  obtenerSaldosDesdeEndpoint,
-  obtenerSaldosBancariosCompletos
+  obtenerSaldosDesdeFlujoCaja
 };
 
 export default chipaxService;
