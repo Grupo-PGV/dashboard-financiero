@@ -195,14 +195,29 @@ const adaptarCompras = (compras) => {
     const fechaVencimiento = compra.fechaVencimiento || compra.fecha_vencimiento || compra.fechaEmision;
     const diasVencidos = calcularDiasVencidos(fechaVencimiento);
     
+    // IMPORTANTE: Asegurar que proveedor sea un string simple, no un objeto
+    const proveedorNombre = compra.razonSocial || 
+                           compra.ClienteProveedor?.razonSocial || 
+                           compra.proveedor?.nombre ||
+                           compra.proveedor ||
+                           'Sin nombre';
+    
+    const proveedorRut = compra.rutEmisor || 
+                        compra.ClienteProveedor?.rut || 
+                        compra.proveedor?.rut ||
+                        'Sin RUT';
+    
     return {
       id: compra.id,
       folio: compra.folio || compra.numero || 'S/N',
       tipo: obtenerTipoDocumento(compra.tipo || compra.tipo_documento),
       tipoNumero: compra.tipo || compra.tipo_documento,
-      proveedor: {
-        nombre: compra.razonSocial || compra.ClienteProveedor?.razonSocial || 'Sin nombre',
-        rut: compra.rutEmisor || compra.ClienteProveedor?.rut || 'Sin RUT'
+      // CAMBIO CRÍTICO: proveedor ahora es un string simple
+      proveedor: proveedorNombre,
+      // Información del proveedor en objeto separado
+      proveedorInfo: {
+        nombre: proveedorNombre,
+        rut: proveedorRut
       },
       fechaEmision: compra.fechaEmision || compra.fecha_emision,
       fechaVencimiento: fechaVencimiento,
