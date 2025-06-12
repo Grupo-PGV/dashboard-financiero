@@ -1,5 +1,5 @@
 // chipaxService.js - Servicio completo para integración con API de Chipax
-// VERSIÓN CORREGIDA PARA NETLIFY BUILD
+// VERSIÓN CON EXPORTACIONES ÚNICAS Y LIMPIAS
 
 // === CONFIGURACIÓN DE LA API ===
 const CHIPAX_API_URL = 'https://api.chipax.com/v2';
@@ -212,8 +212,6 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
   }
 };
 
-// === FUNCIONES DE PAGINACIÓN ===
-
 /**
  * Carga todos los datos paginados de un endpoint
  * @param {string} endpoint - Endpoint a consultar
@@ -331,8 +329,6 @@ export const fetchAllPaginatedData = async (endpoint, options = {}) => {
   };
 };
 
-// === FUNCIONES ESPECÍFICAS DE ENDPOINTS ===
-
 /**
  * VERSIÓN SIMPLIFICADA: Obtiene saldos bancarios sin dependencia de API externa
  */
@@ -340,35 +336,6 @@ export const obtenerSaldosBancarios = async () => {
   console.log('\n💰 Obteniendo saldos bancarios...');
   
   try {
-    // Contenido de saldos iniciales por defecto
-    const contenidoSaldosIniciales = `BCI
-cte cte:89107021
-$178.098
-Saldo al 31 de diciembre 2024
-
-chipax_wallet
-cte cte: 0000000803
-$0
-Saldo al 31 de diciembre 2024
-
-generico
-cte cte: 9117726
-$0
-Saldo al 31 de diciembre 2024
-
-banconexion2
-cte cte: 00-800-10734-09
-$129.969.864
-Saldo al 31 de diciembre 2024
-
-santander
-cte cte: 0-000-7066661-8
-$0
-Saldo al 31 de diciembre 2024`;
-
-    // Parsear saldos iniciales
-    const saldosIniciales = parsearSaldosIniciales(contenidoSaldosIniciales);
-    
     // Crear cuentas con saldos finales conocidos (basado en tu test exitoso)
     const cuentasFinales = [
       {
@@ -440,43 +407,6 @@ Saldo al 31 de diciembre 2024`;
     console.error('❌ Error obteniendo saldos bancarios:', error);
     throw error;
   }
-};
-
-/**
- * Función auxiliar para parsear saldos iniciales
- */
-const parsearSaldosIniciales = (contenidoTXT) => {
-  const saldosIniciales = {};
-  const lineas = contenidoTXT.split('\n').filter(linea => linea.trim());
-  
-  let cuentaActual = null;
-  
-  for (let i = 0; i < lineas.length; i++) {
-    const linea = lineas[i].trim();
-    
-    if (!linea.startsWith('cte') && !linea.startsWith('$') && !linea.startsWith('Saldo')) {
-      cuentaActual = {
-        nombreBanco: linea,
-        numeroCuenta: null,
-        saldoInicial: 0
-      };
-    }
-    else if (linea.startsWith('cte cte:')) {
-      if (cuentaActual) {
-        cuentaActual.numeroCuenta = linea.replace('cte cte:', '').trim();
-      }
-    }
-    else if (linea.startsWith('$')) {
-      if (cuentaActual && cuentaActual.numeroCuenta) {
-        const saldoStr = linea.replace('$', '').replace(/\./g, '').replace(/,/g, '');
-        cuentaActual.saldoInicial = parseInt(saldoStr) || 0;
-        
-        saldosIniciales[cuentaActual.numeroCuenta] = cuentaActual;
-      }
-    }
-  }
-  
-  return saldosIniciales;
 };
 
 /**
@@ -641,37 +571,11 @@ export const obtenerEstadoAutenticacion = () => {
   };
 };
 
-// === EXPORTACIONES ===
-
-// ✅ EXPORT DEFAULT (para compatibilidad con import chipaxService)
+// === EXPORT DEFAULT ÚNICO ===
 const chipaxService = {
-  // Funciones de autenticación
   getChipaxToken,
   fetchFromChipax,
   fetchAllPaginatedData,
-  
-  // Funciones principales
-  obtenerSaldosBancarios,
-  obtenerCuentasPorCobrar,
-  obtenerCuentasPorPagar,
-  obtenerClientes,
-  obtenerProveedores,
-  obtenerFlujoCaja,
-  obtenerHonorarios,
-  obtenerBoletasTerceros,
-  
-  // Funciones auxiliares
-  verificarConectividadChipax,
-  obtenerEstadoAutenticacion
-};
-
-export default chipaxService;
-
-// ✅ EXPORTACIONES NAMED (para compatibilidad con imports específicos)
-// Nota: No exportamos fetchAllPaginatedData por separado para evitar duplicación
-export {
-  getChipaxToken,
-  fetchFromChipax,
   obtenerSaldosBancarios,
   obtenerCuentasPorCobrar,
   obtenerCuentasPorPagar,
