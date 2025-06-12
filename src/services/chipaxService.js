@@ -643,21 +643,6 @@ export const obtenerEstadoAutenticacion = () => {
 
 // === EXPORTACIONES ===
 
-// ✅ EXPORTACIONES NAMED (para compatibilidad con imports específicos)
-export {
-  fetchAllPaginatedData,
-  obtenerSaldosBancarios,
-  obtenerCuentasPorCobrar,
-  obtenerCuentasPorPagar,
-  obtenerClientes,
-  obtenerProveedores,
-  obtenerFlujoCaja,
-  obtenerHonorarios,
-  obtenerBoletasTerceros,
-  verificarConectividadChipax,
-  obtenerEstadoAutenticacion
-};
-
 // ✅ EXPORT DEFAULT (para compatibilidad con import chipaxService)
 const chipaxService = {
   // Funciones de autenticación
@@ -676,6 +661,25 @@ const chipaxService = {
   obtenerBoletasTerceros,
   
   // Funciones auxiliares
+  verificarConectividadChipax,
+  obtenerEstadoAutenticacion
+};
+
+export default chipaxService;
+
+// ✅ EXPORTACIONES NAMED (para compatibilidad con imports específicos)
+// Nota: No exportamos fetchAllPaginatedData por separado para evitar duplicación
+export {
+  getChipaxToken,
+  fetchFromChipax,
+  obtenerSaldosBancarios,
+  obtenerCuentasPorCobrar,
+  obtenerCuentasPorPagar,
+  obtenerClientes,
+  obtenerProveedores,
+  obtenerFlujoCaja,
+  obtenerHonorarios,
+  obtenerBoletasTerceros,
   verificarConectividadChipax,
   obtenerEstadoAutenticacion
 };
