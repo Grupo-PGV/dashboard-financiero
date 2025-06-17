@@ -1,4 +1,4 @@
-// chipaxAdapter.js - Adaptador para estructura real de la API Chipax
+// chipaxAdapter.js - Con compatibilidad hacia atrás para evitar errores de importación
 
 /**
  * ADAPTADOR: Saldos Bancarios (Cuentas Corrientes + Cartolas)
@@ -167,6 +167,11 @@ export const adaptarCuentasPorPagar = (compras) => {
   });
 };
 
+// ✅ COMPATIBILIDAD HACIA ATRÁS: Alias para evitar errores de importación
+export const adaptarCompras = adaptarCuentasPorPagar;
+export const adaptarDTEs = adaptarCuentasPorCobrar;
+export const adaptarCuentasCorrientes = adaptarSaldosBancarios;
+
 /**
  * ADAPTADOR: Clientes
  * Endpoint: /clientes
@@ -315,17 +320,27 @@ export const probarAdaptadores = () => {
   const resultados = {
     saldos: adaptarSaldosBancarios(cuentaPrueba),
     porCobrar: adaptarCuentasPorCobrar(dtePrueba),
-    porPagar: adaptarCuentasPorPagar(compraPrueba)
+    porPagar: adaptarCuentasPorPagar(compraPrueba),
+    
+    // ✅ Probar también alias para compatibilidad
+    comprasAlias: adaptarCompras(compraPrueba),
+    dtesAlias: adaptarDTEs(dtePrueba)
   };
   
   console.log('✅ Resultados de prueba:', resultados);
   
   // Verificar que proveedor sea string
   const proveedorEsString = resultados.porPagar.every(c => typeof c.proveedor === 'string');
+  const aliasProveedorEsString = resultados.comprasAlias.every(c => typeof c.proveedor === 'string');
+  
   console.log('✅ Proveedores son strings:', proveedorEsString);
+  console.log('✅ Alias proveedores son strings:', aliasProveedorEsString);
   
   return resultados;
 };
+
+// ✅ COMPATIBILIDAD HACIA ATRÁS: También exportar con nombre anterior
+export const probarAdaptadorCorregido = probarAdaptadores;
 
 // Exportaciones
 export default {
@@ -334,5 +349,13 @@ export default {
   adaptarCuentasPorPagar,
   adaptarClientes,
   adaptarFlujoCaja,
-  probarAdaptadores
+  
+  // ✅ Alias para compatibilidad hacia atrás
+  adaptarCompras,
+  adaptarDTEs,
+  adaptarCuentasCorrientes,
+  
+  // Funciones de prueba
+  probarAdaptadores,
+  probarAdaptadorCorregido
 };
