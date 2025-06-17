@@ -1,13 +1,11 @@
 // src/services/chipaxService.js
-// Servicio completo para integración con API Chipax - VERSIÓN CORREGIDA
+// Servicio completo para integración con API Chipax - VERSIÓN CORREGIDA CON CREDENCIALES
 
-// === CONFIGURACIÓN Y CACHE DE TOKEN ===
-const CHIPAX_BASE_URL = process.env.NODE_ENV === 'development' 
-  ? '/v2'
-  : 'https://api.chipax.com/v2';
-
-const CHIPAX_APP_ID = process.env.REACT_APP_CHIPAX_APP_ID;
-const CHIPAX_APP_SECRET = process.env.REACT_APP_CHIPAX_APP_SECRET;
+// === CONFIGURACIÓN DE LA API ===
+const CHIPAX_API_URL = 'https://api.chipax.com/v2';
+const APP_ID = '605e0aa5-ca0c-4513-b6ef-0030ac1f0849';
+const SECRET_KEY = 'f01974df-86e1-45a0-924f-75961ea926fc';
+const COMPANY_NAME = 'PGR Seguridad S.p.A';
 
 // Configuración de paginación
 const PAGINATION_CONFIG = {
@@ -61,21 +59,18 @@ export const getChipaxToken = async () => {
   console.log('🔐 Obteniendo nuevo token de Chipax...');
   
   try {
-    if (!CHIPAX_APP_ID || !CHIPAX_APP_SECRET) {
-      throw new Error('❌ Credenciales de Chipax no configuradas');
-    }
+    console.log('🔑 APP_ID:', APP_ID.substring(0, 8) + '...');
+    console.log('🏢 Empresa:', COMPANY_NAME);
 
-    console.log('🔑 APP_ID:', CHIPAX_APP_ID.substring(0, 8) + '...');
-
-    const response = await fetch(`${CHIPAX_BASE_URL}/auth`, {
+    const response = await fetch(`${CHIPAX_API_URL}/auth`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
       body: JSON.stringify({
-        app_id: CHIPAX_APP_ID,
-        app_secret: CHIPAX_APP_SECRET,
+        app_id: APP_ID,
+        app_secret: SECRET_KEY,
       }),
     });
 
@@ -84,7 +79,7 @@ export const getChipaxToken = async () => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ Error en autenticación:', errorText);
-      throw new Error(`Error de autenticación: ${response.status}`);
+      throw new Error(`Error de autenticación: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
@@ -129,7 +124,7 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), PAGINATION_CONFIG.TIMEOUT);
 
-    const response = await fetch(`${CHIPAX_BASE_URL}${endpoint}`, {
+    const response = await fetch(`${CHIPAX_API_URL}${endpoint}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -305,14 +300,71 @@ export const fetchAllPaginatedData = async (endpoint, options = {}) => {
 // === FUNCIONES ESPECÍFICAS DE DATOS ===
 
 /**
- * Obtiene saldos bancarios
+ * Obtiene saldos bancarios - VERSIÓN CORREGIDA
  */
 export const obtenerSaldosBancarios = async () => {
   console.log('\n🏦 Obteniendo saldos bancarios...');
   
   try {
-    // Retornar datos hardcodeados temporalmente para evitar problemas de API
-    console.log('📊 Usando datos de saldos bancarios optimizados...');
+    // CORRECCIÓN: Ahora intentaremos obtener datos reales de la API
+    console.log('📡 Intentando obtener saldos desde API Chipax...');
+    
+    // Primero intentar el endpoint estándar de cuentas bancarias
+    try {
+      const data = await fetchAllPaginatedData('/cuentas_bancarias');
+      
+      if (data && data.items && data.items.length > 0) {
+        console.log(`✅ ${data.items.length} cuentas bancarias obtenidas desde API`);
+        return data;
+      }
+    } catch (error) {
+      console.warn('⚠️ Endpoint /cuentas_bancarias falló, intentando alternativas...');
+    }
+    
+    // Intentar endpoint de flujo de caja
+    try {
+      const flujoCajaData = await fetchFromChipax('/flujo-caja/init');
+      
+      if (flujoCajaData && flujoCajaData.arrFlujoCaja) {
+        console.log('✅ Datos de flujo de caja obtenidos, extrayendo saldos bancarios...');
+        
+        // Extraer cuentas bancarias del flujo de caja
+        const cuentasBancarias = flujoCajaData.arrFlujoCaja
+          .filter(item => item.tipo === 'cuenta_bancaria' || item.banco)
+          .map((cuenta, index) => ({
+            id: cuenta.id || index + 1,
+            nombre: cuenta.nombre || cuenta.numero_cuenta || 'Cuenta sin nombre',
+            banco: cuenta.banco || 'Sin especificar',
+            saldo: cuenta.saldo || 0,
+            tipo: cuenta.tipo_cuenta || 'Cuenta Corriente',
+            moneda: cuenta.moneda || 'CLP',
+            origenSaldo: 'flujo_caja_api'
+          }));
+        
+        if (cuentasBancarias.length > 0) {
+          console.log(`✅ ${cuentasBancarias.length} cuentas extraídas del flujo de caja`);
+          
+          return {
+            items: cuentasBancarias,
+            paginationStats: {
+              totalItems: cuentasBancarias.length,
+              loadedItems: cuentasBancarias.length,
+              completenessPercent: 100,
+              loadedPages: 1,
+              totalPages: 1,
+              failedPages: [],
+              duration: 0,
+              observaciones: 'Extraído desde flujo de caja'
+            }
+          };
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Endpoint de flujo de caja también falló:', error.message);
+    }
+    
+    // Si todo falla, usar datos hardcodeados pero con los valores actualizados
+    console.log('📊 Usando datos de saldos bancarios optimizados (fallback)...');
     
     const cuentasFinales = [
       {
@@ -322,7 +374,7 @@ export const obtenerSaldosBancarios = async () => {
         saldo: 104537850,
         tipo: 'Cuenta Corriente',
         moneda: 'CLP',
-        origenSaldo: 'saldo_inicial_mas_estimacion'
+        origenSaldo: 'saldo_hardcodeado_actualizado'
       },
       {
         id: 2,
@@ -331,7 +383,7 @@ export const obtenerSaldosBancarios = async () => {
         saldo: 0,
         tipo: 'Cuenta Corriente',
         moneda: 'CLP',
-        origenSaldo: 'saldo_inicial_mas_estimacion'
+        origenSaldo: 'saldo_hardcodeado_actualizado'
       },
       {
         id: 4,
@@ -340,7 +392,7 @@ export const obtenerSaldosBancarios = async () => {
         saldo: 52515136,
         tipo: 'Cuenta Corriente',
         moneda: 'CLP',
-        origenSaldo: 'saldo_inicial_mas_estimacion'
+        origenSaldo: 'saldo_hardcodeado_actualizado'
       },
       {
         id: 5,
@@ -349,13 +401,13 @@ export const obtenerSaldosBancarios = async () => {
         saldo: 0,
         tipo: 'Cuenta Corriente',
         moneda: 'CLP',
-        origenSaldo: 'saldo_inicial_mas_estimacion'
+        origenSaldo: 'saldo_hardcodeado_actualizado'
       }
     ];
 
     const totalSaldos = cuentasFinales.reduce((sum, cuenta) => sum + cuenta.saldo, 0);
     
-    console.log(`✅ ${cuentasFinales.length} cuentas procesadas`);
+    console.log(`✅ ${cuentasFinales.length} cuentas procesadas (fallback)`);
     console.log(`💰 Total calculado: $${totalSaldos.toLocaleString('es-CL')}`);
     
     return {
@@ -367,7 +419,8 @@ export const obtenerSaldosBancarios = async () => {
         loadedPages: 1,
         totalPages: 1,
         failedPages: [],
-        duration: 0
+        duration: 0,
+        observaciones: 'Datos hardcodeados como fallback'
       }
     };
     
@@ -590,9 +643,14 @@ export const verificarConectividadChipax = async () => {
     tokenCache.failureCount = 0;
     tokenCache.lastFailedEndpoint = null;
     
-    const response = await fetchFromChipax('/ping', {}, false);
+    // Intentar obtener token primero
+    const token = await getChipaxToken();
+    console.log('✅ Token obtenido correctamente');
+    
+    // Probar endpoint básico
+    const response = await fetchFromChipax('/empresas', {}, false);
     console.log('✅ Chipax responde correctamente');
-    return { ok: true, message: 'Conexión exitosa' };
+    return { ok: true, message: 'Conexión exitosa', token: token.substring(0, 20) + '...' };
     
   } catch (error) {
     console.error('❌ Error de conectividad:', error);
@@ -620,7 +678,12 @@ export const obtenerEstadoAutenticacion = () => {
     lastFailedEndpoint: tokenCache.lastFailedEndpoint,
     minutosParaExpirar: tokenCache.expiresAt 
       ? Math.round((tokenCache.expiresAt - new Date()) / 60000)
-      : null
+      : null,
+    credenciales: {
+      appId: APP_ID.substring(0, 8) + '...',
+      empresa: COMPANY_NAME,
+      configurado: true
+    }
   };
 };
 
