@@ -1,337 +1,135 @@
-// chipaxService.js - Versión corregida con Authorization header
+// chipaxService.js - Configuración con variables de entorno
 
-const CHIPAX_API_URL = 'https://api.chipax.com/v2';
-const APP_ID = '605e0aa5-ca0c-4513-b6ef-0030ac1f0849';
-const SECRET_KEY = 'f01974df-86e1-45a0-924f-75961ea926fc';
+// Configuración base desde variables de entorno
+const CHIPAX_API_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
+const APP_ID = process.env.REACT_APP_CHIPAX_APP_ID;
+const SECRET_KEY = process.env.REACT_APP_CHIPAX_SECRET_KEY;
 
-// Cache para el token de autenticación
+// Verificar que las credenciales estén configuradas
+if (!APP_ID || !SECRET_KEY) {
+  console.error('❌ ERROR: Credenciales de Chipax no configuradas.');
+  console.error('Por favor, configura REACT_APP_CHIPAX_APP_ID y REACT_APP_CHIPAX_SECRET_KEY en el archivo .env');
+}
+
+// Cache del token
 let tokenCache = {
   token: null,
-  expiresAt: null,
-  isRefreshing: false,
-  failureCount: 0
+  expiresAt: null
 };
 
-// === FUNCIÓN DE AUTENTICACIÓN ===
-const getChipaxToken = async () => {
-  console.log('🔐 Obteniendo token de Chipax...');
+/**
+ * Obtiene el token de autenticación
+ */
+export const getChipaxToken = async () => {
+  const now = new Date();
   
-  // Verificar si tenemos un token válido en cache
-  if (tokenCache.token && tokenCache.expiresAt && new Date() < tokenCache.expiresAt) {
-    console.log('🔑 Usando token válido en cache');
+  // Verificar si tenemos token válido en caché
+  if (tokenCache.token && tokenCache.expiresAt && tokenCache.expiresAt > now) {
+    console.log('🔑 Usando token en caché');
     return tokenCache.token;
   }
 
-  // Evitar múltiples requests simultáneos
-  if (tokenCache.isRefreshing) {
-    console.log('🔄 Token refresh en progreso, esperando...');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return tokenCache.token;
-  }
-
-  tokenCache.isRefreshing = true;
-
+  console.log('🔐 Obteniendo nuevo token de Chipax...');
+  console.log('📋 Usando app_id:', APP_ID ? `${APP_ID.substring(0, 8)}...` : 'NO CONFIGURADO');
+  
   try {
-    console.log('🔑 APP_ID:', APP_ID.substring(0, 8) + '...');
-
-    const response = await fetch(`${CHIPAX_API_URL}/auth`, {
+    const response = await fetch(`${CHIPAX_API_URL}/login`, {
       method: 'POST',
-      headers: {
+      headers: { 
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      body: JSON.stringify({
-        app_id: APP_ID,
-        secret_key: SECRET_KEY
+      body: JSON.stringify({ 
+        app_id: APP_ID, 
+        secret_key: SECRET_KEY 
       })
     });
 
     console.log('📡 Respuesta status:', response.status);
 
     if (!response.ok) {
-      throw new Error(`Error de autenticación: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
+      
+      if (response.status === 401) {
+        throw new Error('Credenciales inválidas. Verifica tu app_id y secret_key en https://app.chipax.com/secret_keys');
+      }
+      
+      throw new Error(`Error de autenticación ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('✅ Respuesta exitosa:', typeof data);
-
-    if (!data.token) {
-      throw new Error('Token no recibido en la respuesta de autenticación');
-    }
-
-    tokenCache.token = data.token;
-    tokenCache.expiresAt = new Date(Date.now() + (50 * 60 * 1000)); // 50 minutos
-    tokenCache.isRefreshing = false;
-    tokenCache.failureCount = 0;
-
-    console.log('🔐 Token guardado en cache. Longitud:', data.token.length);
-    console.log('🕒 Token expira en:', tokenCache.expiresAt.toISOString());
-
-    return data.token;
-
+    console.log('✅ Token obtenido exitosamente');
+    console.log('🏢 Empresa:', data.nombre || 'N/A');
+    console.log('👤 Usuario:', data.user || 'N/A');
+    
+    // Guardar token en caché (generalmente dura 24 horas)
+    tokenCache = {
+      token: data.token,
+      expiresAt: new Date(Date.now() + 23 * 60 * 60 * 1000) // 23 horas
+    };
+    
+    return tokenCache.token;
+    
   } catch (error) {
-    tokenCache.isRefreshing = false;
-    tokenCache.failureCount++;
-    console.error('❌ Error en autenticación:', error);
+    console.error('❌ Error obteniendo token:', error.message);
+    tokenCache = { token: null, expiresAt: null };
     throw error;
   }
 };
 
-// === FUNCIÓN BASE PARA LLAMADAS A LA API CON AUTHORIZATION ===
-const fetchFromChipax = async (endpoint, options = {}) => {
-  const token = await getChipaxToken();
-  
-  console.log(`🌐 Llamando a ${endpoint} con token: ${token.substring(0, 20)}...`);
-  
-  const response = await fetch(`${CHIPAX_API_URL}${endpoint}`, {
-    headers: {
-      'Authorization': `JWT ${token}`,  // ✅ CORRECCIÓN: Authorization header
+/**
+ * Realiza petición a la API con reintentos automáticos
+ */
+export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) => {
+  try {
+    const token = await getChipaxToken();
+    const url = endpoint.startsWith('http') ? endpoint : `${CHIPAX_API_URL}${endpoint}`;
+    
+    const headers = {
+      ...options.headers,
+      'Authorization': `JWT ${token}`, // Formato correcto según Chipax
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...options.headers
-    },
-    ...options
-  });
-
-  console.log(`📡 Status de ${endpoint}: ${response.status}`);
-
-  if (!response.ok) {
-    throw new Error(`Error ${response.status}: ${response.statusText} en ${endpoint}`);
-  }
-
-  return response.json();
-};
-
-// === FUNCIÓN CORREGIDA PARA OBTENER SALDOS BANCARIOS ===
-const obtenerSaldosBancarios = async () => {
-  console.log('🏦 Obteniendo saldos bancarios...');
-  
-  try {
-    // ✅ CORRECCIÓN: Usar fetchFromChipax que incluye Authorization
-    const data = await fetchFromChipax('/cuentas-corrientes');
-    
-    // VALIDACIÓN: Verificar que sea un array
-    if (!Array.isArray(data)) {
-      console.warn('⚠️ Respuesta no es array:', typeof data);
-      
-      // Si es un objeto, buscar arrays dentro
-      if (data && typeof data === 'object') {
-        for (const [key, value] of Object.entries(data)) {
-          if (Array.isArray(value)) {
-            console.log(`✅ Encontrado array en propiedad '${key}':`, value.length, 'items');
-            return adaptarCuentasCorrientes(value);
-          }
-        }
-        
-        // Si no hay arrays, crear array con el objeto
-        console.log('🔄 Convirtiendo objeto único a array');
-        return adaptarCuentasCorrientes([data]);
-      }
-      
-      // Si no es ni array ni objeto válido, retornar array vacío
-      console.warn('⚠️ Datos inválidos, retornando array vacío');
-      return [];
-    }
-    
-    console.log(`✅ ${data.length} cuentas corrientes obtenidas`);
-    return adaptarCuentasCorrientes(data);
-    
-  } catch (error) {
-    console.error('❌ Error obteniendo saldos bancarios:', error);
-    return [];
-  }
-};
-
-// === FUNCIÓN CORREGIDA PARA OBTENER DTEs POR COBRAR ===
-const obtenerDTEsPorCobrar = async () => {
-  console.log('📋 Obteniendo DTEs por cobrar...');
-  
-  try {
-    // ✅ CORRECCIÓN: Usar fetchFromChipax que incluye Authorization
-    const data = await fetchFromChipax('/dtes?porCobrar=1');
-    
-    // VALIDACIÓN: Verificar estructura
-    if (!Array.isArray(data)) {
-      console.warn('⚠️ DTEs: Respuesta no es array:', typeof data);
-      
-      if (data && typeof data === 'object') {
-        // Buscar arrays de DTEs
-        for (const [key, value] of Object.entries(data)) {
-          if (Array.isArray(value)) {
-            console.log(`✅ DTEs encontrados en '${key}':`, value.length, 'items');
-            return adaptarDTEs(value);
-          }
-        }
-        
-        // Si es un objeto único, convertir a array
-        return adaptarDTEs([data]);
-      }
-      
-      return [];
-    }
-    
-    console.log(`✅ ${data.length} DTEs por cobrar obtenidos`);
-    return adaptarDTEs(data);
-    
-  } catch (error) {
-    console.error('❌ Error obteniendo DTEs por cobrar:', error);
-    return [];
-  }
-};
-
-// === FUNCIÓN CORREGIDA PARA OBTENER COMPRAS ===
-const obtenerCompras = async () => {
-  console.log('💸 Obteniendo compras...');
-  
-  try {
-    // ✅ CORRECCIÓN: Usar fetchFromChipax que incluye Authorization
-    const data = await fetchFromChipax('/compras');
-    
-    // VALIDACIÓN: Verificar estructura
-    if (!Array.isArray(data)) {
-      console.warn('⚠️ Compras: Respuesta no es array:', typeof data);
-      
-      if (data && typeof data === 'object') {
-        // Buscar arrays de compras
-        for (const [key, value] of Object.entries(data)) {
-          if (Array.isArray(value)) {
-            console.log(`✅ Compras encontradas en '${key}':`, value.length, 'items');
-            return value; // Retornar raw data para que el adaptador la procese
-          }
-        }
-        
-        // Si es un objeto único, convertir a array
-        return [data];
-      }
-      
-      return [];
-    }
-    
-    console.log(`✅ ${data.length} compras obtenidas`);
-    return data; // Retornar raw data para el adaptador
-    
-  } catch (error) {
-    console.error('❌ Error obteniendo compras:', error);
-    return [];
-  }
-};
-
-// === FUNCIÓN CORREGIDA PARA OBTENER CLIENTES ===
-const obtenerClientes = async () => {
-  console.log('👥 Obteniendo clientes...');
-  
-  try {
-    // ✅ CORRECCIÓN: Usar fetchFromChipax que incluye Authorization
-    const data = await fetchFromChipax('/clientes');
-    
-    if (!Array.isArray(data)) {
-      console.warn('⚠️ Clientes: Respuesta no es array:', typeof data);
-      
-      if (data && typeof data === 'object') {
-        for (const [key, value] of Object.entries(data)) {
-          if (Array.isArray(value)) {
-            console.log(`✅ Clientes encontrados en '${key}':`, value.length, 'items');
-            return value;
-          }
-        }
-        return [data];
-      }
-      
-      return [];
-    }
-    
-    console.log(`✅ ${data.length} clientes obtenidos`);
-    return data;
-    
-  } catch (error) {
-    console.error('❌ Error obteniendo clientes:', error);
-    return [];
-  }
-};
-
-// === FUNCIONES DE ADAPTACIÓN ===
-
-/**
- * Adapta cuentas corrientes al formato esperado por el dashboard
- */
-const adaptarCuentasCorrientes = (cuentas) => {
-  if (!Array.isArray(cuentas)) {
-    console.warn('⚠️ adaptarCuentasCorrientes: datos no son array');
-    return [];
-  }
-  
-  return cuentas.map((cuenta, index) => {
-    // Extraer saldo con múltiples estrategias
-    let saldo = 0;
-    
-    // Buscar saldo en diferentes campos
-    if (cuenta.saldo !== undefined) saldo = cuenta.saldo;
-    else if (cuenta.saldoActual !== undefined) saldo = cuenta.saldoActual;
-    else if (cuenta.saldoContable !== undefined) saldo = cuenta.saldoContable;
-    else if (cuenta.balance !== undefined) saldo = cuenta.balance;
-    else if (cuenta.Saldo && cuenta.Saldo.saldoDeudor !== undefined) saldo = cuenta.Saldo.saldoDeudor;
-    
-    // Convertir a número
-    saldo = parseFloat(saldo) || 0;
-    
-    return {
-      id: cuenta.id || index,
-      nombre: cuenta.numeroCuenta || cuenta.nombre || `Cuenta ${index + 1}`,
-      banco: cuenta.banco || cuenta.Banco?.nombre || 'Banco no especificado',
-      saldo: saldo,
-      tipo: 'Cuenta Corriente',
-      moneda: 'CLP'
+      'Accept': 'application/json'
     };
-  });
-};
-
-/**
- * Adapta DTEs al formato esperado por el dashboard
- */
-const adaptarDTEs = (dtes) => {
-  if (!Array.isArray(dtes)) {
-    console.warn('⚠️ adaptarDTEs: datos no son array');
-    return [];
-  }
-  
-  return dtes.map((dte, index) => {
-    // Extraer saldo pendiente
-    let saldo = 0;
     
-    if (dte.Saldo && dte.Saldo.saldoDeudor !== undefined) {
-      saldo = parseFloat(dte.Saldo.saldoDeudor) || 0;
-    } else if (dte.montoTotal !== undefined) {
-      saldo = parseFloat(dte.montoTotal) || 0;
+    if (showLogs) {
+      console.log(`🔍 Llamando a: ${endpoint}`);
     }
     
-    return {
-      id: dte.id || index,
-      folio: dte.folio || 'S/N',
-      razonSocial: dte.razonSocial || 'Cliente no especificado',
-      monto: saldo,
-      fecha: dte.fecha || new Date().toISOString().split('T')[0],
-      tipo: dte.tipo || 'DTE'
-    };
-  });
-};
+    const response = await fetch(url, {
+      ...options,
+      headers
+    });
 
-// === EXPORTACIONES ===
-const chipaxService = {
-  getChipaxToken,
-  fetchFromChipax,
-  obtenerSaldosBancarios,
-  obtenerDTEsPorCobrar,
-  obtenerCompras,
-  obtenerClientes
-};
+    if (showLogs) {
+      console.log(`📍 ${endpoint} - Status: ${response.status}`);
+    }
+    
+    if (!response.ok) {
+      const text = await response.text();
+      
+      // Si es 401, el token expiró - reintentar con nuevo token
+      if (response.status === 401 && !options._retry) {
+        console.log('🔄 Token expirado, obteniendo nuevo token...');
+        tokenCache = { token: null, expiresAt: null };
+        return fetchFromChipax(endpoint, { ...options, _retry: true }, showLogs);
+      }
+      
+      throw new Error(`Error ${response.status}: ${text}`);
+    }
 
-export default chipaxService;
-
-export {
-  getChipaxToken,
-  fetchFromChipax,
-  obtenerSaldosBancarios,
-  obtenerDTEsPorCobrar,
-  obtenerCompras,
-  obtenerClientes
+    const responseData = await response.json();
+    
+    // Log de respuesta exitosa
+    if (showLogs) {
+      console.log(`✅ ${endpoint} - Respuesta recibida`);
+    }
+    
+    return responseData;
+    
+  } catch (error) {
+    console.error(`❌ Error en ${endpoint}:`, error.message);
+    throw error;
+  }
 };
