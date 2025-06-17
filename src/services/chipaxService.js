@@ -811,6 +811,21 @@ const investigarEndpointsDisponibles = async () => {
 
 // === EXPORTACIONES - SOLO UNA VEZ ===
 
+// Export default para compatibilidad con importaciones existentes
+const chipaxService = {
+  getChipaxToken,
+  obtenerSaldosBancarios,
+  obtenerCompras,
+  obtenerDTEsPorCobrar,
+  obtenerClientes,
+  obtenerProveedores,
+  fetchPaginatedData,
+  investigarEndpointsDisponibles,
+  testearSaldosBancarios
+};
+
+export default chipaxService;
+
 export {
   getChipaxToken,
   obtenerSaldosBancarios,
