@@ -184,9 +184,9 @@ const obtenerSaldosBancarios = async () => {
 };
 
 /**
- * ✅ FUNCIÓN CORREGIDA PARA OBTENER DTEs POR COBRAR
+ * ✅ FUNCIÓN CORREGIDA PARA OBTENER CUENTAS POR COBRAR
  */
-const obtenerDTEsPorCobrar = async () => {
+const obtenerCuentasPorCobrar = async () => {
   console.log('📋 Obteniendo DTEs por cobrar...');
 
   try {
@@ -222,9 +222,14 @@ const obtenerDTEsPorCobrar = async () => {
 };
 
 /**
- * ✅ FUNCIÓN CORREGIDA PARA OBTENER COMPRAS
+ * ✅ ALIAS PARA COMPATIBILIDAD
  */
-const obtenerCompras = async () => {
+const obtenerDTEsPorCobrar = obtenerCuentasPorCobrar;
+
+/**
+ * ✅ FUNCIÓN CORREGIDA PARA OBTENER CUENTAS POR PAGAR
+ */
+const obtenerCuentasPorPagar = async () => {
   console.log('💸 Obteniendo compras...');
 
   try {
@@ -258,6 +263,11 @@ const obtenerCompras = async () => {
     return [];
   }
 };
+
+/**
+ * ✅ ALIAS PARA COMPATIBILIDAD
+ */
+const obtenerCompras = obtenerCuentasPorPagar;
 
 /**
  * ✅ FUNCIÓN CORREGIDA PARA OBTENER CLIENTES
@@ -542,14 +552,16 @@ const investigarEndpointsDisponibles = async () => {
 };
 
 /**
- * ✅ EXPORTACIONES - EXACTAS COMO EN EL CÓDIGO ORIGINAL
+ * ✅ EXPORTACIONES - CON TODAS LAS FUNCIONES NECESARIAS
  */
 const chipaxService = {
   getChipaxToken,
   fetchFromChipax,
   obtenerSaldosBancarios,
-  obtenerCompras,
-  obtenerDTEsPorCobrar,
+  obtenerCuentasPorCobrar,  // ✅ Función principal
+  obtenerCuentasPorPagar,   // ✅ Función principal
+  obtenerCompras,           // ✅ Alias para compatibilidad
+  obtenerDTEsPorCobrar,     // ✅ Alias para compatibilidad
   obtenerClientes,
   obtenerProveedores,
   fetchPaginatedData,
@@ -563,8 +575,10 @@ export {
   getChipaxToken,
   fetchFromChipax,
   obtenerSaldosBancarios,
-  obtenerCompras,
-  obtenerDTEsPorCobrar,
+  obtenerCuentasPorCobrar,  // ✅ Función principal
+  obtenerCuentasPorPagar,   // ✅ Función principal
+  obtenerCompras,           // ✅ Alias para compatibilidad
+  obtenerDTEsPorCobrar,     // ✅ Alias para compatibilidad
   obtenerClientes,
   obtenerProveedores,
   fetchPaginatedData,
