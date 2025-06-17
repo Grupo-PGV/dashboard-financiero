@@ -1,4 +1,4 @@
-// chipaxService.js - Servicio con endpoints oficiales de Chipax
+// chipaxService.js - Servicio con estructura real de la API Chipax
 
 const CHIPAX_API_URL = 'https://api.chipax.com/v2';
 const APP_ID = '605e0aa5-ca0c-4513-b6ef-0030ac1f0849';
@@ -122,121 +122,56 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
 };
 
 /**
- * Obtiene todas las páginas de un endpoint
- */
-export const fetchAllPaginatedData = async (baseEndpoint) => {
-  console.log(`📊 Cargando datos paginados de ${baseEndpoint}...`);
-  
-  let allItems = [];
-  let page = 1;
-  let hasMore = true;
-  
-  try {
-    while (hasMore && page <= PAGINATION_CONFIG.MAX_PAGES) {
-      const separator = baseEndpoint.includes('?') ? '&' : '?';
-      const endpoint = `${baseEndpoint}${separator}page=${page}&limit=${PAGINATION_CONFIG.PAGE_SIZE}`;
-      
-      const data = await fetchFromChipax(endpoint, {}, page === 1);
-      
-      // Manejo de diferentes estructuras de respuesta
-      if (data.items && Array.isArray(data.items)) {
-        allItems = [...allItems, ...data.items];
-        
-        if (data.paginationAttributes) {
-          const { currentPage, totalPages } = data.paginationAttributes;
-          hasMore = currentPage < totalPages;
-          
-          if (page === 1) {
-            console.log(`📄 Total: ${data.paginationAttributes.count || data.paginationAttributes.totalCount} items en ${totalPages} páginas`);
-          }
-        } else {
-          hasMore = false;
-        }
-      } else if (Array.isArray(data)) {
-        // Si la respuesta es directamente un array
-        allItems = [...allItems, ...data];
-        hasMore = data.length === PAGINATION_CONFIG.PAGE_SIZE;
-      } else if (data.docs && Array.isArray(data.docs)) {
-        // Para flujo de caja que usa 'docs' en lugar de 'items'
-        allItems = [...allItems, ...data.docs];
-        hasMore = data.pages ? page < data.pages : false;
-      } else {
-        hasMore = false;
-      }
-      
-      page++;
-    }
-    
-    console.log(`✅ Total cargado: ${allItems.length} items`);
-    
-    return {
-      items: allItems,
-      paginationStats: {
-        totalItems: allItems.length,
-        pagesLoaded: page - 1
-      }
-    };
-    
-  } catch (error) {
-    console.error('❌ Error en carga paginada:', error);
-    return {
-      items: allItems,
-      error: error.message
-    };
-  }
-};
-
-// === ENDPOINTS ESPECÍFICOS CORREGIDOS ===
-
-/**
  * ✅ CORREGIDO: Obtiene cuentas corrientes y calcula saldos desde cartolas
- * Endpoints: /cuentas-corrientes + /flujo-caja/cartolas
+ * Estructura real: Array directo con objetos {id, numeroCuenta, banco, TipoCuentaCorriente, Moneda}
  */
 export const obtenerSaldosBancarios = async () => {
   console.log('\n💰 Obteniendo saldos bancarios...');
   
   try {
-    // 1. Obtener cuentas corrientes
+    // 1. Obtener cuentas corrientes (array directo)
     console.log('📋 Obteniendo cuentas corrientes...');
-    const cuentasData = await fetchAllPaginatedData('/cuentas-corrientes');
-    const cuentas = cuentasData.items;
+    const cuentas = await fetchFromChipax('/cuentas-corrientes');
     
-    if (cuentas.length === 0) {
+    if (!Array.isArray(cuentas) || cuentas.length === 0) {
       console.warn('⚠️ No se encontraron cuentas corrientes');
-      return { items: [], paginationStats: { totalItems: 0, pagesLoaded: 0 } };
+      return [];
     }
     
     console.log(`✅ ${cuentas.length} cuentas corrientes obtenidas`);
+    console.log('🔍 Estructura de la primera cuenta:', cuentas[0]);
     
-    // 2. Obtener cartolas para calcular saldos
+    // 2. Obtener cartolas para calcular saldos (estructura: {docs, pages, total})
     console.log('📊 Obteniendo cartolas para calcular saldos...');
-    const cartolasData = await fetchAllPaginatedData('/flujo-caja/cartolas');
-    const cartolas = cartolasData.items;
+    const cartolasResponse = await fetchFromChipax('/flujo-caja/cartolas');
+    const cartolas = cartolasResponse.docs || cartolasResponse || [];
     
     console.log(`✅ ${cartolas.length} movimientos de cartola obtenidos`);
     
-    // 3. Calcular saldos por cuenta corriente
+    // 3. Calcular saldos por cuenta corriente usando cuenta_corriente_id
     const saldosPorCuenta = {};
     
     cartolas.forEach(cartola => {
-      const cuentaId = cartola.cuentaCorriente;
+      const cuentaId = cartola.cuenta_corriente_id;
+      if (!cuentaId) return;
+      
       if (!saldosPorCuenta[cuentaId]) {
         saldosPorCuenta[cuentaId] = {
-          totalIngresos: 0,
-          totalEgresos: 0,
+          totalAbonos: 0,
+          totalCargos: 0,
           saldoFinal: 0,
-          ultimaFecha: null
+          ultimaFecha: null,
+          movimientos: 0
         };
       }
       
-      const monto = parseFloat(cartola.monto) || 0;
+      const abono = parseFloat(cartola.abono) || 0;
+      const cargo = parseFloat(cartola.cargo) || 0;
       const fecha = new Date(cartola.fecha);
       
-      if (cartola.tipo === 'ingreso') {
-        saldosPorCuenta[cuentaId].totalIngresos += monto;
-      } else if (cartola.tipo === 'egreso') {
-        saldosPorCuenta[cuentaId].totalEgresos += monto;
-      }
+      saldosPorCuenta[cuentaId].totalAbonos += abono;
+      saldosPorCuenta[cuentaId].totalCargos += cargo;
+      saldosPorCuenta[cuentaId].movimientos++;
       
       // Actualizar fecha más reciente
       if (!saldosPorCuenta[cuentaId].ultimaFecha || fecha > saldosPorCuenta[cuentaId].ultimaFecha) {
@@ -244,36 +179,30 @@ export const obtenerSaldosBancarios = async () => {
       }
     });
     
-    // Calcular saldo final por cuenta
+    // Calcular saldo final por cuenta (abonos - cargos)
     Object.keys(saldosPorCuenta).forEach(cuentaId => {
       const cuenta = saldosPorCuenta[cuentaId];
-      cuenta.saldoFinal = cuenta.totalIngresos - cuenta.totalEgresos;
+      cuenta.saldoFinal = cuenta.totalAbonos - cuenta.totalCargos;
     });
     
     // 4. Combinar cuentas con sus saldos calculados
     const cuentasConSaldos = cuentas.map(cuenta => ({
       ...cuenta,
       saldoCalculado: saldosPorCuenta[cuenta.id]?.saldoFinal || 0,
-      movimientos: {
-        ingresos: saldosPorCuenta[cuenta.id]?.totalIngresos || 0,
-        egresos: saldosPorCuenta[cuenta.id]?.totalEgresos || 0,
-        ultimaActualizacion: saldosPorCuenta[cuenta.id]?.ultimaFecha || null
+      movimientos: saldosPorCuenta[cuenta.id] || {
+        totalAbonos: 0,
+        totalCargos: 0,
+        ultimaFecha: null,
+        movimientos: 0
       }
     }));
     
-    console.log(`💰 Saldos calculados para ${cuentasConSaldos.length} cuentas`);
-    
     // Log de resumen
     const totalSaldos = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.saldoCalculado, 0);
+    console.log(`💰 Saldos calculados para ${cuentasConSaldos.length} cuentas`);
     console.log(`💵 Saldo total calculado: $${totalSaldos.toLocaleString('es-CL')}`);
     
-    return {
-      items: cuentasConSaldos,
-      paginationStats: {
-        totalItems: cuentasConSaldos.length,
-        pagesLoaded: cuentasData.paginationStats.pagesLoaded + cartolasData.paginationStats.pagesLoaded
-      }
-    };
+    return cuentasConSaldos;
     
   } catch (error) {
     console.error('❌ Error obteniendo saldos bancarios:', error);
@@ -283,48 +212,50 @@ export const obtenerSaldosBancarios = async () => {
 
 /**
  * ✅ CORREGIDO: Obtiene DTEs de venta (cuentas por cobrar)
- * Endpoint: /dtes (Documentos Tributarios Electrónicos de venta)
+ * Estructura real: Array con objetos que incluyen Saldo: {saldo_deudor, saldo_acreedor}
  */
 export const obtenerCuentasPorCobrar = async () => {
   console.log('\n📊 Obteniendo DTEs de venta (cuentas por cobrar)...');
   
   try {
-    // Obtener DTEs de venta con filtro por cobrar si existe
-    let endpoint = '/dtes';
+    const dtes = await fetchFromChipax('/dtes');
     
-    // Intentar primero con filtro porCobrar
-    try {
-      const dataConFiltro = await fetchAllPaginatedData('/dtes?porCobrar=1');
-      if (dataConFiltro.items && dataConFiltro.items.length > 0) {
-        console.log(`✅ ${dataConFiltro.items.length} DTEs por cobrar obtenidos (con filtro)`);
-        return dataConFiltro;
-      }
-    } catch (error) {
-      console.log('⚠️ Filtro porCobrar no disponible, obteniendo todos los DTEs...');
+    if (!Array.isArray(dtes)) {
+      console.warn('⚠️ Respuesta de DTEs no es array:', typeof dtes);
+      return [];
     }
     
-    // Si no funciona el filtro, obtener todos los DTEs
-    const data = await fetchAllPaginatedData(endpoint);
+    console.log(`✅ ${dtes.length} DTEs obtenidos`);
+    
+    if (dtes.length > 0) {
+      console.log('🔍 Estructura del primer DTE:', {
+        id: dtes[0].id,
+        folio: dtes[0].folio,
+        razon_social: dtes[0].razon_social,
+        monto_total: dtes[0].monto_total,
+        monto_por_cobrar: dtes[0].monto_por_cobrar,
+        Saldo: dtes[0].Saldo
+      });
+    }
     
     // Filtrar solo los que tienen saldo pendiente
-    if (data.items && data.items.length > 0) {
-      const dtesConSaldo = data.items.filter(dte => {
-        if (dte.Saldo && dte.Saldo.saldoDeudor) {
-          return parseFloat(dte.Saldo.saldoDeudor) > 0;
-        }
-        return true; // Incluir todos si no hay información de saldo
-      });
+    const dtesConSaldo = dtes.filter(dte => {
+      // Primero verificar monto_por_cobrar
+      if (dte.monto_por_cobrar && parseFloat(dte.monto_por_cobrar) > 0) {
+        return true;
+      }
       
-      console.log(`📊 De ${data.items.length} DTEs, ${dtesConSaldo.length} tienen saldo pendiente`);
+      // Luego verificar objeto Saldo
+      if (dte.Saldo && dte.Saldo.saldo_deudor && parseFloat(dte.Saldo.saldo_deudor) > 0) {
+        return true;
+      }
       
-      return {
-        items: dtesConSaldo,
-        paginationStats: data.paginationStats
-      };
-    }
+      // Si no hay información de saldo, incluir si no está anulado
+      return dte.anulado !== 'S';
+    });
     
-    console.log(`✅ ${data.items.length} DTEs de venta obtenidos`);
-    return data;
+    console.log(`📊 De ${dtes.length} DTEs, ${dtesConSaldo.length} tienen saldo pendiente`);
+    return dtesConSaldo;
     
   } catch (error) {
     console.error('❌ Error obteniendo DTEs de venta:', error);
@@ -334,48 +265,50 @@ export const obtenerCuentasPorCobrar = async () => {
 
 /**
  * ✅ CORREGIDO: Obtiene compras (cuentas por pagar)
- * Endpoint: /compras (Documentos Tributarios Electrónicos de compra)
+ * Estructura real: Array con objetos que incluyen fecha_pago_interna y estado
  */
 export const obtenerCuentasPorPagar = async () => {
   console.log('\n💸 Obteniendo compras (cuentas por pagar)...');
   
   try {
-    const data = await fetchAllPaginatedData('/compras');
+    const compras = await fetchFromChipax('/compras');
     
-    // Filtrar solo las pendientes de pago si es necesario
-    if (data.items && data.items.length > 0) {
-      const todasLasCompras = data.items.length;
-      
-      // Filtrar las que no tienen fecha de pago o están pendientes
-      const comprasPendientes = data.items.filter(compra => {
-        // Si no tiene fecha de pago, está pendiente
-        if (!compra.fechaPago && !compra.fechaPagoInterna) {
-          return true;
-        }
-        
-        // Si tiene saldo acreedor, está pendiente
-        if (compra.Saldo && compra.Saldo.saldoAcreedor) {
-          return parseFloat(compra.Saldo.saldoAcreedor) > 0;
-        }
-        
-        // Si el estado indica que está pendiente
-        if (compra.estado && ['pendiente', 'aceptado', 'aprobado'].includes(compra.estado.toLowerCase())) {
-          return true;
-        }
-        
-        return false;
-      });
-      
-      console.log(`📊 De ${todasLasCompras} compras, ${comprasPendientes.length} están pendientes de pago`);
-      
-      return {
-        items: comprasPendientes,
-        paginationStats: data.paginationStats
-      };
+    if (!Array.isArray(compras)) {
+      console.warn('⚠️ Respuesta de compras no es array:', typeof compras);
+      return [];
     }
     
-    console.log(`✅ ${data.items.length} compras obtenidas`);
-    return data;
+    console.log(`✅ ${compras.length} compras obtenidas`);
+    
+    if (compras.length > 0) {
+      console.log('🔍 Estructura de la primera compra:', {
+        id: compras[0].id,
+        folio: compras[0].folio,
+        razon_social: compras[0].razon_social,
+        monto_total: compras[0].monto_total,
+        fecha_pago_interna: compras[0].fecha_pago_interna,
+        estado: compras[0].estado
+      });
+    }
+    
+    // Filtrar solo las pendientes de pago
+    const comprasPendientes = compras.filter(compra => {
+      // Si no tiene fecha de pago interno, está pendiente
+      if (!compra.fecha_pago_interna) {
+        return true;
+      }
+      
+      // Si el estado indica que está pendiente
+      if (compra.estado && ['recibido', 'pendiente', 'aceptado'].includes(compra.estado.toLowerCase())) {
+        return true;
+      }
+      
+      // Si no está anulado
+      return compra.anulado !== 'S';
+    });
+    
+    console.log(`📊 De ${compras.length} compras, ${comprasPendientes.length} están pendientes de pago`);
+    return comprasPendientes;
     
   } catch (error) {
     console.error('❌ Error obteniendo compras:', error);
@@ -390,9 +323,15 @@ export const obtenerCuentasPorPagar = async () => {
 export const obtenerClientes = async () => {
   console.log('\n👥 Obteniendo clientes...');
   try {
-    const data = await fetchAllPaginatedData('/clientes');
-    console.log(`✅ ${data.items.length} clientes obtenidos`);
-    return data;
+    const clientes = await fetchFromChipax('/clientes');
+    
+    if (!Array.isArray(clientes)) {
+      console.warn('⚠️ Respuesta de clientes no es array:', typeof clientes);
+      return [];
+    }
+    
+    console.log(`✅ ${clientes.length} clientes obtenidos`);
+    return clientes;
   } catch (error) {
     console.error('❌ Error obteniendo clientes:', error);
     throw error;
@@ -401,14 +340,18 @@ export const obtenerClientes = async () => {
 
 /**
  * ✅ Obtiene el flujo de caja desde cartolas
- * Endpoint: /flujo-caja/cartolas
+ * Estructura real: {docs: [...], pages: number, total: number}
  */
 export const obtenerFlujoCaja = async () => {
   console.log('\n💵 Obteniendo flujo de caja...');
   try {
-    const data = await fetchAllPaginatedData('/flujo-caja/cartolas');
-    console.log(`✅ ${data.items.length} movimientos de flujo de caja obtenidos`);
-    return data;
+    const response = await fetchFromChipax('/flujo-caja/cartolas');
+    const cartolas = response.docs || response || [];
+    
+    console.log(`✅ ${cartolas.length} movimientos de flujo de caja obtenidos`);
+    console.log(`📄 Total páginas: ${response.pages || 'N/A'}, Total registros: ${response.total || 'N/A'}`);
+    
+    return cartolas;
   } catch (error) {
     console.error('❌ Error obteniendo flujo de caja:', error);
     throw error;
@@ -422,9 +365,15 @@ export const obtenerFlujoCaja = async () => {
 export const obtenerMovimientos = async () => {
   console.log('\n🔄 Obteniendo movimientos...');
   try {
-    const data = await fetchAllPaginatedData('/movimientos');
-    console.log(`✅ ${data.items.length} movimientos obtenidos`);
-    return data;
+    const movimientos = await fetchFromChipax('/movimientos');
+    
+    if (!Array.isArray(movimientos)) {
+      console.warn('⚠️ Respuesta de movimientos no es array:', typeof movimientos);
+      return [];
+    }
+    
+    console.log(`✅ ${movimientos.length} movimientos obtenidos`);
+    return movimientos;
   } catch (error) {
     console.error('❌ Error obteniendo movimientos:', error);
     throw error;
@@ -435,7 +384,6 @@ export const obtenerMovimientos = async () => {
 const chipaxService = {
   getChipaxToken,
   fetchFromChipax,
-  fetchAllPaginatedData,
   obtenerSaldosBancarios,
   obtenerCuentasPorCobrar,
   obtenerCuentasPorPagar,
