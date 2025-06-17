@@ -452,16 +452,3 @@ const chipaxService = {
 };
 
 export default chipaxService;
-
-// ✅ TAMBIÉN EXPORTAR INDIVIDUALMENTE PARA COMPATIBILIDAD
-export {
-  getChipaxToken,
-  fetchFromChipax,
-  fetchAllPaginatedData,
-  obtenerSaldosBancarios,
-  obtenerCuentasPorCobrar,
-  obtenerCuentasPorPagar,
-  obtenerClientes,
-  obtenerFlujoCaja,
-  obtenerMovimientos
-};
