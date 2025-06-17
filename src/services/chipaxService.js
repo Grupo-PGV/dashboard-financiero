@@ -1,7 +1,5 @@
-// chipaxService.js - Servicio completo para integración con Chipax
-import axios from 'axios';
+// chipaxService.js - Servicio con endpoints oficiales de Chipax
 
-// Configuración base
 const CHIPAX_API_URL = 'https://api.chipax.com/v2';
 const APP_ID = '605e0aa5-ca0c-4513-b6ef-0030ac1f0849';
 const SECRET_KEY = 'f01974df-86e1-45a0-924f-75961ea926fc';
@@ -9,7 +7,8 @@ const SECRET_KEY = 'f01974df-86e1-45a0-924f-75961ea926fc';
 // Cache del token
 let tokenCache = {
   token: null,
-  expiresAt: null
+  expiresAt: null,
+  isRefreshing: false
 };
 
 // Configuración de paginación
@@ -29,10 +28,17 @@ export const getChipaxToken = async () => {
     return tokenCache.token;
   }
 
+  if (tokenCache.isRefreshing) {
+    console.log('🔄 Token refresh en progreso, esperando...');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return tokenCache.token;
+  }
+
+  tokenCache.isRefreshing = true;
   console.log('🔐 Obteniendo nuevo token de Chipax...');
   
   try {
-    const response = await fetch(`${CHIPAX_API_URL}/login`, {
+    const response = await fetch(`${CHIPAX_API_URL}/auth`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -54,24 +60,24 @@ export const getChipaxToken = async () => {
 
     const data = await response.json();
     console.log('✅ Token obtenido exitosamente');
-    console.log('🏢 Empresa:', data.nombre || 'N/A');
     
     tokenCache = {
       token: data.token,
-      expiresAt: new Date(data.tokenExpiration * 1000)
+      expiresAt: new Date(Date.now() + (50 * 60 * 1000)), // 50 minutos
+      isRefreshing: false
     };
     
     return tokenCache.token;
     
   } catch (error) {
     console.error('❌ Error obteniendo token:', error);
-    tokenCache = { token: null, expiresAt: null };
+    tokenCache = { token: null, expiresAt: null, isRefreshing: false };
     throw error;
   }
 };
 
 /**
- * Realiza petición a la API
+ * Realiza petición a la API con Authorization header
  */
 export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) => {
   try {
@@ -79,10 +85,10 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
     const url = endpoint.startsWith('http') ? endpoint : `${CHIPAX_API_URL}${endpoint}`;
     
     const headers = {
-      ...options.headers,
-      'Authorization': `JWT ${token}`,
+      'Authorization': `JWT ${token}`,  // ✅ Header de autorización
       'Content-Type': 'application/json',
-      'Accept': 'application/json'
+      'Accept': 'application/json',
+      ...options.headers
     };
     
     const response = await fetch(url, {
@@ -100,7 +106,7 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
       // Si es 401, reintentar con nuevo token
       if (response.status === 401 && !options._retry) {
         console.log('🔄 Token expirado, reintentando...');
-        tokenCache = { token: null, expiresAt: null };
+        tokenCache = { token: null, expiresAt: null, isRefreshing: false };
         return fetchFromChipax(endpoint, { ...options, _retry: true }, showLogs);
       }
       
@@ -180,66 +186,159 @@ export const fetchAllPaginatedData = async (baseEndpoint) => {
   }
 };
 
-// === ENDPOINTS ESPECÍFICOS ===
+// === ENDPOINTS ESPECÍFICOS CORREGIDOS ===
 
 /**
- * Obtiene las cuentas corrientes (saldos bancarios)
- * Endpoint: /cuentas-corrientes
+ * ✅ CORREGIDO: Obtiene cuentas corrientes y calcula saldos desde cartolas
+ * Endpoints: /cuentas-corrientes + /flujo-caja/cartolas
  */
 export const obtenerSaldosBancarios = async () => {
-  console.log('\n💰 Obteniendo cuentas corrientes...');
+  console.log('\n💰 Obteniendo saldos bancarios...');
+  
   try {
-    const data = await fetchAllPaginatedData('/cuentas-corrientes');
-    console.log(`✅ ${data.items.length} cuentas corrientes obtenidas`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo cuentas corrientes:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene los DTEs (facturas de venta/cuentas por cobrar)
- * Endpoint: /dtes?porCobrar=1
- */
-export const obtenerCuentasPorCobrar = async () => {
-  console.log('\n📊 Obteniendo DTEs (facturas por cobrar)...');
-  try {
-    const data = await fetchAllPaginatedData('/dtes?porCobrar=1');
+    // 1. Obtener cuentas corrientes
+    console.log('📋 Obteniendo cuentas corrientes...');
+    const cuentasData = await fetchAllPaginatedData('/cuentas-corrientes');
+    const cuentas = cuentasData.items;
     
-    console.log(`✅ ${data.items.length} DTEs por cobrar obtenidos`);
-    
-    // Log detallado para entender la estructura
-    if (data.items && data.items.length > 0) {
-      console.log('📋 Estructura completa del primer DTE:');
-      console.log(JSON.stringify(data.items[0], null, 2));
-      
-      // Ver qué campos están disponibles
-      console.log('🔍 Campos disponibles:', Object.keys(data.items[0]));
-      
-      // Ver si hay objetos anidados importantes
-      const dte = data.items[0];
-      if (dte.ClienteProveedor || dte.ClienteNormalizado) {
-        console.log('👤 Cliente:', dte.ClienteProveedor || dte.ClienteNormalizado);
-      }
-      if (dte.Saldo) {
-        console.log('💰 Saldo:', dte.Saldo);
-      }
+    if (cuentas.length === 0) {
+      console.warn('⚠️ No se encontraron cuentas corrientes');
+      return { items: [], paginationStats: { totalItems: 0, pagesLoaded: 0 } };
     }
     
-    return data;
+    console.log(`✅ ${cuentas.length} cuentas corrientes obtenidas`);
+    
+    // 2. Obtener cartolas para calcular saldos
+    console.log('📊 Obteniendo cartolas para calcular saldos...');
+    const cartolasData = await fetchAllPaginatedData('/flujo-caja/cartolas');
+    const cartolas = cartolasData.items;
+    
+    console.log(`✅ ${cartolas.length} movimientos de cartola obtenidos`);
+    
+    // 3. Calcular saldos por cuenta corriente
+    const saldosPorCuenta = {};
+    
+    cartolas.forEach(cartola => {
+      const cuentaId = cartola.cuentaCorriente;
+      if (!saldosPorCuenta[cuentaId]) {
+        saldosPorCuenta[cuentaId] = {
+          totalIngresos: 0,
+          totalEgresos: 0,
+          saldoFinal: 0,
+          ultimaFecha: null
+        };
+      }
+      
+      const monto = parseFloat(cartola.monto) || 0;
+      const fecha = new Date(cartola.fecha);
+      
+      if (cartola.tipo === 'ingreso') {
+        saldosPorCuenta[cuentaId].totalIngresos += monto;
+      } else if (cartola.tipo === 'egreso') {
+        saldosPorCuenta[cuentaId].totalEgresos += monto;
+      }
+      
+      // Actualizar fecha más reciente
+      if (!saldosPorCuenta[cuentaId].ultimaFecha || fecha > saldosPorCuenta[cuentaId].ultimaFecha) {
+        saldosPorCuenta[cuentaId].ultimaFecha = fecha;
+      }
+    });
+    
+    // Calcular saldo final por cuenta
+    Object.keys(saldosPorCuenta).forEach(cuentaId => {
+      const cuenta = saldosPorCuenta[cuentaId];
+      cuenta.saldoFinal = cuenta.totalIngresos - cuenta.totalEgresos;
+    });
+    
+    // 4. Combinar cuentas con sus saldos calculados
+    const cuentasConSaldos = cuentas.map(cuenta => ({
+      ...cuenta,
+      saldoCalculado: saldosPorCuenta[cuenta.id]?.saldoFinal || 0,
+      movimientos: {
+        ingresos: saldosPorCuenta[cuenta.id]?.totalIngresos || 0,
+        egresos: saldosPorCuenta[cuenta.id]?.totalEgresos || 0,
+        ultimaActualizacion: saldosPorCuenta[cuenta.id]?.ultimaFecha || null
+      }
+    }));
+    
+    console.log(`💰 Saldos calculados para ${cuentasConSaldos.length} cuentas`);
+    
+    // Log de resumen
+    const totalSaldos = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.saldoCalculado, 0);
+    console.log(`💵 Saldo total calculado: $${totalSaldos.toLocaleString('es-CL')}`);
+    
+    return {
+      items: cuentasConSaldos,
+      paginationStats: {
+        totalItems: cuentasConSaldos.length,
+        pagesLoaded: cuentasData.paginationStats.pagesLoaded + cartolasData.paginationStats.pagesLoaded
+      }
+    };
+    
   } catch (error) {
-    console.error('❌ Error obteniendo DTEs:', error);
+    console.error('❌ Error obteniendo saldos bancarios:', error);
     throw error;
   }
 };
 
 /**
- * Obtiene las compras (cuentas por pagar)
- * Endpoint: /compras
+ * ✅ CORREGIDO: Obtiene DTEs de venta (cuentas por cobrar)
+ * Endpoint: /dtes (Documentos Tributarios Electrónicos de venta)
+ */
+export const obtenerCuentasPorCobrar = async () => {
+  console.log('\n📊 Obteniendo DTEs de venta (cuentas por cobrar)...');
+  
+  try {
+    // Obtener DTEs de venta con filtro por cobrar si existe
+    let endpoint = '/dtes';
+    
+    // Intentar primero con filtro porCobrar
+    try {
+      const dataConFiltro = await fetchAllPaginatedData('/dtes?porCobrar=1');
+      if (dataConFiltro.items && dataConFiltro.items.length > 0) {
+        console.log(`✅ ${dataConFiltro.items.length} DTEs por cobrar obtenidos (con filtro)`);
+        return dataConFiltro;
+      }
+    } catch (error) {
+      console.log('⚠️ Filtro porCobrar no disponible, obteniendo todos los DTEs...');
+    }
+    
+    // Si no funciona el filtro, obtener todos los DTEs
+    const data = await fetchAllPaginatedData(endpoint);
+    
+    // Filtrar solo los que tienen saldo pendiente
+    if (data.items && data.items.length > 0) {
+      const dtesConSaldo = data.items.filter(dte => {
+        if (dte.Saldo && dte.Saldo.saldoDeudor) {
+          return parseFloat(dte.Saldo.saldoDeudor) > 0;
+        }
+        return true; // Incluir todos si no hay información de saldo
+      });
+      
+      console.log(`📊 De ${data.items.length} DTEs, ${dtesConSaldo.length} tienen saldo pendiente`);
+      
+      return {
+        items: dtesConSaldo,
+        paginationStats: data.paginationStats
+      };
+    }
+    
+    console.log(`✅ ${data.items.length} DTEs de venta obtenidos`);
+    return data;
+    
+  } catch (error) {
+    console.error('❌ Error obteniendo DTEs de venta:', error);
+    throw error;
+  }
+};
+
+/**
+ * ✅ CORREGIDO: Obtiene compras (cuentas por pagar)
+ * Endpoint: /compras (Documentos Tributarios Electrónicos de compra)
  */
 export const obtenerCuentasPorPagar = async () => {
   console.log('\n💸 Obteniendo compras (cuentas por pagar)...');
+  
   try {
     const data = await fetchAllPaginatedData('/compras');
     
@@ -247,22 +346,37 @@ export const obtenerCuentasPorPagar = async () => {
     if (data.items && data.items.length > 0) {
       const todasLasCompras = data.items.length;
       
-      // Log para entender la estructura
-      console.log('🔍 Estructura de la primera compra:', data.items[0]);
+      // Filtrar las que no tienen fecha de pago o están pendientes
+      const comprasPendientes = data.items.filter(compra => {
+        // Si no tiene fecha de pago, está pendiente
+        if (!compra.fechaPago && !compra.fechaPagoInterna) {
+          return true;
+        }
+        
+        // Si tiene saldo acreedor, está pendiente
+        if (compra.Saldo && compra.Saldo.saldoAcreedor) {
+          return parseFloat(compra.Saldo.saldoAcreedor) > 0;
+        }
+        
+        // Si el estado indica que está pendiente
+        if (compra.estado && ['pendiente', 'aceptado', 'aprobado'].includes(compra.estado.toLowerCase())) {
+          return true;
+        }
+        
+        return false;
+      });
       
-      // Filtrar las que no tienen fecha de pago interna o están pendientes
-      data.items = data.items.filter(compra => 
-        !compra.fechaPagoInterna || 
-        compra.estado === 'pendiente' ||
-        compra.estado === 'aceptado' ||
-        (compra.Saldo && compra.Saldo.saldo_acreedor > 0)
-      );
+      console.log(`📊 De ${todasLasCompras} compras, ${comprasPendientes.length} están pendientes de pago`);
       
-      console.log(`📊 De ${todasLasCompras} compras, ${data.items.length} están pendientes de pago`);
+      return {
+        items: comprasPendientes,
+        paginationStats: data.paginationStats
+      };
     }
     
-    console.log(`✅ ${data.items.length} compras por pagar obtenidas`);
+    console.log(`✅ ${data.items.length} compras obtenidas`);
     return data;
+    
   } catch (error) {
     console.error('❌ Error obteniendo compras:', error);
     throw error;
@@ -270,7 +384,7 @@ export const obtenerCuentasPorPagar = async () => {
 };
 
 /**
- * Obtiene la lista de clientes
+ * ✅ Obtiene clientes
  * Endpoint: /clientes
  */
 export const obtenerClientes = async () => {
@@ -286,23 +400,7 @@ export const obtenerClientes = async () => {
 };
 
 /**
- * Obtiene la lista de proveedores
- * Endpoint: /proveedores
- */
-export const obtenerProveedores = async () => {
-  console.log('\n🏭 Obteniendo proveedores...');
-  try {
-    const data = await fetchAllPaginatedData('/proveedores');
-    console.log(`✅ ${data.items.length} proveedores obtenidos`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo proveedores:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene el flujo de caja desde cartolas
+ * ✅ Obtiene el flujo de caja desde cartolas
  * Endpoint: /flujo-caja/cartolas
  */
 export const obtenerFlujoCaja = async () => {
@@ -317,6 +415,22 @@ export const obtenerFlujoCaja = async () => {
   }
 };
 
+/**
+ * ✅ Obtiene movimientos
+ * Endpoint: /movimientos
+ */
+export const obtenerMovimientos = async () => {
+  console.log('\n🔄 Obteniendo movimientos...');
+  try {
+    const data = await fetchAllPaginatedData('/movimientos');
+    console.log(`✅ ${data.items.length} movimientos obtenidos`);
+    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo movimientos:', error);
+    throw error;
+  }
+};
+
 // Exportar todo
 const chipaxService = {
   getChipaxToken,
@@ -326,8 +440,8 @@ const chipaxService = {
   obtenerCuentasPorCobrar,
   obtenerCuentasPorPagar,
   obtenerClientes,
-  obtenerProveedores,
-  obtenerFlujoCaja
+  obtenerFlujoCaja,
+  obtenerMovimientos
 };
 
 export default chipaxService;
