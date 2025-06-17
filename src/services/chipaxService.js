@@ -1,591 +1,465 @@
-// chipaxService.js - Servicio completo para integración con API de Chipax
-// VERSIÓN CON EXPORTACIONES ÚNICAS Y LIMPIAS
+// src/services/chipaxService.js
+// Servicio completo para integración con API Chipax - Versión Corregida
 
-// === CONFIGURACIÓN DE LA API ===
-const CHIPAX_API_URL = 'https://api.chipax.com/v2';
-const APP_ID = '605e0aa5-ca0c-4513-b6ef-0030ac1f0849';
-const SECRET_KEY = 'f01974df-86e1-45a0-924f-75961ea926fc';
-const COMPANY_NAME = 'PGR Seguridad S.p.A';
+class ChipaxService {
+  constructor() {
+    // Configuración de la API
+    this.baseURL = process.env.NODE_ENV === 'development' 
+      ? '/v2' // Usar proxy en desarrollo
+      : 'https://api.chipax.com/v2'; // URL directa en producción
+    
+    this.appId = process.env.REACT_APP_CHIPAX_APP_ID;
+    this.appSecret = process.env.REACT_APP_CHIPAX_APP_SECRET;
+    
+    // Estado del token
+    this.currentToken = null;
+    this.tokenExpiry = null;
+    this.isRefreshingToken = false;
+    this.pendingRequests = [];
+    
+    console.log('🚀 ChipaxService inicializado');
+    console.log('🔧 Base URL:', this.baseURL);
+    console.log('🔑 APP_ID configurado:', this.appId ? 'Sí' : 'No');
+  }
 
-// Cache del token para evitar múltiples autenticaciones
-let tokenCache = {
-  token: null,
-  expiresAt: null,
-  isRefreshing: false,
-  lastFailedEndpoint: null,
-  failureCount: 0
-};
+  // ==========================================
+  // GESTIÓN DE TOKENS
+  // ==========================================
 
-// Configuración de paginación optimizada
-const PAGINATION_CONFIG = {
-  MAX_CONCURRENT_REQUESTS: 3,
-  RETRY_ATTEMPTS: 2,
-  RETRY_DELAY: 1000,
-  REQUEST_DELAY: 500,
-  TIMEOUT: 30000,
-  PAGE_SIZE: 50,
-  MAX_AUTH_RETRIES: 3
-};
+  /**
+   * Obtiene un token de acceso válido
+   */
+  async getChipaxToken() {
+    try {
+      // Si tenemos un token válido, lo retornamos
+      if (this.currentToken && this.isTokenValid()) {
+        console.log('🔑 Usando token existente válido');
+        return this.currentToken;
+      }
 
-// === FUNCIONES DE AUTENTICACIÓN ===
+      // Si ya estamos renovando el token, esperamos
+      if (this.isRefreshingToken) {
+        console.log('⏳ Esperando renovación de token en curso...');
+        return new Promise((resolve, reject) => {
+          this.pendingRequests.push({ resolve, reject });
+        });
+      }
 
-/**
- * Obtiene el token de autenticación de Chipax
- * @returns {Promise<string>} Token JWT
- */
-export const getChipaxToken = async () => {
-  const now = new Date();
-  
-  // Verificar si ya se está renovando el token
-  if (tokenCache.isRefreshing) {
-    console.log('🔄 Token refresh en progreso, esperando...');
-    let attempts = 0;
-    while (tokenCache.isRefreshing && attempts < 30) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      attempts++;
+      // Obtener nuevo token
+      return await this.refreshToken();
+    } catch (error) {
+      console.error('❌ Error obteniendo token:', error);
+      throw error;
     }
   }
-  
-  // Verificar si el token en cache es válido
-  if (tokenCache.token && tokenCache.expiresAt && tokenCache.expiresAt > now) {
-    console.log('🔑 Usando token válido en cache');
-    return tokenCache.token;
-  }
 
-  if (tokenCache.failureCount >= PAGINATION_CONFIG.MAX_AUTH_RETRIES) {
-    throw new Error(`🚫 Demasiados fallos de autenticación (${tokenCache.failureCount}). Revisa credenciales.`);
-  }
-
-  tokenCache.isRefreshing = true;
-
-  console.log('🔐 Obteniendo nuevo token de Chipax...');
-  console.log('🔑 APP_ID:', APP_ID.substring(0, 8) + '...');
-  
-  try {
-    const response = await fetch(`${CHIPAX_API_URL}/login`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'Dashboard-PGR/1.0'
-      },
-      body: JSON.stringify({ 
-        app_id: APP_ID, 
-        secret_key: SECRET_KEY 
-      })
-    });
-
-    console.log('📡 Respuesta status:', response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Error response:', errorText);
-      tokenCache.failureCount++;
-      throw new Error(`Error de autenticación ${response.status}: ${errorText}`);
+  /**
+   * Renueva el token de acceso
+   */
+  async refreshToken() {
+    if (this.isRefreshingToken) {
+      return new Promise((resolve, reject) => {
+        this.pendingRequests.push({ resolve, reject });
+      });
     }
 
-    const data = await response.json();
-    console.log('✅ Respuesta exitosa:', {
-      message: data.message,
-      empresa: data.nombre,
-      tokenRecibido: !!data.token
-    });
-    
-    // Guardar token con margen de seguridad
-    const expirationTime = new Date(data.tokenExpiration * 1000);
-    const safeExpirationTime = new Date(expirationTime.getTime() - 60000);
-    
-    tokenCache = {
-      token: data.token,
-      expiresAt: safeExpirationTime,
-      isRefreshing: false,
-      lastFailedEndpoint: null,
-      failureCount: 0
-    };
-    
-    console.log('✅ Token obtenido exitosamente');
-    console.log('⏰ Expira:', tokenCache.expiresAt.toLocaleString());
-    
-    return tokenCache.token;
-    
-  } catch (error) {
-    console.error('❌ Error obteniendo token:', error);
-    tokenCache.isRefreshing = false;
-    tokenCache.failureCount++;
-    throw error;
-  }
-};
+    this.isRefreshingToken = true;
+    console.log('🔐 Obteniendo nuevo token de Chipax...');
 
-/**
- * Realiza petición a la API de Chipax
- * @param {string} endpoint - Endpoint de la API
- * @param {Object} options - Opciones adicionales
- * @param {boolean} showLogs - Mostrar logs detallados
- * @returns {Promise<Object>} Respuesta de la API
- */
-export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) => {
-  try {
-    const token = await getChipaxToken();
-    const url = endpoint.startsWith('http') ? endpoint : `${CHIPAX_API_URL}${endpoint}`;
-    
-    if (showLogs) {
-      console.log(`🌐 Petición a: ${url}`);
+    try {
+      if (!this.appId || !this.appSecret) {
+        throw new Error('APP_ID o APP_SECRET no configurados');
+      }
+
+      console.log('🔑 APP_ID:', this.appId.substring(0, 8) + '...');
+
+      const response = await fetch(`${this.baseURL}/auth`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          app_id: this.appId,
+          app_secret: this.appSecret,
+        }),
+      });
+
+      console.log('📡 Respuesta status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Error en autenticación:', errorText);
+        throw new Error(`Error de autenticación: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Respuesta exitosa:', data);
+
+      if (!data.access_token) {
+        throw new Error('Token no recibido en la respuesta');
+      }
+
+      // Guardar token y calcular expiración
+      this.currentToken = data.access_token;
+      this.tokenExpiry = new Date(Date.now() + (data.expires_in * 1000));
+      
+      console.log('✅ Token obtenido exitosamente');
+      console.log('⏰ Expira:', this.tokenExpiry.toLocaleString());
+
+      // Resolver requests pendientes
+      this.pendingRequests.forEach(({ resolve }) => resolve(this.currentToken));
+      this.pendingRequests = [];
+
+      return this.currentToken;
+    } catch (error) {
+      console.error('❌ Error renovando token:', error);
+      
+      // Rechazar requests pendientes
+      this.pendingRequests.forEach(({ reject }) => reject(error));
+      this.pendingRequests = [];
+      
+      throw error;
+    } finally {
+      this.isRefreshingToken = false;
     }
+  }
 
-    const defaultOptions = {
-      method: 'GET',
-      headers: {
+  /**
+   * Verifica si el token actual es válido
+   */
+  isTokenValid() {
+    if (!this.currentToken || !this.tokenExpiry) {
+      return false;
+    }
+    
+    // Consideramos inválido si expira en menos de 5 minutos
+    const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
+    return this.tokenExpiry > fiveMinutesFromNow;
+  }
+
+  /**
+   * Invalida el token actual (forzar renovación)
+   */
+  invalidateToken() {
+    console.log('🔄 Invalidando token actual');
+    this.currentToken = null;
+    this.tokenExpiry = null;
+  }
+
+  // ==========================================
+  // MÉTODOS DE API GENÉRICOS
+  // ==========================================
+
+  /**
+   * Realiza una petición autenticada a la API
+   */
+  async makeAuthenticatedRequest(endpoint, options = {}) {
+    try {
+      const token = await this.getChipaxToken();
+      
+      const defaultHeaders = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'User-Agent': 'Dashboard-PGR/1.0'
-      },
-      ...options
-    };
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), PAGINATION_CONFIG.TIMEOUT);
-
-    const response = await fetch(url, {
-      ...defaultOptions,
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-
-    if (showLogs) {
-      console.log(`📊 Status: ${response.status}`);
-    }
-
-    if (response.status === 401) {
-      console.log('🔄 Error 401 detectado');
-      
-      if (tokenCache.lastFailedEndpoint === endpoint) {
-        console.error('🚫 El mismo endpoint falló múltiples veces:', endpoint);
-        tokenCache.failureCount++;
-        
-        if (tokenCache.failureCount >= PAGINATION_CONFIG.MAX_AUTH_RETRIES) {
-          throw new Error(`🚫 Endpoint ${endpoint} falla persistentemente. Posible problema de permisos.`);
-        }
-      }
-      
-      tokenCache.lastFailedEndpoint = endpoint;
-      
-      console.log('🔄 Invalidando token y reintentando...');
-      tokenCache = { 
-        token: null, 
-        expiresAt: null, 
-        isRefreshing: false,
-        lastFailedEndpoint: endpoint,
-        failureCount: tokenCache.failureCount + 1
       };
-      
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      return await fetchFromChipax(endpoint, options, showLogs);
-    }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-    }
+      const requestOptions = {
+        ...options,
+        headers: {
+          ...defaultHeaders,
+          ...options.headers,
+        },
+      };
 
-    const data = await response.json();
-    
-    if (tokenCache.lastFailedEndpoint === endpoint) {
-      tokenCache.lastFailedEndpoint = null;
-      tokenCache.failureCount = Math.max(0, tokenCache.failureCount - 1);
-    }
-    
-    if (showLogs) {
-      console.log(`✅ Datos recibidos exitosamente`);
-    }
+      console.log('📡 Realizando petición a:', endpoint);
+      const response = await fetch(`${this.baseURL}${endpoint}`, requestOptions);
 
-    return data;
-    
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      throw new Error(`⏰ Timeout: La petición a ${endpoint} tardó más de ${PAGINATION_CONFIG.TIMEOUT}ms`);
+      // Si recibimos 401, el token puede haber expirado
+      if (response.status === 401) {
+        console.log('🔄 Error 401 detectado');
+        console.log('🔄 Invalidando token y reintentando...');
+        
+        this.invalidateToken();
+        
+        // Reintentar una vez con nuevo token
+        const newToken = await this.getChipaxToken();
+        const retryResponse = await fetch(`${this.baseURL}${endpoint}`, {
+          ...requestOptions,
+          headers: {
+            ...requestOptions.headers,
+            'Authorization': `Bearer ${newToken}`,
+          },
+        });
+
+        if (!retryResponse.ok) {
+          const errorText = await retryResponse.text();
+          console.error('❌ Error después del reintento:', errorText);
+          throw new Error(`Error ${retryResponse.status}: ${errorText}`);
+        }
+
+        return retryResponse;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Error en petición:', errorText);
+        throw new Error(`Error ${response.status}: ${errorText}`);
+      }
+
+      return response;
+    } catch (error) {
+      console.error('❌ Error en petición autenticada:', error);
+      throw error;
     }
-    console.error(`❌ Error en petición a ${endpoint}:`, error);
-    throw error;
   }
-};
 
-/**
- * Carga todos los datos paginados de un endpoint
- * @param {string} endpoint - Endpoint a consultar
- * @param {Object} options - Opciones adicionales
- * @returns {Promise<Object>} Datos completos con estadísticas de paginación
- */
-export const fetchAllPaginatedData = async (endpoint, options = {}) => {
-  console.log(`\n📄 Iniciando carga paginada de: ${endpoint}`);
-  
-  const startTime = new Date();
-  let allItems = [];
-  let currentPage = 1;
-  let totalItems = 0;
-  let totalPages = 0;
-  let hasMore = true;
-  
-  const paginationStats = {
-    endpoint,
-    startTime,
-    endTime: null,
-    totalItems: 0,
-    loadedItems: 0,
-    totalPages: 0,
-    loadedPages: 0,
-    failedPages: [],
-    completenessPercent: 0,
-    avgItemsPerPage: 0,
-    duration: 0
-  };
+  /**
+   * Carga datos con paginación automática
+   */
+  async loadPaginatedData(endpoint, options = {}) {
+    console.log('📄 Iniciando carga paginada de:', endpoint);
+    
+    let allData = [];
+    let currentPage = 1;
+    let hasMorePages = true;
+    const maxPages = options.maxPages || 50; // Límite de seguridad
 
-  try {
-    while (hasMore && currentPage <= 150) {
-      try {
-        const pageEndpoint = endpoint.includes('?') 
-          ? `${endpoint}&page=${currentPage}&per_page=${PAGINATION_CONFIG.PAGE_SIZE}`
-          : `${endpoint}?page=${currentPage}&per_page=${PAGINATION_CONFIG.PAGE_SIZE}`;
-
+    try {
+      while (hasMorePages && currentPage <= maxPages) {
         console.log(`📄 Cargando página ${currentPage}...`);
         
-        const data = await fetchFromChipax(pageEndpoint, options, false);
+        // Construir URL con parámetros de paginación
+        const separator = endpoint.includes('?') ? '&' : '?';
+        const paginatedEndpoint = `${endpoint}${separator}page=${currentPage}`;
         
-        if (data && data.data && Array.isArray(data.data)) {
-          allItems.push(...data.data);
-          
-          if (currentPage === 1) {
-            totalItems = data.total || data.data.length;
-            totalPages = data.last_page || Math.ceil(totalItems / PAGINATION_CONFIG.PAGE_SIZE);
-            paginationStats.totalItems = totalItems;
-            paginationStats.totalPages = totalPages;
-          }
-          
-          hasMore = data.current_page < data.last_page;
-          
-          console.log(`✅ Página ${currentPage}: ${data.data.length} items (${allItems.length}/${totalItems})`);
-          
-        } else if (data && Array.isArray(data)) {
-          allItems.push(...data);
-          hasMore = data.length === PAGINATION_CONFIG.PAGE_SIZE;
-          
-          console.log(`✅ Página ${currentPage}: ${data.length} items`);
-          
+        const response = await this.makeAuthenticatedRequest(paginatedEndpoint);
+        const data = await response.json();
+
+        console.log(`✅ Página ${currentPage} cargada:`, {
+          items: data.data ? data.data.length : 0,
+          totalItems: data.total || 'N/A',
+          currentPage: data.current_page || currentPage,
+          lastPage: data.last_page || 'N/A'
+        });
+
+        // Agregar datos de esta página
+        if (data.data && Array.isArray(data.data)) {
+          allData.push(...data.data);
+        } else if (Array.isArray(data)) {
+          // Algunas APIs retornan el array directamente
+          allData.push(...data);
+          hasMorePages = false; // Si no hay metadata, asumimos que no hay más páginas
         } else {
-          console.log(`⚠️ Estructura inesperada en página ${currentPage}:`, data);
-          hasMore = false;
-        }
-        
-        paginationStats.loadedPages = currentPage;
-        paginationStats.loadedItems = allItems.length;
-        
-      } catch (pageError) {
-        console.error(`❌ Error en página ${currentPage}:`, pageError.message);
-        paginationStats.failedPages.push(currentPage);
-        
-        if (paginationStats.failedPages.length >= 3) {
-          console.log('🛑 Demasiados errores, deteniendo carga');
+          console.warn('⚠️ Estructura de datos inesperada:', data);
           break;
         }
+
+        // Verificar si hay más páginas
+        if (data.current_page && data.last_page) {
+          hasMorePages = data.current_page < data.last_page;
+        } else if (data.next_page_url) {
+          hasMorePages = !!data.next_page_url;
+        } else {
+          // Si no hay metadata de paginación, intentar detectar si hay más datos
+          hasMorePages = data.data && data.data.length > 0 && data.data.length >= 10;
+        }
+
+        currentPage++;
+        
+        // Pausa breve para no sobrecargar la API
+        if (hasMorePages) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
       }
-      
-      currentPage++;
-      
-      if (hasMore) {
-        await new Promise(resolve => setTimeout(resolve, PAGINATION_CONFIG.REQUEST_DELAY));
+
+      console.log(`✅ Carga paginada completada: ${allData.length} items en ${currentPage - 1} páginas`);
+      return allData;
+    } catch (error) {
+      console.error('❌ Error en carga paginada:', error);
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // MÓDULOS ESPECÍFICOS DE DATOS
+  // ==========================================
+
+  // Módulo de Banco
+  Banco = {
+    /**
+     * Obtiene saldos bancarios
+     */
+    getSaldosBancarios: async () => {
+      try {
+        console.log('🏦 Obteniendo saldos bancarios...');
+        const response = await this.makeAuthenticatedRequest('/cuentas_bancarias');
+        const data = await response.json();
+        
+        console.log('✅ Saldos bancarios obtenidos:', data.length || 0, 'cuentas');
+        return data;
+      } catch (error) {
+        console.error('❌ Error obteniendo saldos bancarios:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Obtiene movimientos bancarios
+     */
+    getMovimientosBancarios: async (fechaDesde, fechaHasta, cuentaId = null) => {
+      try {
+        console.log('💰 Obteniendo movimientos bancarios...');
+        
+        let endpoint = `/movimientos_bancarios?fecha_desde=${fechaDesde}&fecha_hasta=${fechaHasta}`;
+        if (cuentaId) {
+          endpoint += `&cuenta_bancaria_id=${cuentaId}`;
+        }
+        
+        const movimientos = await this.loadPaginatedData(endpoint);
+        console.log('✅ Movimientos bancarios obtenidos:', movimientos.length);
+        return movimientos;
+      } catch (error) {
+        console.error('❌ Error obteniendo movimientos bancarios:', error);
+        throw error;
       }
     }
-    
-  } catch (error) {
-    console.error('❌ Error general en carga paginada:', error);
-    paginationStats.error = error.message;
-  }
-  
-  paginationStats.endTime = new Date();
-  paginationStats.duration = (paginationStats.endTime - paginationStats.startTime) / 1000;
-  paginationStats.completenessPercent = paginationStats.totalItems > 0 
-    ? (paginationStats.loadedItems / paginationStats.totalItems) * 100 
-    : 100;
-  paginationStats.avgItemsPerPage = paginationStats.loadedPages > 0 
-    ? paginationStats.loadedItems / paginationStats.loadedPages 
-    : 0;
-
-  console.log(`\n📊 RESUMEN DE CARGA PAGINADA:`);
-  console.log(`📄 Endpoint: ${endpoint}`);
-  console.log(`📦 Items cargados: ${paginationStats.loadedItems}/${paginationStats.totalItems || 'N/A'}`);
-  console.log(`📄 Páginas cargadas: ${paginationStats.loadedPages}/${paginationStats.totalPages || 'N/A'}`);
-  console.log(`⏱️ Duración: ${paginationStats.duration.toFixed(2)} segundos`);
-  console.log(`✅ Completitud: ${paginationStats.completenessPercent.toFixed(1)}%`);
-  
-  if (paginationStats.failedPages.length > 0) {
-    console.log(`⚠️ Páginas fallidas: ${paginationStats.failedPages.join(', ')}`);
-  }
-
-  return {
-    items: allItems,
-    paginationStats
   };
-};
 
-/**
- * VERSIÓN SIMPLIFICADA: Obtiene saldos bancarios sin dependencia de API externa
- */
-export const obtenerSaldosBancarios = async () => {
-  console.log('\n💰 Obteniendo saldos bancarios...');
-  
-  try {
-    // Crear cuentas con saldos finales conocidos (basado en tu test exitoso)
-    const cuentasFinales = [
-      {
-        id: 1,
-        nombre: '89107021',
-        banco: 'BCI',
-        saldo: 1250000,
-        tipo: 'Cuenta Corriente',
-        moneda: 'CLP',
-        origenSaldo: 'saldo_inicial_mas_estimacion'
-      },
-      {
-        id: 2,
-        nombre: '0000000803',
-        banco: 'chipax_wallet',
-        saldo: 0,
-        tipo: 'Cuenta Corriente',
-        moneda: 'CLP',
-        origenSaldo: 'saldo_inicial_mas_estimacion'
-      },
-      {
-        id: 3,
-        nombre: '9117726',
-        banco: 'generico',
-        saldo: 500000,
-        tipo: 'Cuenta Corriente',
-        moneda: 'CLP',
-        origenSaldo: 'saldo_inicial_mas_estimacion'
-      },
-      {
-        id: 4,
-        nombre: '00-800-10734-09',
-        banco: 'banconexion2',
-        saldo: 184898977,
-        tipo: 'Cuenta Corriente',
-        moneda: 'CLP',
-        origenSaldo: 'saldo_inicial_mas_estimacion'
-      },
-      {
-        id: 5,
-        nombre: '0-000-7066661-8',
-        banco: 'santander',
-        saldo: 0,
-        tipo: 'Cuenta Corriente',
-        moneda: 'CLP',
-        origenSaldo: 'saldo_inicial_mas_estimacion'
+  // Módulo de Facturación
+  Facturacion = {
+    /**
+     * Obtiene cuentas por cobrar (DTEs pendientes de cobro)
+     */
+    getCuentasPorCobrar: async () => {
+      try {
+        console.log('💸 Obteniendo cuentas por cobrar...');
+        
+        // CORRECCIÓN PRINCIPAL: Usar el endpoint correcto para cuentas por cobrar
+        // El problema era que estábamos usando /dtes?porCobrar=1
+        // Pero el endpoint correcto debe ser uno de estos:
+        const endpoint = '/dtes/por_cobrar'; // O '/cuentas_por_cobrar' dependiendo de la API
+        
+        const cuentas = await this.loadPaginatedData(endpoint);
+        console.log('✅ Cuentas por cobrar obtenidas:', cuentas.length);
+        return cuentas;
+      } catch (error) {
+        // Si el endpoint anterior falla, intentar con alternativas
+        console.warn('⚠️ Endpoint principal falló, intentando alternativas...');
+        
+        try {
+          // Intento 1: Endpoint alternativo
+          const cuentas1 = await this.loadPaginatedData('/cuentas_por_cobrar');
+          console.log('✅ Cuentas por cobrar obtenidas (alt 1):', cuentas1.length);
+          return cuentas1;
+        } catch (error1) {
+          try {
+            // Intento 2: DTEs con filtro específico
+            const cuentas2 = await this.loadPaginatedData('/dtes?estado=pendiente&tipo=factura');
+            console.log('✅ Cuentas por cobrar obtenidas (alt 2):', cuentas2.length);
+            return cuentas2;
+          } catch (error2) {
+            console.error('❌ Error obteniendo cuentas por cobrar con todos los métodos:', error2);
+            throw new Error(`No se pudieron obtener las cuentas por cobrar. Errores: ${error.message}, ${error1.message}, ${error2.message}`);
+          }
+        }
       }
-    ];
+    },
 
-    const totalSaldos = cuentasFinales.reduce((sum, cuenta) => sum + cuenta.saldo, 0);
-    
-    console.log(`✅ ${cuentasFinales.length} cuentas procesadas`);
-    console.log(`💰 Total calculado: $${totalSaldos.toLocaleString('es-CL')}`);
-    
+    /**
+     * Obtiene cuentas por pagar (DTEs pendientes de pago)
+     */
+    getCuentasPorPagar: async () => {
+      try {
+        console.log('💰 Obteniendo cuentas por pagar...');
+        
+        // Similar corrección para cuentas por pagar
+        const endpoint = '/dtes/por_pagar'; // O '/cuentas_por_pagar'
+        
+        const cuentas = await this.loadPaginatedData(endpoint);
+        console.log('✅ Cuentas por pagar obtenidas:', cuentas.length);
+        return cuentas;
+      } catch (error) {
+        // Intentos alternativos
+        console.warn('⚠️ Endpoint principal falló, intentando alternativas...');
+        
+        try {
+          const cuentas1 = await this.loadPaginatedData('/cuentas_por_pagar');
+          console.log('✅ Cuentas por pagar obtenidas (alt 1):', cuentas1.length);
+          return cuentas1;
+        } catch (error1) {
+          try {
+            const cuentas2 = await this.loadPaginatedData('/dtes?estado=recibido&tipo=factura_compra');
+            console.log('✅ Cuentas por pagar obtenidas (alt 2):', cuentas2.length);
+            return cuentas2;
+          } catch (error2) {
+            console.error('❌ Error obteniendo cuentas por pagar:', error2);
+            throw error2;
+          }
+        }
+      }
+    },
+
+    /**
+     * Obtiene facturas pendientes de aprobación
+     */
+    getFacturasPendientes: async () => {
+      try {
+        console.log('📋 Obteniendo facturas pendientes...');
+        const facturas = await this.loadPaginatedData('/dtes?estado=pendiente_aprobacion');
+        console.log('✅ Facturas pendientes obtenidas:', facturas.length);
+        return facturas;
+      } catch (error) {
+        console.error('❌ Error obteniendo facturas pendientes:', error);
+        throw error;
+      }
+    }
+  };
+
+  // ==========================================
+  // MÉTODOS DE UTILIDAD Y DEBUG
+  // ==========================================
+
+  /**
+   * Prueba la conexión con la API
+   */
+  async testConnection() {
+    try {
+      console.log('🔍 Probando conexión con Chipax API...');
+      
+      const token = await this.getChipaxToken();
+      console.log('✅ Token obtenido correctamente');
+      
+      // Probar endpoint básico
+      const response = await this.makeAuthenticatedRequest('/empresas');
+      const data = await response.json();
+      
+      console.log('✅ Conexión exitosa:', data);
+      return { success: true, data };
+    } catch (error) {
+      console.error('❌ Error en prueba de conexión:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Obtiene información de debug sobre el estado del servicio
+   */
+  getDebugInfo() {
     return {
-      items: cuentasFinales,
-      paginationStats: {
-        totalItems: cuentasFinales.length,
-        loadedItems: cuentasFinales.length,
-        completenessPercent: 100,
-        loadedPages: 1,
-        totalPages: 1,
-        failedPages: [],
-        duration: 0
-      }
-    };
-    
-  } catch (error) {
-    console.error('❌ Error obteniendo saldos bancarios:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene las cuentas por cobrar (DTEs)
- */
-export const obtenerCuentasPorCobrar = async () => {
-  console.log('\n📊 Obteniendo DTEs (facturas por cobrar)...');
-  try {
-    const data = await fetchAllPaginatedData('/dtes?porCobrar=1');
-    console.log(`✅ ${data.items.length} DTEs por cobrar obtenidos`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo DTEs:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene las compras (cuentas por pagar)
- */
-export const obtenerCuentasPorPagar = async () => {
-  console.log('\n💸 Obteniendo compras (cuentas por pagar)...');
-  try {
-    const data = await fetchAllPaginatedData('/compras');
-    
-    if (data.items && data.items.length > 0) {
-      const todasLasCompras = data.items.length;
-      
-      data.items = data.items.filter(compra => 
-        !compra.fechaPagoInterna || 
-        compra.estado === 'pendiente' ||
-        compra.estado === 'aceptado'
-      );
-      
-      console.log(`📊 De ${todasLasCompras} compras, ${data.items.length} están pendientes de pago`);
-    }
-    
-    console.log(`✅ ${data.items.length} compras por pagar obtenidas`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo compras:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene la lista de clientes
- */
-export const obtenerClientes = async () => {
-  console.log('\n👥 Obteniendo clientes...');
-  try {
-    const data = await fetchAllPaginatedData('/clientes');
-    console.log(`✅ ${data.items.length} clientes obtenidos`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo clientes:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene la lista de proveedores
- */
-export const obtenerProveedores = async () => {
-  console.log('\n🏭 Obteniendo proveedores...');
-  try {
-    const data = await fetchAllPaginatedData('/proveedores');
-    console.log(`✅ ${data.items.length} proveedores obtenidos`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo proveedores:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene el flujo de caja desde cartolas
- */
-export const obtenerFlujoCaja = async () => {
-  console.log('\n💵 Obteniendo flujo de caja...');
-  try {
-    const data = await fetchAllPaginatedData('/flujo-caja/cartolas');
-    console.log(`✅ ${data.items.length} movimientos de flujo de caja obtenidos`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo flujo de caja:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene honorarios
- */
-export const obtenerHonorarios = async () => {
-  console.log('\n📄 Obteniendo honorarios...');
-  try {
-    const data = await fetchAllPaginatedData('/honorarios');
-    console.log(`✅ ${data.items.length} honorarios obtenidos`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo honorarios:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene boletas de terceros
- */
-export const obtenerBoletasTerceros = async () => {
-  console.log('\n📋 Obteniendo boletas de terceros...');
-  try {
-    const data = await fetchAllPaginatedData('/boletas-terceros');
-    console.log(`✅ ${data.items.length} boletas de terceros obtenidas`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error obteniendo boletas de terceros:', error);
-    throw error;
-  }
-};
-
-/**
- * Función de utilidad para verificar conectividad
- */
-export const verificarConectividadChipax = async () => {
-  console.log('🔍 Verificando conectividad con Chipax...');
-  
-  try {
-    tokenCache.failureCount = 0;
-    tokenCache.lastFailedEndpoint = null;
-    
-    const response = await fetchFromChipax('/ping', {}, false);
-    console.log('✅ Chipax responde correctamente');
-    return { ok: true, message: 'Conexión exitosa' };
-    
-  } catch (error) {
-    console.error('❌ Error de conectividad:', error);
-    return { 
-      ok: false, 
-      message: error.message,
-      suggestion: error.message.includes('401') 
-        ? 'Verificar credenciales de API'
-        : error.message.includes('timeout')
-        ? 'Chipax puede estar lento, reintentar en unos minutos'
-        : 'Error de red o servidor'
+      baseURL: this.baseURL,
+      hasAppId: !!this.appId,
+      hasAppSecret: !!this.appSecret,
+      hasToken: !!this.currentToken,
+      tokenValid: this.isTokenValid(),
+      tokenExpiry: this.tokenExpiry,
+      isRefreshing: this.isRefreshingToken,
+      pendingRequests: this.pendingRequests.length
     };
   }
-};
+}
 
-/**
- * Información del estado de autenticación
- */
-export const obtenerEstadoAutenticacion = () => {
-  return {
-    tieneToken: !!tokenCache.token,
-    expira: tokenCache.expiresAt,
-    isRefreshing: tokenCache.isRefreshing,
-    failureCount: tokenCache.failureCount,
-    lastFailedEndpoint: tokenCache.lastFailedEndpoint,
-    minutosParaExpirar: tokenCache.expiresAt 
-      ? Math.round((tokenCache.expiresAt - new Date()) / 60000)
-      : null
-  };
-};
-
-// === EXPORT DEFAULT ÚNICO ===
-const chipaxService = {
-  getChipaxToken,
-  fetchFromChipax,
-  fetchAllPaginatedData,
-  obtenerSaldosBancarios,
-  obtenerCuentasPorCobrar,
-  obtenerCuentasPorPagar,
-  obtenerClientes,
-  obtenerProveedores,
-  obtenerFlujoCaja,
-  obtenerHonorarios,
-  obtenerBoletasTerceros,
-  verificarConectividadChipax,
-  obtenerEstadoAutenticacion
-};
+// Crear instancia singleton
+const chipaxService = new ChipaxService();
 
 export default chipaxService;
