@@ -343,6 +343,62 @@ export const obtenerClientes = async () => {
 };
 
 /**
+ * ✅ NUEVA: Función auxiliar para obtener paginación completa
+ */
+export const fetchAllPaginatedData = async (baseEndpoint) => {
+  console.log(`📊 Cargando datos paginados de ${baseEndpoint}...`);
+  
+  let allItems = [];
+  let page = 1;
+  let hasMore = true;
+  const maxPages = 150; // Límite de seguridad
+  
+  try {
+    while (hasMore && page <= maxPages) {
+      const separator = baseEndpoint.includes('?') ? '&' : '?';
+      const endpoint = `${baseEndpoint}${separator}page=${page}&limit=50`;
+      
+      const data = await fetchFromChipax(endpoint, {}, page === 1);
+      
+      // Manejo de diferentes estructuras de respuesta
+      if (data.items && Array.isArray(data.items)) {
+        allItems = [...allItems, ...data.items];
+        
+        if (data.paginationAttributes) {
+          const { currentPage, totalPages } = data.paginationAttributes;
+          hasMore = currentPage < totalPages;
+          
+          if (page === 1) {
+            console.log(`📄 Total: ${data.paginationAttributes.count || data.paginationAttributes.totalCount} items en ${totalPages} páginas`);
+          }
+        } else {
+          hasMore = false;
+        }
+      } else if (Array.isArray(data)) {
+        // Si la respuesta es directamente un array
+        allItems = [...allItems, ...data];
+        hasMore = data.length === 50; // Si recibimos menos de 50, no hay más páginas
+      } else if (data.docs && Array.isArray(data.docs)) {
+        // Para flujo de caja que usa 'docs' en lugar de 'items'
+        allItems = [...allItems, ...data.docs];
+        hasMore = data.pages ? page < data.pages : false;
+      } else {
+        hasMore = false;
+      }
+      
+      page++;
+    }
+    
+    console.log(`✅ Total cargado: ${allItems.length} items`);
+    return allItems;
+    
+  } catch (error) {
+    console.error('❌ Error en carga paginada:', error);
+    return allItems; // Retornar lo que se pudo cargar
+  }
+};
+
+/**
  * ✅ CORREGIDO: Obtiene flujo de caja con Authorization header
  */
 export const obtenerFlujoCaja = async () => {
@@ -382,10 +438,11 @@ export const obtenerMovimientos = async () => {
   }
 };
 
-// Exportar todo
+// Exportar todo CON TODAS LAS FUNCIONES
 const chipaxService = {
   getChipaxToken,
   fetchFromChipax,
+  fetchAllPaginatedData,
   obtenerSaldosBancarios,
   obtenerCuentasPorCobrar,
   obtenerCuentasPorPagar,
@@ -395,3 +452,16 @@ const chipaxService = {
 };
 
 export default chipaxService;
+
+// ✅ TAMBIÉN EXPORTAR INDIVIDUALMENTE PARA COMPATIBILIDAD
+export {
+  getChipaxToken,
+  fetchFromChipax,
+  fetchAllPaginatedData,
+  obtenerSaldosBancarios,
+  obtenerCuentasPorCobrar,
+  obtenerCuentasPorPagar,
+  obtenerClientes,
+  obtenerFlujoCaja,
+  obtenerMovimientos
+};
