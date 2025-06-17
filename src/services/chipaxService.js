@@ -15,7 +15,6 @@ const COMPANY_NAME = 'PGR Seguridad S.p.A';
 // Cache del token mejorado con protección contra bucles
 let tokenCache = {
   token: null,
-  expiresAt: null
   expiresAt: null,
   isRefreshing: false, // ✅ NUEVO: Prevenir múltiples refreshes simultáneos
   lastFailedEndpoint: null, // ✅ NUEVO: Detectar endpoints problemáticos
@@ -25,13 +24,8 @@ let tokenCache = {
 // Configuración de paginación optimizada
 // Configuración con timeouts más largos para Chipax
 const PAGINATION_CONFIG = {
-  MAX_CONCURRENT_REQUESTS: 5,
   MAX_CONCURRENT_REQUESTS: 3, // ✅ REDUCIDO: Menos carga en Chipax
   RETRY_ATTEMPTS: 2,
-  RETRY_DELAY: 500,
-  REQUEST_DELAY: 100,
-  TIMEOUT: 15000,
-  PAGE_SIZE: 100
   RETRY_DELAY: 1000, // ✅ AUMENTADO: Más tiempo entre reintentos
   REQUEST_DELAY: 500, // ✅ AUMENTADO: Más pausa entre peticiones
   TIMEOUT: 30000, // ✅ AUMENTADO: 30 segundos timeout
@@ -62,7 +56,6 @@ export const getChipaxToken = async () => {
   
   // Verificar si el token en cache es válido
   if (tokenCache.token && tokenCache.expiresAt && tokenCache.expiresAt > now) {
-    console.log('🔑 Usando token en cache');
     console.log('🔑 Usando token válido en cache');
     return tokenCache.token;
   }
@@ -77,22 +70,22 @@ export const getChipaxToken = async () => {
 
   console.log('🔐 Obteniendo nuevo token de Chipax...');
   console.log('🔑 APP_ID:', APP_ID.substring(0, 8) + '...');
-
-@@ -48,7 +64,8 @@ export const getChipaxToken = async () => {
+  
+  try {
+    const response = await fetch(`${CHIPAX_API_URL}/login`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
         'Accept': 'application/json',
         'User-Agent': 'Dashboard-PGR/1.0' // ✅ NUEVO: User agent específico
       },
       body: JSON.stringify({ 
         app_id: APP_ID, 
-@@ -57,11 +74,11 @@ export const getChipaxToken = async () => {
+        secret_key: SECRET_KEY 
+      })
     });
 
     console.log('📡 Respuesta status:', response.status);
-    console.log('📍 URL utilizada:', `${CHIPAX_API_URL}/login`);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -101,18 +94,19 @@ export const getChipaxToken = async () => {
       throw new Error(`Error de autenticación ${response.status}: ${errorText}`);
     }
 
-@@ -72,10 +89,16 @@ export const getChipaxToken = async () => {
+    const data = await response.json();
+    console.log('✅ Respuesta exitosa:', {
+      message: data.message,
+      empresa: data.nombre,
       tokenRecibido: !!data.token
     });
 
-    // Guardar token en cache
     // Guardar token con margen de seguridad
     const expirationTime = new Date(data.tokenExpiration * 1000);
     const safeExpirationTime = new Date(expirationTime.getTime() - 60000); // ✅ 1 minuto antes
     
     tokenCache = {
       token: data.token,
-      expiresAt: new Date(data.tokenExpiration * 1000)
       expiresAt: safeExpirationTime, // ✅ MEJORADO: Expira 1 minuto antes para seguridad
       isRefreshing: false,
       lastFailedEndpoint: null,
@@ -120,11 +114,12 @@ export const getChipaxToken = async () => {
     };
 
     console.log('✅ Token obtenido exitosamente');
-@@ -85,17 +108,14 @@ export const getChipaxToken = async () => {
+    console.log('⏰ Expira:', safeExpirationTime.toLocaleString());
+
+    return data.token;
 
   } catch (error) {
     console.error('❌ Error obteniendo token:', error);
-    tokenCache = { token: null, expiresAt: null };
     tokenCache.isRefreshing = false;
     tokenCache.failureCount++;
     throw error;
@@ -141,24 +136,36 @@ export const getChipaxToken = async () => {
  */
 export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) => {
   try {
-@@ -111,7 +131,8 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
+    if (showLogs) {
+      console.log(`📡 Petición a: ${endpoint}`);
+    }
+
+    const token = await getChipaxToken();
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PAGINATION_CONFIG.TIMEOUT);
+
+    const requestOptions = {
+      method: 'GET',
+      signal: controller.signal,
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
         'Accept': 'application/json',
         'User-Agent': 'Dashboard-PGR/1.0' // ✅ NUEVO: User agent específico
       },
       ...options
     };
-@@ -130,9 +151,36 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
+
+    const response = await fetch(`${CHIPAX_API_URL}${endpoint}`, requestOptions);
+    clearTimeout(timeoutId);
+
+    if (showLogs) {
       console.log(`📊 Status: ${response.status}`);
     }
 
     // ✅ MEJORADO: Manejo más inteligente del 401
     if (response.status === 401) {
-      console.log('🔄 Token expirado, renovando...');
-      tokenCache = { token: null, expiresAt: null };
       console.log('🔄 Error 401 detectado');
       
       // Verificar si este endpoint ya falló antes
@@ -190,7 +197,10 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
       return await fetchFromChipax(endpoint, options, showLogs);
     }
 
-@@ -143,6 +191,12 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
 
     const data = await response.json();
 
@@ -203,11 +213,11 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
     if (showLogs) {
       console.log(`✅ Datos recibidos exitosamente`);
     }
-@@ -151,158 +205,67 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
+
+    return data;
 
   } catch (error) {
     if (error.name === 'AbortError') {
-      throw new Error(`Timeout: La petición a ${endpoint} tardó más de ${PAGINATION_CONFIG.TIMEOUT}ms`);
       throw new Error(`⏰ Timeout: La petición a ${endpoint} tardó más de ${PAGINATION_CONFIG.TIMEOUT}ms`);
     }
     console.error(`❌ Error en petición a ${endpoint}:`, error);
@@ -222,9 +232,8 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
  * @param {string} endpoint - Endpoint a consultar
  * @param {Object} options - Opciones adicionales
  * @returns {Promise<Object>} Datos completos con estadísticas de paginación
- * ✅ NUEVA FUNCIÓN: Verificar conectividad con Chipax antes de sincronizar
  */
-export const fetchAllPaginatedData = async (endpoint, options = {}) => {
+const fetchAllPaginatedDataOriginal = async (endpoint, options = {}) => {
   console.log(`\n📄 Iniciando carga paginada de: ${endpoint}`);
   
   const startTime = new Date();
@@ -233,8 +242,6 @@ export const fetchAllPaginatedData = async (endpoint, options = {}) => {
   let totalItems = 0;
   let totalPages = 0;
   let hasMore = true;
-export const verificarConectividadChipax = async () => {
-  console.log('🔍 Verificando conectividad con Chipax...');
 
   // Estadísticas de paginación
   const paginationStats = {
@@ -309,14 +316,6 @@ export const verificarConectividadChipax = async () => {
         await new Promise(resolve => setTimeout(resolve, PAGINATION_CONFIG.REQUEST_DELAY));
       }
     }
-    // Resetear contadores
-    tokenCache.failureCount = 0;
-    tokenCache.lastFailedEndpoint = null;
-    
-    // Probar endpoint simple primero
-    const response = await fetchFromChipax('/ping', {}, false);
-    console.log('✅ Chipax responde correctamente');
-    return { ok: true, message: 'Conexión exitosa' };
 
   } catch (error) {
     console.error('❌ Error general en carga paginada:', error);
@@ -342,6 +341,31 @@ export const verificarConectividadChipax = async () => {
   
   if (paginationStats.failedPages.length > 0) {
     console.log(`⚠️ Páginas fallidas: ${paginationStats.failedPages.join(', ')}`);
+  }
+
+  return {
+    items: allItems,
+    paginationStats
+  };
+};
+
+/**
+ * ✅ NUEVA FUNCIÓN: Verificar conectividad con Chipax antes de sincronizar
+ */
+export const verificarConectividadChipax = async () => {
+  console.log('🔍 Verificando conectividad con Chipax...');
+  
+  try {
+    // Resetear contadores
+    tokenCache.failureCount = 0;
+    tokenCache.lastFailedEndpoint = null;
+    
+    // Probar endpoint simple primero
+    const response = await fetchFromChipax('/ping', {}, false);
+    console.log('✅ Chipax responde correctamente');
+    return { ok: true, message: 'Conexión exitosa' };
+    
+  } catch (error) {
     console.error('❌ Error de conectividad:', error);
     return { 
       ok: false, 
@@ -353,14 +377,7 @@ export const verificarConectividadChipax = async () => {
         : 'Error de red o servidor'
     };
   }
-
-  return {
-    items: allItems,
-    paginationStats
-  };
 };
-
-// === FUNCIONES ESPECÍFICAS DE ENDPOINTS ===
 
 /**
  * VERSIÓN NUEVA: Obtiene saldos bancarios usando saldos iniciales + movimientos 2025
@@ -393,7 +410,32 @@ export const obtenerSaldosBancarios = async () => {
       contenidoSaldosIniciales = `BCI
 cte cte:89107021
 $178.098
-@@ -330,6 +293,7 @@ Saldo al 31 de diciembre 2024`;
+
+BCI
+vista: 85207765
+$-23.399
+
+Banco Scotiabank
+cte cte:90999996
+$31.149.652
+
+Banco Santander Chile
+cte cte: 90999998
+$13.871.623
+
+Banco BancoEstado
+cte cte:90800036
+$331.003
+
+Banco BancoEstado
+vista: 89209984
+$-17.859.354
+
+Banco Estado
+Vista : 8920999
+$-1.200.000
+
+Saldo al 31 de diciembre 2024`;
     }
 
     // PASO 2: Calcular saldos actuales correctos
@@ -401,18 +443,36 @@ $178.098
     const resultado = await calcularSaldosActualesCorrectos(contenidoSaldosIniciales);
 
     console.log(`✅ ${resultado.saldosBancarios.length} cuentas procesadas con nuevo método`);
-@@ -342,10 +306,8 @@ Saldo al 31 de diciembre 2024`;
+    console.log(`💰 Total calculado: $${resultado.totalCalculado.toLocaleString('es-CL')}`);
+
+    // PASO 3: Verificar con total de Chipax (si hay conectividad)
+    if (conectividad.ok) {
+      const verificacion = await verificarTotalConChipax(resultado.totalCalculado);
+      resultado.verificacionChipax = verificacion;
+    }
+
+    if (resultado.verificacionChipax?.esCorrecta) {
       console.log('🎉 ¡ÉXITO! El total calculado coincide con Chipax');
     } else {
       console.warn('⚠️ El total calculado no coincide exactamente con Chipax');
-      console.warn('📋 Revisar saldos iniciales o lógica de movimientos');
     }
 
     // Retornar en formato compatible con el dashboard
     return {
       items: resultado.saldosBancarios,
       detalleCalculo: resultado.detalleCalculo,
-@@ -363,360 +325,61 @@ Saldo al 31 de diciembre 2024`;
+      paginationStats: {
+        totalItems: resultado.saldosBancarios.length,
+        loadedItems: resultado.saldosBancarios.length,
+        completenessPercent: 100,
+        loadedPages: 1,
+        totalPages: 1,
+        failedPages: [],
+        duration: 0,
+        metodo: 'saldos_iniciales_2025',
+        verificacionChipax: resultado.verificacionChipax
+      }
+    };
 
   } catch (error) {
     console.error('❌ Error obteniendo saldos bancarios:', error);
@@ -430,48 +490,13 @@ $178.098
 export const obtenerSaldosBancariosLegacy = async () => {
   console.log('\n💰 Obteniendo cuentas corrientes (método legacy)...');
   try {
-    const data = await fetchAllPaginatedData('/cuentas-corrientes');
+    const data = await fetchAllPaginatedDataOriginal('/cuentas-corrientes');
     
     console.log(`✅ ${data.items.length} cuentas corrientes obtenidas`);
     
     // Loggear estructura de la primera cuenta para debugging
     if (data.items.length > 0) {
       console.log('🔍 Estructura de la primera cuenta corriente:', JSON.stringify(data.items[0], null, 2));
-    }
-    
-    // Calcular saldos desde flujo de caja
-    console.log('🔄 Calculando saldos desde flujo de caja...');
-    
-    try {
-      const saldosPorCuenta = await obtenerSaldosDesdeFlujoCaja();
-      
-      // Combinar cuentas con saldos calculados
-      data.items = data.items.map(cuenta => {
-        const saldoInfo = saldosPorCuenta[cuenta.id];
-        
-        if (saldoInfo) {
-          console.log(`✅ Saldo encontrado para cuenta ${cuenta.numeroCuenta || cuenta.id}: $${saldoInfo.saldo.toLocaleString('es-CL')}`);
-          
-          return {
-            ...cuenta,
-            // Crear objeto Saldo compatible con el formato esperado
-            Saldo: {
-              debe: saldoInfo.egresos,
-              haber: saldoInfo.ingresos,
-              saldo_deudor: saldoInfo.saldo > 0 ? saldoInfo.saldo : 0,
-              saldo_acreedor: saldoInfo.saldo < 0 ? Math.abs(saldoInfo.saldo) : 0
-            },
-            saldoCalculado: saldoInfo.saldo,
-            totalMovimientos: saldoInfo.movimientos
-          };
-        } else {
-          console.warn(`⚠️ No se encontró saldo para cuenta ${cuenta.numeroCuenta || cuenta.id}`);
-          return cuenta;
-        }
-      });
-      
-    } catch (saldoError) {
-      console.warn('⚠️ Error calculando saldos desde flujo de caja:', saldoError);
     }
     
     return data;
@@ -483,81 +508,13 @@ export const obtenerSaldosBancariosLegacy = async () => {
 };
 
 /**
- * Obtiene los saldos bancarios desde el flujo de caja
- * Como el endpoint /saldos no existe, calculamos los saldos desde los movimientos
- */
-export const obtenerSaldosDesdeFlujoCaja = async () => {
-  console.log('\n💰 Calculando saldos desde flujo de caja...');
-  
-  try {
-    // Obtener todos los movimientos del flujo de caja
-    const flujoResponse = await fetchAllPaginatedData('/flujo-caja/cartolas');
-    const movimientos = flujoResponse.items;
-    console.log(`📊 ${movimientos.length} movimientos encontrados`);
-    
-    // Loggear estructura del primer movimiento para debugging
-    if (movimientos.length > 0) {
-      console.log('🔍 Estructura del primer movimiento:', JSON.stringify(movimientos[0], null, 2));
-    }
-    
-    // Agrupar movimientos por cuenta corriente
-    const saldosPorCuenta = {};
-    
-    movimientos.forEach(mov => {
-      // Verificar diferentes nombres de campo para cuenta
-      const cuentaId = mov.cuenta_corriente_id || mov.cuentaCorrienteId || mov.cuenta_id;
-      
-      if (cuentaId) {
-        if (!saldosPorCuenta[cuentaId]) {
-          saldosPorCuenta[cuentaId] = {
-            saldo: 0,
-            ingresos: 0,
-            egresos: 0,
-            movimientos: 0
-          };
-        }
-        
-        // Procesar saldos del movimiento
-        if (mov.Saldos && Array.isArray(mov.Saldos)) {
-          mov.Saldos.forEach(saldo => {
-            if (saldo.last_record === 1) { // Solo el último registro
-              const debe = saldo.debe || 0;
-              const haber = saldo.haber || 0;
-              const saldoDeudor = saldo.saldo_deudor || 0;
-              const saldoAcreedor = saldo.saldo_acreedor || 0;
-              
-              saldosPorCuenta[cuentaId].ingresos += haber;
-              saldosPorCuenta[cuentaId].egresos += debe;
-              saldosPorCuenta[cuentaId].saldo = saldoDeudor - saldoAcreedor;
-              saldosPorCuenta[cuentaId].movimientos++;
-            }
-          });
-        }
-      }
-    });
-    
-    // Log de resumen
-    console.log(`🏦 Cuentas procesadas: ${Object.keys(saldosPorCuenta).length}`);
-    Object.entries(saldosPorCuenta).forEach(([cuentaId, stats]) => {
-      console.log(`💰 Cuenta ${cuentaId}: $${stats.saldo.toLocaleString('es-CL')} (${stats.movimientos} movimientos)`);
-    });
-    
-    return saldosPorCuenta;
-    
-  } catch (error) {
-    console.error('❌ Error calculando saldos desde flujo de caja:', error);
-    throw error;
-  }
-};
-
-/**
  * Obtiene las cuentas por cobrar (DTEs)
  * Endpoint: /dtes?porCobrar=1
  */
 export const obtenerCuentasPorCobrar = async () => {
   console.log('\n📊 Obteniendo DTEs (facturas por cobrar)...');
   try {
-    const data = await fetchAllPaginatedData('/dtes?porCobrar=1');
+    const data = await fetchAllPaginatedDataOriginal('/dtes?porCobrar=1');
     
     console.log(`✅ ${data.items.length} DTEs por cobrar obtenidos`);
     
@@ -593,7 +550,7 @@ export const obtenerCuentasPorCobrar = async () => {
 export const obtenerCuentasPorPagar = async () => {
   console.log('\n💸 Obteniendo compras (cuentas por pagar)...');
   try {
-    const data = await fetchAllPaginatedData('/compras');
+    const data = await fetchAllPaginatedDataOriginal('/compras');
     
     // Filtrar solo las pendientes de pago si es necesario
     if (data.items && data.items.length > 0) {
@@ -624,7 +581,7 @@ export const obtenerCuentasPorPagar = async () => {
 export const obtenerClientes = async () => {
   console.log('\n👥 Obteniendo clientes...');
   try {
-    const data = await fetchAllPaginatedData('/clientes');
+    const data = await fetchAllPaginatedDataOriginal('/clientes');
     console.log(`✅ ${data.items.length} clientes obtenidos`);
     return data;
   } catch (error) {
@@ -640,7 +597,7 @@ export const obtenerClientes = async () => {
 export const obtenerProveedores = async () => {
   console.log('\n🏭 Obteniendo proveedores...');
   try {
-    const data = await fetchAllPaginatedData('/proveedores');
+    const data = await fetchAllPaginatedDataOriginal('/proveedores');
     console.log(`✅ ${data.items.length} proveedores obtenidos`);
     return data;
   } catch (error) {
@@ -656,7 +613,7 @@ export const obtenerProveedores = async () => {
 export const obtenerFlujoCaja = async () => {
   console.log('\n💵 Obteniendo flujo de caja...');
   try {
-    const data = await fetchAllPaginatedData('/flujo-caja/cartolas');
+    const data = await fetchAllPaginatedDataOriginal('/flujo-caja/cartolas');
     console.log(`✅ ${data.items.length} movimientos de flujo de caja obtenidos`);
     return data;
   } catch (error) {
@@ -672,7 +629,7 @@ export const obtenerFlujoCaja = async () => {
 export const obtenerHonorarios = async () => {
   console.log('\n📄 Obteniendo honorarios...');
   try {
-    const data = await fetchAllPaginatedData('/honorarios');
+    const data = await fetchAllPaginatedDataOriginal('/honorarios');
     console.log(`✅ ${data.items.length} honorarios obtenidos`);
     return data;
   } catch (error) {
@@ -688,7 +645,7 @@ export const obtenerHonorarios = async () => {
 export const obtenerBoletasTerceros = async () => {
   console.log('\n📋 Obteniendo boletas de terceros...');
   try {
-    const data = await fetchAllPaginatedData('/boletas-terceros');
+    const data = await fetchAllPaginatedDataOriginal('/boletas-terceros');
     console.log(`✅ ${data.items.length} boletas de terceros obtenidas`);
     return data;
   } catch (error) {
@@ -697,54 +654,6 @@ export const obtenerBoletasTerceros = async () => {
   }
 };
 
-/**
- * FUNCIÓN DE DEBUG: Para probar ambos métodos y comparar
- */
-export const compararMetodosSaldos = async () => {
-  console.log('\n🔍 COMPARANDO MÉTODOS DE CÁLCULO DE SALDOS');
-  console.log('==========================================');
-  
-  try {
-    // Método nuevo
-    console.log('\n1️⃣ MÉTODO NUEVO (con saldos iniciales):');
-    const resultadoNuevo = await obtenerSaldosBancarios();
-    const totalNuevo = resultadoNuevo.items.reduce((sum, c) => sum + c.saldo, 0);
-    
-    // Método legacy
-    console.log('\n2️⃣ MÉTODO LEGACY (solo flujo de caja):');
-    const resultadoLegacy = await obtenerSaldosBancariosLegacy();
-    const totalLegacy = resultadoLegacy.items.reduce((sum, c) => sum + (c.saldoCalculado || 0), 0);
-    
-    // Comparación
-    console.log('\n📊 COMPARACIÓN DE RESULTADOS:');
-    console.log(`Método nuevo: $${totalNuevo.toLocaleString('es-CL')}`);
-    console.log(`Método legacy: $${totalLegacy.toLocaleString('es-CL')}`);
-    console.log(`Diferencia: $${(totalNuevo - totalLegacy).toLocaleString('es-CL')}`);
-    
-    // Target de Chipax
-    const targetChipax = 186648977;
-    console.log(`Target Chipax: $${targetChipax.toLocaleString('es-CL')}`);
-    
-    const errorNuevo = Math.abs(totalNuevo - targetChipax);
-    const errorLegacy = Math.abs(totalLegacy - targetChipax);
-    
-    console.log(`Error método nuevo: $${errorNuevo.toLocaleString('es-CL')}`);
-    console.log(`Error método legacy: $${errorLegacy.toLocaleString('es-CL')}`);
-    
-    const mejorMetodo = errorNuevo < errorLegacy ? 'nuevo' : 'legacy';
-    console.log(`🏆 Mejor método: ${mejorMetodo}`);
-    
-    return {
-      nuevo: { total: totalNuevo, error: errorNuevo, data: resultadoNuevo },
-      legacy: { total: totalLegacy, error: errorLegacy, data: resultadoLegacy },
-      mejorMetodo,
-      targetChipax
-    };
-    
-  } catch (error) {
-    console.error('❌ Error en comparación de métodos:', error);
-    throw error;
-  }
 // ✅ FUNCIÓN PARA DEBUGGING: Información del estado de autenticación
 export const obtenerEstadoAutenticacion = () => {
   return {
@@ -761,13 +670,11 @@ export const obtenerEstadoAutenticacion = () => {
 
 // === EXPORTACIÓN ===
 
-// Exportar como objeto default para compatibilidad
 // ✅ Exportar todas las funciones (mantener las existentes)
 const chipaxService = {
   // Funciones de autenticación
   getChipaxToken,
   fetchFromChipax,
-  fetchAllPaginatedData,
   fetchAllPaginatedData: async (endpoint, options = {}) => {
     // ✅ Versión con mejor manejo de errores de la función existente
     try {
@@ -790,7 +697,6 @@ const chipaxService = {
     }
   },
 
-  // Funciones principales (NUEVAS)
   // Funciones principales
   obtenerSaldosBancarios,
   obtenerCuentasPorCobrar,
@@ -802,9 +708,8 @@ const chipaxService = {
   obtenerBoletasTerceros,
 
   // Funciones auxiliares
-  obtenerSaldosDesdeFlujoCaja,
   obtenerSaldosBancariosLegacy,
-  compararMetodosSaldos
+
   // Nuevas funciones de utilidad
   verificarConectividadChipax,
   obtenerEstadoAutenticacion
