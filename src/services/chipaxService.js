@@ -91,11 +91,19 @@ const getChipaxToken = async () => {
       tokenRecibido: !!data.token
     });
 
-    // Guardar token en cache
+    // CORRECCIÓN CRÍTICA: Validar que el token existe
+    if (!data.token) {
+      throw new Error('Token no recibido en la respuesta de autenticación');
+    }
+
+    // Guardar token en cache con logging adicional
     tokenCache.token = data.token;
     tokenCache.expiresAt = new Date(Date.now() + (50 * 60 * 1000)); // 50 minutos
     tokenCache.isRefreshing = false;
     tokenCache.failureCount = 0;
+
+    console.log('🔐 Token guardado en cache. Longitud:', data.token.length);
+    console.log('🕒 Token expira en:', tokenCache.expiresAt.toISOString());
 
     return data.token;
 
@@ -178,12 +186,19 @@ const obtenerSaldosBancarios = async () => {
     console.log(`\n🧪 Probando: ${estrategia.nombre}`);
     
     try {
+      // CORRECCIÓN CRÍTICA: Obtener token fresco para cada request
+      const tokenFresco = await getChipaxToken();
+      console.log(`🔐 Token para ${estrategia.nombre}: ${tokenFresco.substring(0, 20)}...`);
+      
       const response = await fetch(`${CHIPAX_API_URL}${estrategia.endpoint}`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${tokenFresco}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
       });
+
+      console.log(`📡 Status de ${estrategia.endpoint}: ${response.status}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -497,12 +512,19 @@ async function obtenerSaldosFallback(token) {
   console.log('🔄 Ejecutando estrategia fallback...');
   
   try {
+    // CORRECCIÓN CRÍTICA: Obtener token fresco para fallback
+    const tokenFresco = await getChipaxToken();
+    console.log(`🔐 Token fallback: ${tokenFresco.substring(0, 20)}...`);
+    
     const response = await fetch(`${CHIPAX_API_URL}/cuentas-corrientes`, {
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        'Authorization': `Bearer ${tokenFresco}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       }
     });
+
+    console.log(`📡 Status fallback: ${response.status}`);
 
     if (response.ok) {
       const data = await response.json();
@@ -682,15 +704,22 @@ async function fetchPaginatedData(token, endpoint, entityName) {
     try {
       totalPagesRequested++;
       
+      // CORRECCIÓN CRÍTICA: Obtener token fresco para cada página
+      const tokenFresco = await getChipaxToken();
+      
       const url = `${CHIPAX_API_URL}${endpoint}${endpoint.includes('?') ? '&' : '?'}limit=${limit}&page=${currentPage}`;
       console.log(`📄 Cargando página ${currentPage} de ${entityName}...`);
+      console.log(`🔐 Token para página ${currentPage}: ${tokenFresco.substring(0, 20)}...`);
 
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${tokenFresco}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
       });
+
+      console.log(`📡 Status página ${currentPage}: ${response.status}`);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
