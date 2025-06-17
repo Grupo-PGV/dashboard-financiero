@@ -1,4 +1,4 @@
-// DashboardFinancieroIntegrado.jsx - Versión completa corregida
+// DashboardFinancieroIntegrado.jsx - Dashboard principal completo
 import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, Calendar, Filter, Info, Wallet, PieChart, TrendingUp, 
@@ -13,16 +13,6 @@ import PaginationDebugger from '../components/PaginationDebugger';
 import ChipaxDataInspector from '../components/ChipaxDataInspector';
 import ChipaxDTEAnalyzer from '../components/ChipaxDTEAnalyzer';
 import ChipaxDebugPanel from '../components/ChipaxDebugPanel';
-import ChipaxSaldosDebugger from '../components/ChipaxSaldosDebugger';
-import ChipaxCartolaDebugger from '../components/ChipaxCartolaDebugger';
-import SimpleSaldosDebugger from '../components/SimpleSaldosDebugger';
-import ChipaxSaldosExplorer from '../components/ChipaxSaldosExplorer';
-import ChipaxCuentasConSaldosDebugger from '../components/ChipaxCuentasConSaldosDebugger';
-import ChipaxAdvancedExplorer from '../components/ChipaxAdvancedExplorer';
-import ChipaxFinalDebugger from '../components/ChipaxFinalDebugger';
-import ChipaxCartolaCalculator from '../components/ChipaxCartolaCalculator';
-import ChipaxSaldoConFechas from '../components/ChipaxSaldoConFechas';
-import ChipaxSaldosTester from '../components/ChipaxSaldosTester';
 
 const DashboardFinancieroIntegrado = () => {
   // Estados principales
@@ -281,10 +271,7 @@ const DashboardFinancieroIntegrado = () => {
             onSyncDetails={handleSyncDetails}
           />
         </div>
-<div className="mb-6">
-  <ChipaxSaldosTester />
-</div>
-      
+
         {/* Información de paginación */}
         {Object.keys(paginationInfo).length > 0 && (
           <div className="mb-6 bg-white rounded-lg shadow p-4">
@@ -338,91 +325,89 @@ const DashboardFinancieroIntegrado = () => {
           </div>
         )}
 
-       {/* Tarjetas principales */}
-<div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-  {/* Saldos Bancarios */}
-  <div className="bg-white shadow rounded-lg p-4">
-    <div className="flex items-center mb-4">
-      <Wallet size={20} className="text-blue-600 mr-2" />
-      <h2 className="text-lg font-semibold text-gray-900">Saldos Bancarios</h2>
-    </div>
-    <div className="text-3xl font-bold text-gray-900 mb-2">
-      {formatCurrency(calcularSaldoTotal())}
-    </div>
-    <div className="text-sm text-gray-500 mb-4">
-      Total en {saldosBancarios.length} cuentas
-    </div>
-    <div className="grid grid-cols-1 gap-3">
-      {saldosBancarios.map(cuenta => (
-        <BankBalanceCard key={cuenta.id} cuenta={cuenta} loading={loading} />
-      ))}
-    </div>
-  </div>
+        {/* Tarjetas principales */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          {/* Saldos Bancarios */}
+          <div className="bg-white shadow rounded-lg p-4">
+            <div className="flex items-center mb-4">
+              <Wallet size={20} className="text-blue-600 mr-2" />
+              <h2 className="text-lg font-semibold text-gray-900">Saldos Bancarios</h2>
+            </div>
+            <div className="text-3xl font-bold text-gray-900 mb-2">
+              {formatCurrency(calcularSaldoTotal())}
+            </div>
+            <div className="text-sm text-gray-500 mb-4">
+              Total en {saldosBancarios.length} cuentas
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              {saldosBancarios.map(cuenta => (
+                <BankBalanceCard key={cuenta.id} cuenta={cuenta} loading={loading} />
+              ))}
+            </div>
+          </div>
 
-  {/* Cuentas por Cobrar - SIMPLIFICADA */}
-  <div className="bg-white shadow rounded-lg p-4">
-    <div className="flex items-center justify-between mb-4">
-      <div className="flex items-center">
-        <TrendingUp size={20} className="text-green-600 mr-2" />
-        <h2 className="text-lg font-semibold text-gray-900">Cuentas por Cobrar</h2>
-      </div>
-      {paginationInfo.cuentasPendientes && (
-        <div className={`text-xs px-2 py-1 rounded ${
-          paginationInfo.cuentasPendientes.completenessPercent === 100
-            ? 'bg-green-100 text-green-700'
-            : 'bg-amber-100 text-amber-700'
-        }`}>
-          {paginationInfo.cuentasPendientes.completenessPercent.toFixed(0)}%
-        </div>
-      )}
-    </div>
-    <div className="text-3xl font-bold text-green-600 mb-2">
-      {formatCurrency(calcularTotalPorCobrar())}
-    </div>
-    <div className="text-sm text-gray-500">
-      {cuentasPendientes.length} facturas pendientes de cobro
-    </div>
-    {/* Ya no mostramos el detalle de las facturas aquí */}
-    <div className="mt-4 pt-4 border-t text-sm text-gray-600">
-      <p className="flex items-center">
-        <Calendar size={16} className="mr-2" />
-        Ver detalle completo más abajo
-      </p>
-    </div>
-  </div>
+          {/* Cuentas por Cobrar - SIMPLIFICADA */}
+          <div className="bg-white shadow rounded-lg p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <TrendingUp size={20} className="text-green-600 mr-2" />
+                <h2 className="text-lg font-semibold text-gray-900">Cuentas por Cobrar</h2>
+              </div>
+              {paginationInfo.cuentasPendientes && (
+                <div className={`text-xs px-2 py-1 rounded ${
+                  paginationInfo.cuentasPendientes.completenessPercent === 100
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {paginationInfo.cuentasPendientes.completenessPercent.toFixed(0)}%
+                </div>
+              )}
+            </div>
+            <div className="text-3xl font-bold text-green-600 mb-2">
+              {formatCurrency(calcularTotalPorCobrar())}
+            </div>
+            <div className="text-sm text-gray-500">
+              {cuentasPendientes.length} facturas pendientes de cobro
+            </div>
+            <div className="mt-4 pt-4 border-t text-sm text-gray-600">
+              <p className="flex items-center">
+                <Calendar size={16} className="mr-2" />
+                Ver detalle completo más abajo
+              </p>
+            </div>
+          </div>
 
-  {/* Cuentas por Pagar - SIMPLIFICADA */}
-  <div className="bg-white shadow rounded-lg p-4">
-    <div className="flex items-center justify-between mb-4">
-      <div className="flex items-center">
-        <PieChart size={20} className="text-red-600 mr-2" />
-        <h2 className="text-lg font-semibold text-gray-900">Cuentas por Pagar</h2>
-      </div>
-      {paginationInfo.cuentasPorPagar && (
-        <div className={`text-xs px-2 py-1 rounded ${
-          paginationInfo.cuentasPorPagar.completenessPercent === 100
-            ? 'bg-green-100 text-green-700'
-            : 'bg-amber-100 text-amber-700'
-        }`}>
-          {paginationInfo.cuentasPorPagar.completenessPercent.toFixed(0)}%
+          {/* Cuentas por Pagar - SIMPLIFICADA */}
+          <div className="bg-white shadow rounded-lg p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <PieChart size={20} className="text-red-600 mr-2" />
+                <h2 className="text-lg font-semibold text-gray-900">Cuentas por Pagar</h2>
+              </div>
+              {paginationInfo.cuentasPorPagar && (
+                <div className={`text-xs px-2 py-1 rounded ${
+                  paginationInfo.cuentasPorPagar.completenessPercent === 100
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {paginationInfo.cuentasPorPagar.completenessPercent.toFixed(0)}%
+                </div>
+              )}
+            </div>
+            <div className="text-3xl font-bold text-red-600 mb-2">
+              {formatCurrency(calcularTotalPorPagar())}
+            </div>
+            <div className="text-sm text-gray-500">
+              {cuentasPorPagar.length} facturas pendientes de pago
+            </div>
+            <div className="mt-4 pt-4 border-t text-sm text-gray-600">
+              <p className="flex items-center">
+                <Calendar size={16} className="mr-2" />
+                Ver detalle completo más abajo
+              </p>
+            </div>
+          </div>
         </div>
-      )}
-    </div>
-    <div className="text-3xl font-bold text-red-600 mb-2">
-      {formatCurrency(calcularTotalPorPagar())}
-    </div>
-    <div className="text-sm text-gray-500">
-      {cuentasPorPagar.length} facturas pendientes de pago
-    </div>
-    {/* Ya no mostramos el detalle de las facturas aquí */}
-    <div className="mt-4 pt-4 border-t text-sm text-gray-600">
-      <p className="flex items-center">
-        <Calendar size={16} className="mr-2" />
-        Ver detalle completo más abajo
-      </p>
-    </div>
-  </div>
-</div>
 
         {/* Gráfico de flujo de caja */}
         <div className="mb-6">
@@ -485,6 +470,7 @@ const DashboardFinancieroIntegrado = () => {
           </div>
         )}
       </div>
+      
       <ChipaxDebugPanel />
     </div>
   );
