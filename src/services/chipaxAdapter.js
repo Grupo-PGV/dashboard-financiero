@@ -1,8 +1,9 @@
-// chipaxAdapter.js - Adaptador corregido para los endpoints oficiales
+// chipaxAdapter.js - Adaptador para estructura real de la API Chipax
 
 /**
- * ADAPTADOR PRINCIPAL: Saldos Bancarios (Cuentas Corrientes + Cartolas)
- * Procesa cuentas corrientes con saldos calculados desde cartolas
+ * ADAPTADOR: Saldos Bancarios (Cuentas Corrientes + Cartolas)
+ * Estructura real de cuentas corrientes:
+ * {id, numeroCuenta, banco, TipoCuentaCorriente: {tipoCuenta}, Moneda: {moneda, simbolo}}
  */
 export const adaptarSaldosBancarios = (cuentasConSaldos) => {
   console.log('🏦 Adaptando saldos bancarios...');
@@ -13,23 +14,23 @@ export const adaptarSaldosBancarios = (cuentasConSaldos) => {
   }
   
   return cuentasConSaldos.map((cuenta, index) => {
-    // Usar el saldo calculado desde cartolas
     const saldo = cuenta.saldoCalculado || 0;
     
     return {
       id: cuenta.id || index,
-      nombre: cuenta.numeroCuenta || cuenta.nombre || `Cuenta ${index + 1}`,
-      banco: cuenta.banco || cuenta.Banco?.nombre || 'Banco no especificado',
+      nombre: cuenta.numeroCuenta || `Cuenta ${index + 1}`,
+      banco: cuenta.banco || 'Banco no especificado',
       saldo: saldo,
       tipo: cuenta.TipoCuentaCorriente?.tipoCuenta || 'Cuenta Corriente',
       moneda: cuenta.Moneda?.moneda || 'CLP',
       simboloMoneda: cuenta.Moneda?.simbolo || '$',
       
       // Información adicional de movimientos
-      movimientos: cuenta.movimientos || {
-        ingresos: 0,
-        egresos: 0,
-        ultimaActualizacion: null
+      movimientos: {
+        abonos: cuenta.movimientos?.totalAbonos || 0,
+        cargos: cuenta.movimientos?.totalCargos || 0,
+        cantidad: cuenta.movimientos?.movimientos || 0,
+        ultimaActualizacion: cuenta.movimientos?.ultimaFecha || null
       },
       
       // Metadatos
@@ -41,7 +42,7 @@ export const adaptarSaldosBancarios = (cuentasConSaldos) => {
 
 /**
  * ADAPTADOR: DTEs de Venta (Cuentas por Cobrar)
- * Endpoint: /dtes
+ * Estructura real: {id, folio, razon_social, rut, monto_total, monto_por_cobrar, Saldo: {saldo_deudor, saldo_acreedor}}
  */
 export const adaptarCuentasPorCobrar = (dtes) => {
   console.log('📊 Adaptando DTEs de venta (cuentas por cobrar)...');
@@ -52,46 +53,46 @@ export const adaptarCuentasPorCobrar = (dtes) => {
   }
   
   return dtes.map((dte, index) => {
-    // Extraer saldo pendiente
+    // Extraer saldo pendiente con prioridad
     let saldoPendiente = 0;
     
-    if (dte.Saldo && dte.Saldo.saldoDeudor !== undefined) {
-      saldoPendiente = parseFloat(dte.Saldo.saldoDeudor) || 0;
-    } else if (dte.montoTotal !== undefined) {
-      saldoPendiente = parseFloat(dte.montoTotal) || 0;
+    // 1. Prioridad: monto_por_cobrar
+    if (dte.monto_por_cobrar !== undefined && dte.monto_por_cobrar !== null) {
+      saldoPendiente = parseFloat(dte.monto_por_cobrar) || 0;
     }
-    
-    // Extraer información del cliente
-    let cliente = 'Cliente no especificado';
-    let rutCliente = 'Sin RUT';
-    
-    if (dte.ClienteProveedor) {
-      cliente = dte.ClienteProveedor.razonSocial || dte.ClienteProveedor.nombre || cliente;
-      rutCliente = dte.ClienteProveedor.rut || rutCliente;
-    } else if (dte.ClienteNormalizado) {
-      cliente = dte.ClienteNormalizado.razonSocial || dte.ClienteNormalizado.nombre || cliente;
-      rutCliente = dte.ClienteNormalizado.rut || rutCliente;
-    } else if (dte.razonSocial) {
-      cliente = dte.razonSocial;
-      rutCliente = dte.rutEmisor || rutCliente;
+    // 2. Alternativa: Saldo.saldo_deudor
+    else if (dte.Saldo && dte.Saldo.saldo_deudor !== undefined) {
+      saldoPendiente = parseFloat(dte.Saldo.saldo_deudor) || 0;
+    }
+    // 3. Fallback: monto_total
+    else if (dte.monto_total !== undefined) {
+      saldoPendiente = parseFloat(dte.monto_total) || 0;
     }
     
     return {
       id: dte.id || index,
       folio: dte.folio || 'S/N',
-      razonSocial: cliente,
-      rutCliente: rutCliente,
+      razonSocial: dte.razon_social || 'Cliente no especificado',
+      rutCliente: dte.rut || 'Sin RUT',
       monto: saldoPendiente,
-      montoTotal: parseFloat(dte.montoTotal) || 0,
-      fecha: dte.fecha || dte.fechaEmision || new Date().toISOString().split('T')[0],
-      fechaVencimiento: dte.fechaVencimiento || null,
-      tipo: dte.tipo || 33, // 33 = Factura electrónica
+      montoTotal: parseFloat(dte.monto_total) || 0,
+      montoNeto: parseFloat(dte.monto_neto) || 0,
+      iva: parseFloat(dte.iva) || 0,
+      fecha: dte.fecha_emision || new Date().toISOString().split('T')[0],
+      fechaVencimiento: dte.fecha_vencimiento || null,
+      fechaEnvio: dte.fecha_envio || null,
+      tipo: dte.tipo || 33,
       tipoDescripcion: obtenerTipoDocumento(dte.tipo),
-      estado: dte.estado || 'Pendiente',
-      moneda: dte.Moneda?.moneda || 'CLP',
+      estado: determinarEstadoDTE(dte),
+      moneda: dte.tipo_moneda_monto || 'CLP',
       
       // Información de saldo detallada
       saldoInfo: dte.Saldo || null,
+      
+      // Información adicional
+      descuento: parseFloat(dte.descuento) || 0,
+      referencias: dte.referencias || null,
+      anulado: dte.anulado === 'S',
       
       // Metadatos
       origenDatos: 'dtes_venta',
@@ -102,7 +103,7 @@ export const adaptarCuentasPorCobrar = (dtes) => {
 
 /**
  * ADAPTADOR: Compras (Cuentas por Pagar)
- * Endpoint: /compras
+ * Estructura real: {id, folio, razon_social, rut_emisor, monto_total, fecha_pago_interna, estado}
  */
 export const adaptarCuentasPorPagar = (compras) => {
   console.log('💸 Adaptando compras (cuentas por pagar)...');
@@ -113,34 +114,17 @@ export const adaptarCuentasPorPagar = (compras) => {
   }
   
   return compras.map((compra, index) => {
-    // Extraer monto pendiente
-    let montoPendiente = 0;
-    
-    if (compra.Saldo && compra.Saldo.saldoAcreedor !== undefined) {
-      montoPendiente = parseFloat(compra.Saldo.saldoAcreedor) || 0;
-    } else if (compra.montoTotal !== undefined) {
-      montoPendiente = parseFloat(compra.montoTotal) || 0;
-    }
-    
     // Extraer información del proveedor
-    let proveedor = 'Proveedor no especificado';
-    let rutProveedor = 'Sin RUT';
+    const proveedor = compra.razon_social || 'Proveedor no especificado';
+    const rutProveedor = compra.rut_emisor || 'Sin RUT';
     
-    if (compra.ClienteProveedor) {
-      proveedor = compra.ClienteProveedor.razonSocial || compra.ClienteProveedor.nombre || proveedor;
-      rutProveedor = compra.ClienteProveedor.rut || rutProveedor;
-    } else if (compra.ProveedorNormalizado) {
-      proveedor = compra.ProveedorNormalizado.razonSocial || compra.ProveedorNormalizado.nombre || proveedor;
-      rutProveedor = compra.ProveedorNormalizado.rut || rutProveedor;
-    } else if (compra.razonSocial) {
-      proveedor = compra.razonSocial;
-      rutProveedor = compra.rutEmisor || rutProveedor;
-    }
+    // Monto pendiente (usar monto_total si no hay fecha de pago)
+    const montoPendiente = parseFloat(compra.monto_total) || 0;
     
     return {
       id: compra.id || index,
-      numero: compra.folio || compra.numero || `C-${index + 1}`,
-      fecha: compra.fecha || compra.fechaEmision || new Date().toISOString().split('T')[0],
+      numero: compra.folio || `C-${index + 1}`,
+      fecha: compra.fecha_emision || new Date().toISOString().split('T')[0],
       
       // ✅ CORRECCIÓN PRINCIPAL: proveedor como string
       proveedor: proveedor,
@@ -149,22 +133,32 @@ export const adaptarCuentasPorPagar = (compras) => {
       proveedorInfo: {
         nombre: proveedor,
         rut: rutProveedor,
-        razonSocial: compra.razonSocial
+        razonSocial: compra.razon_social
       },
       
       monto: montoPendiente,
-      montoTotal: parseFloat(compra.montoTotal) || 0,
-      moneda: compra.Moneda?.moneda || 'CLP',
-      tipo: compra.tipo || compra.tipoDocumento || 'Compra',
+      montoTotal: parseFloat(compra.monto_total) || 0,
+      montoNeto: parseFloat(compra.monto_neto) || 0,
+      iva: parseFloat(compra.iva) || 0,
+      descuento: parseFloat(compra.descuento) || 0,
+      tipo: compra.tipo || 'Compra',
       tipoDescripcion: obtenerTipoDocumento(compra.tipo),
-      estado: compra.estado || 'Pendiente',
+      estado: compra.estado || 'recibido',
       
       // Fechas importantes
-      fechaVencimiento: compra.fechaVencimiento || null,
-      fechaPago: compra.fechaPago || compra.fechaPagoInterna || null,
+      fechaVencimiento: compra.fecha_vencimiento || null,
+      fechaPago: compra.fecha_pago_interna || null,
+      fechaRecepcion: compra.fecha_recepcion || null,
+      periodo: compra.periodo || null,
       
-      // Información de saldo detallada
-      saldoInfo: compra.Saldo || null,
+      // Información adicional
+      referencias: compra.referencias || null,
+      archivo: compra.archivo || null,
+      anulado: compra.anulado === 'S',
+      tipoCompra: compra.tipo_compra || null,
+      
+      // Información de categorías si existe
+      categorias: compra.categorias || [],
       
       // Metadatos
       origenDatos: 'compras',
@@ -187,7 +181,7 @@ export const adaptarClientes = (clientes) => {
   
   return clientes.map((cliente, index) => ({
     id: cliente.id || index,
-    razonSocial: cliente.razonSocial || cliente.nombre || 'Sin nombre',
+    razonSocial: cliente.razon_social || cliente.nombre || 'Sin nombre',
     rut: cliente.rut || 'Sin RUT',
     giro: cliente.giro || 'Sin especificar',
     direccion: cliente.direccion || 'Sin dirección',
@@ -203,7 +197,7 @@ export const adaptarClientes = (clientes) => {
 
 /**
  * ADAPTADOR: Flujo de Caja (Cartolas)
- * Endpoint: /flujo-caja/cartolas
+ * Estructura real: {abono, cargo, descripcion, fecha, cuenta_corriente_id, Dtes, Compras, etc.}
  */
 export const adaptarFlujoCaja = (cartolas) => {
   console.log('💵 Adaptando flujo de caja...');
@@ -213,47 +207,35 @@ export const adaptarFlujoCaja = (cartolas) => {
     return [];
   }
   
-  return cartolas.map((cartola, index) => ({
-    id: cartola.id || index,
-    fecha: cartola.fecha || new Date().toISOString().split('T')[0],
-    tipo: cartola.tipo || 'movimiento',
-    monto: parseFloat(cartola.monto) || 0,
-    descripcion: cartola.descripcion || cartola.detalle || 'Sin descripción',
-    cuentaCorriente: cartola.cuentaCorriente || null,
-    categoria: cartola.categoria || 'Sin categoría',
-    referencia: cartola.referencia || null,
+  return cartolas.map((cartola, index) => {
+    const abono = parseFloat(cartola.abono) || 0;
+    const cargo = parseFloat(cartola.cargo) || 0;
+    const monto = abono - cargo; // Neto del movimiento
     
-    // Metadatos
-    origenDatos: 'flujo_caja_cartolas',
-    fechaProcesamiento: new Date().toISOString()
-  }));
-};
-
-/**
- * ADAPTADOR: Movimientos
- * Endpoint: /movimientos
- */
-export const adaptarMovimientos = (movimientos) => {
-  console.log('🔄 Adaptando movimientos...');
-  
-  if (!Array.isArray(movimientos)) {
-    console.warn('⚠️ adaptarMovimientos: datos no son array');
-    return [];
-  }
-  
-  return movimientos.map((movimiento, index) => ({
-    id: movimiento.id || index,
-    fecha: movimiento.fecha || new Date().toISOString().split('T')[0],
-    tipo: movimiento.tipo || 'movimiento',
-    monto: parseFloat(movimiento.monto) || 0,
-    descripcion: movimiento.descripcion || 'Sin descripción',
-    cuenta: movimiento.cuenta || 'Sin cuenta',
-    documento: movimiento.documento || null,
-    
-    // Metadatos
-    origenDatos: 'movimientos',
-    fechaProcesamiento: new Date().toISOString()
-  }));
+    return {
+      id: cartola.id || index,
+      fecha: cartola.fecha || new Date().toISOString().split('T')[0],
+      tipo: monto > 0 ? 'ingreso' : 'egreso',
+      monto: Math.abs(monto),
+      abono: abono,
+      cargo: cargo,
+      descripcion: cartola.descripcion || 'Sin descripción',
+      cuentaCorriente: cartola.cuenta_corriente_id || null,
+      
+      // Documentos relacionados
+      documentosRelacionados: {
+        dtes: cartola.Dtes?.length || 0,
+        compras: cartola.Compras?.length || 0,
+        ots: cartola.Ots?.length || 0,
+        gastos: cartola.Gasto?.length || 0,
+        honorarios: cartola.Honorario?.length || 0
+      },
+      
+      // Metadatos
+      origenDatos: 'flujo_caja_cartolas',
+      fechaProcesamiento: new Date().toISOString()
+    };
+  });
 };
 
 // === FUNCIONES AUXILIARES ===
@@ -277,32 +259,57 @@ function obtenerTipoDocumento(tipo) {
 }
 
 /**
+ * Determina el estado de un DTE basado en sus campos
+ */
+function determinarEstadoDTE(dte) {
+  if (dte.anulado === 'S') {
+    return 'Anulado';
+  }
+  
+  if (dte.monto_por_cobrar && parseFloat(dte.monto_por_cobrar) > 0) {
+    return 'Pendiente';
+  }
+  
+  if (dte.Saldo && dte.Saldo.saldo_deudor && parseFloat(dte.Saldo.saldo_deudor) > 0) {
+    return 'Pendiente';
+  }
+  
+  return 'Pagado';
+}
+
+/**
  * Función de prueba para verificar adaptadores
  */
 export const probarAdaptadores = () => {
-  console.log('🧪 Probando adaptadores...');
+  console.log('🧪 Probando adaptadores con estructura real...');
   
-  // Datos de prueba
+  // Datos de prueba con estructura real
   const cuentaPrueba = [{
     id: 1,
-    numeroCuenta: '12345',
+    numeroCuenta: '12345-6',
     banco: 'Banco de Chile',
-    saldoCalculado: 1000000,
-    movimientos: { ingresos: 2000000, egresos: 1000000 }
+    TipoCuentaCorriente: { tipoCuenta: 'Cuenta Corriente' },
+    Moneda: { moneda: 'CLP', simbolo: '$' },
+    saldoCalculado: 1500000
   }];
   
   const dtePrueba = [{
     id: 1,
-    folio: 'F001',
-    razonSocial: 'Cliente Test',
-    Saldo: { saldoDeudor: 500000 }
+    folio: 1001,
+    razon_social: 'EPYSA BUSES LIMITADA',
+    rut: '12345678-9',
+    monto_total: 1000000,
+    monto_por_cobrar: 500000,
+    Saldo: { saldo_deudor: 500000, saldo_acreedor: 0 }
   }];
   
   const compraPrueba = [{
     id: 1,
-    folio: 'C001',
-    razonSocial: 'Proveedor Test',
-    Saldo: { saldoAcreedor: 300000 }
+    folio: 2001,
+    razon_social: 'PROVEEDORES S.A.',
+    rut_emisor: '87654321-0',
+    monto_total: 300000,
+    estado: 'recibido'
   }];
   
   const resultados = {
@@ -327,6 +334,5 @@ export default {
   adaptarCuentasPorPagar,
   adaptarClientes,
   adaptarFlujoCaja,
-  adaptarMovimientos,
   probarAdaptadores
 };
