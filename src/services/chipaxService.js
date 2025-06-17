@@ -819,3 +819,5 @@ export {
   fetchPaginatedData,
   investigarEndpointsDisponibles
 };
+
+export default chipaxService;
