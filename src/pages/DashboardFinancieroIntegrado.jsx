@@ -1,4 +1,4 @@
-// DashboardFinancieroIntegrado.jsx - Versión original corregida
+// DashboardFinancieroIntegrado.jsx - Versión ultra simplificada que funciona
 import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, Calendar, Wallet, PieChart, TrendingUp, 
@@ -8,155 +8,114 @@ import {
 // Importar servicios corregidos
 import chipaxService from '../services/chipaxService';
 import { adaptarCompras } from '../services/chipaxAdapter';
-import ChipaxSaldosInvestigator from '../services/chipaxSaldosInvestigator';
 
 const DashboardFinancieroIntegrado = () => {
-  // Estados principales del dashboard original
+  // Estados esenciales - SOLO arrays para evitar errores
   const [saldosBancarios, setSaldosBancarios] = useState([]);
   const [cuentasPendientes, setCuentasPendientes] = useState([]);
   const [cuentasPorPagar, setCuentasPorPagar] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
-  
-  // Estados para mostrar el progreso de carga
-  const [estadosCarga, setEstadosCarga] = useState({
-    saldos: 'idle', // idle, loading, success, error
-    porCobrar: 'idle',
-    porPagar: 'idle'
-  });
+  const [errors, setErrors] = useState([]);
 
-  // === FUNCIONES DE CARGA DE DATOS ===
+  // === FUNCIONES DE CARGA SIMPLIFICADAS ===
 
-  /**
-   * Cargar saldos bancarios usando el investigador avanzado
-   */
   const cargarSaldosBancarios = async () => {
-    setEstadosCarga(prev => ({ ...prev, saldos: 'loading' }));
-    
     try {
       console.log('🏦 Cargando saldos bancarios...');
+      const datos = await chipaxService.obtenerSaldosBancarios();
       
-      // Usar el investigador de saldos para obtener datos reales
-      const saldos = await ChipaxSaldosInvestigator.obtenerSaldosOptimizados();
-      
-      if (saldos && saldos.length > 0) {
-        setSaldosBancarios(saldos);
-        setEstadosCarga(prev => ({ ...prev, saldos: 'success' }));
-        console.log(`✅ ${saldos.length} saldos bancarios cargados`);
+      // VALIDACIÓN CRÍTICA: Asegurar que sea array
+      if (Array.isArray(datos)) {
+        setSaldosBancarios(datos);
+        console.log(`✅ ${datos.length} saldos cargados`);
       } else {
-        // Fallback: obtener cuentas sin saldos
-        const cuentasSinSaldos = await chipaxService.obtenerSaldosBancarios();
-        setSaldosBancarios(cuentasSinSaldos.map(cuenta => ({
-          ...cuenta,
-          saldo: 0,
-          origen: 'fallback_sin_saldo'
-        })));
-        setEstadosCarga(prev => ({ ...prev, saldos: 'success' }));
-        console.log('⚠️ Usando cuentas sin saldos como fallback');
+        console.warn('⚠️ Saldos no es array, usando array vacío');
+        setSaldosBancarios([]);
       }
-      
     } catch (error) {
       console.error('❌ Error cargando saldos:', error);
-      setEstadosCarga(prev => ({ ...prev, saldos: 'error' }));
-      setErrors(prev => ({ ...prev, saldos: error.message }));
+      setSaldosBancarios([]);
+      setErrors(prev => [...prev, `Saldos: ${error.message}`]);
     }
   };
 
-  /**
-   * Cargar cuentas por cobrar (ya funciona correctamente)
-   */
   const cargarCuentasPorCobrar = async () => {
-    setEstadosCarga(prev => ({ ...prev, porCobrar: 'loading' }));
-    
     try {
       console.log('📋 Cargando cuentas por cobrar...');
-      
       const datos = await chipaxService.obtenerDTEsPorCobrar();
-      setCuentasPendientes(datos);
-      setEstadosCarga(prev => ({ ...prev, porCobrar: 'success' }));
-      console.log(`✅ ${datos.length} cuentas por cobrar cargadas`);
       
+      // VALIDACIÓN CRÍTICA: Asegurar que sea array
+      if (Array.isArray(datos)) {
+        setCuentasPendientes(datos);
+        console.log(`✅ ${datos.length} cuentas por cobrar cargadas`);
+      } else {
+        console.warn('⚠️ Cuentas por cobrar no es array, usando array vacío');
+        setCuentasPendientes([]);
+      }
     } catch (error) {
       console.error('❌ Error cargando cuentas por cobrar:', error);
-      setEstadosCarga(prev => ({ ...prev, porCobrar: 'error' }));
-      setErrors(prev => ({ ...prev, porCobrar: error.message }));
+      setCuentasPendientes([]);
+      setErrors(prev => [...prev, `Por cobrar: ${error.message}`]);
     }
   };
 
-  /**
-   * Cargar cuentas por pagar con adaptador corregido
-   */
   const cargarCuentasPorPagar = async () => {
-    setEstadosCarga(prev => ({ ...prev, porPagar: 'loading' }));
-    
     try {
-      console.log('🛒 Cargando cuentas por pagar...');
-      
-      // Obtener datos brutos de la API
+      console.log('💸 Cargando cuentas por pagar...');
       const comprasRaw = await chipaxService.obtenerCompras();
       
-      // Aplicar adaptador corregido que convierte proveedor a string
-      const comprasAdaptadas = adaptarCompras(comprasRaw);
-      
-      // Verificar que la adaptación funcionó correctamente
-      if (comprasAdaptadas.length > 0) {
-        const primeraCompra = comprasAdaptadas[0];
-        if (typeof primeraCompra.proveedor !== 'string') {
-          throw new Error('El adaptador no está funcionando correctamente - proveedor no es string');
-        }
+      // VALIDACIÓN: Verificar que obtenemos datos
+      if (!comprasRaw) {
+        console.warn('⚠️ No se obtuvieron datos de compras');
+        setCuentasPorPagar([]);
+        return;
       }
       
-      setCuentasPorPagar(comprasAdaptadas);
-      setEstadosCarga(prev => ({ ...prev, porPagar: 'success' }));
-      console.log(`✅ ${comprasAdaptadas.length} cuentas por pagar cargadas y adaptadas`);
+      // Aplicar adaptador corregido
+      const comprasAdaptadas = adaptarCompras(comprasRaw);
       
+      // VALIDACIÓN CRÍTICA: Verificar que es array y elementos válidos
+      if (Array.isArray(comprasAdaptadas)) {
+        // Verificar que los proveedores sean strings
+        const primerElemento = comprasAdaptadas[0];
+        if (primerElemento && typeof primerElemento.proveedor === 'string') {
+          setCuentasPorPagar(comprasAdaptadas);
+          console.log(`✅ ${comprasAdaptadas.length} cuentas por pagar cargadas`);
+        } else {
+          console.error('❌ Error: proveedor no es string después de adaptación');
+          setCuentasPorPagar([]);
+          setErrors(prev => [...prev, 'Por pagar: Error en adaptación de proveedor']);
+        }
+      } else {
+        console.warn('⚠️ Adaptador no retornó array válido');
+        setCuentasPorPagar([]);
+      }
     } catch (error) {
       console.error('❌ Error cargando cuentas por pagar:', error);
-      setEstadosCarga(prev => ({ ...prev, porPagar: 'error' }));
-      setErrors(prev => ({ ...prev, porPagar: error.message }));
+      setCuentasPorPagar([]);
+      setErrors(prev => [...prev, `Por pagar: ${error.message}`]);
     }
   };
 
-  /**
-   * Cargar todos los datos al inicializar
-   */
+  // Cargar todos los datos al iniciar
   const cargarTodosLosDatos = async () => {
     setLoading(true);
+    setErrors([]); // Limpiar errores previos
+    
     console.log('🚀 Iniciando carga completa del dashboard...');
     
     try {
-      // Cargar todos los módulos en paralelo para mejor rendimiento
-      await Promise.allSettled([
-        cargarSaldosBancarios(),
-        cargarCuentasPorCobrar(),
-        cargarCuentasPorPagar()
-      ]);
+      // Cargar en secuencia para evitar problemas de concurrencia
+      await cargarSaldosBancarios();
+      await cargarCuentasPorCobrar();
+      await cargarCuentasPorPagar();
       
       console.log('✅ Carga completa finalizada');
     } catch (error) {
       console.error('❌ Error en carga completa:', error);
+      setErrors(prev => [...prev, `Carga general: ${error.message}`]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  /**
-   * Recargar datos específicos
-   */
-  const recargarDatos = async (tipo) => {
-    switch (tipo) {
-      case 'saldos':
-        await cargarSaldosBancarios();
-        break;
-      case 'porCobrar':
-        await cargarCuentasPorCobrar();
-        break;
-      case 'porPagar':
-        await cargarCuentasPorPagar();
-        break;
-      case 'todo':
-        await cargarTodosLosDatos();
-        break;
     }
   };
 
@@ -165,18 +124,30 @@ const DashboardFinancieroIntegrado = () => {
     cargarTodosLosDatos();
   }, []);
 
-  // === FUNCIONES DE CÁLCULO ===
+  // === FUNCIONES DE CÁLCULO SEGURAS ===
 
   const calcularTotalSaldos = () => {
-    return saldosBancarios.reduce((total, cuenta) => total + (cuenta.saldo || 0), 0);
+    if (!Array.isArray(saldosBancarios)) return 0;
+    return saldosBancarios.reduce((total, cuenta) => {
+      const saldo = parseFloat(cuenta.saldo) || 0;
+      return total + saldo;
+    }, 0);
   };
 
   const calcularTotalPorCobrar = () => {
-    return cuentasPendientes.reduce((total, cuenta) => total + (cuenta.monto || 0), 0);
+    if (!Array.isArray(cuentasPendientes)) return 0;
+    return cuentasPendientes.reduce((total, cuenta) => {
+      const monto = parseFloat(cuenta.monto) || 0;
+      return total + monto;
+    }, 0);
   };
 
   const calcularTotalPorPagar = () => {
-    return cuentasPorPagar.reduce((total, cuenta) => total + (cuenta.monto || 0), 0);
+    if (!Array.isArray(cuentasPorPagar)) return 0;
+    return cuentasPorPagar.reduce((total, cuenta) => {
+      const monto = parseFloat(cuenta.monto) || 0;
+      return total + monto;
+    }, 0);
   };
 
   const calcularPosicionNeta = () => {
@@ -186,81 +157,61 @@ const DashboardFinancieroIntegrado = () => {
   // === FUNCIONES DE UTILIDAD ===
 
   const formatCurrency = (amount) => {
+    const numero = parseFloat(amount) || 0;
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
       currency: 'CLP',
       minimumFractionDigits: 0
-    }).format(amount || 0);
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'loading':
-        return <RefreshCw className="h-4 w-4 animate-spin text-blue-500" />;
-      case 'success':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'error':
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
-      default:
-        return <Clock className="h-4 w-4 text-gray-500" />;
-    }
+    }).format(numero);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      {/* Header con título y controles */}
+      {/* Header */}
       <div className="mb-8">
         <div className="flex justify-between items-center mb-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Dashboard Financiero</h1>
-            <p className="text-gray-600">Integración con Chipax API v2 - PGR Seguridad S.p.A</p>
+            <p className="text-gray-600">PGR Seguridad S.p.A - Chipax API v2</p>
           </div>
           
-          <div className="flex gap-3">
-            <button
-              onClick={() => recargarDatos('todo')}
-              disabled={loading}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                loading 
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              {loading ? 'Cargando...' : 'Recargar Todo'}
-            </button>
-          </div>
+          <button
+            onClick={cargarTodosLosDatos}
+            disabled={loading}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              loading 
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'Cargando...' : 'Recargar'}
+          </button>
         </div>
 
-        {/* Indicadores de estado de carga */}
-        <div className="flex gap-4 p-4 bg-white rounded-lg shadow">
-          <div className="flex items-center gap-2">
-            {getStatusIcon(estadosCarga.saldos)}
-            <span className="text-sm">Saldos Bancarios</span>
+        {/* Estado de carga */}
+        {loading && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <RefreshCw className="h-4 w-4 animate-spin text-blue-500 mr-2" />
+              <span className="text-blue-700">Cargando datos desde Chipax...</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {getStatusIcon(estadosCarga.porCobrar)}
-            <span className="text-sm">Cuentas por Cobrar</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {getStatusIcon(estadosCarga.porPagar)}
-            <span className="text-sm">Cuentas por Pagar</span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Mostrar errores si existen */}
-      {Object.keys(errors).length > 0 && (
+      {errors.length > 0 && (
         <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
           <h3 className="text-red-800 font-medium flex items-center mb-2">
             <AlertCircle className="h-4 w-4 mr-2" />
-            Errores Detectados
+            Errores Durante la Carga
           </h3>
-          {Object.entries(errors).map(([key, error]) => (
-            <p key={key} className="text-red-700 text-sm">
-              <strong>{key}:</strong> {error}
-            </p>
-          ))}
+          <ul className="text-red-700 text-sm space-y-1">
+            {errors.map((error, index) => (
+              <li key={index}>• {error}</li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -270,24 +221,13 @@ const DashboardFinancieroIntegrado = () => {
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-gray-500">Saldos Bancarios</h3>
-            <div className="flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-blue-500" />
-              <button
-                onClick={() => recargarDatos('saldos')}
-                disabled={estadosCarga.saldos === 'loading'}
-                className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-              >
-                <RefreshCw className={`h-3 w-3 ${
-                  estadosCarga.saldos === 'loading' ? 'animate-spin' : ''
-                }`} />
-              </button>
-            </div>
+            <Wallet className="h-5 w-5 text-blue-500" />
           </div>
           <p className="text-2xl font-bold text-gray-900">
             {formatCurrency(calcularTotalSaldos())}
           </p>
           <p className="text-sm text-gray-600">
-            {saldosBancarios.length} cuentas activas
+            {saldosBancarios.length} cuentas
           </p>
         </div>
 
@@ -295,24 +235,13 @@ const DashboardFinancieroIntegrado = () => {
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-gray-500">Por Cobrar</h3>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-green-500" />
-              <button
-                onClick={() => recargarDatos('porCobrar')}
-                disabled={estadosCarga.porCobrar === 'loading'}
-                className="p-1 text-gray-400 hover:text-green-600 transition-colors"
-              >
-                <RefreshCw className={`h-3 w-3 ${
-                  estadosCarga.porCobrar === 'loading' ? 'animate-spin' : ''
-                }`} />
-              </button>
-            </div>
+            <TrendingUp className="h-5 w-5 text-green-500" />
           </div>
           <p className="text-2xl font-bold text-gray-900">
             {formatCurrency(calcularTotalPorCobrar())}
           </p>
           <p className="text-sm text-gray-600">
-            {cuentasPendientes.length} facturas pendientes
+            {cuentasPendientes.length} facturas
           </p>
         </div>
 
@@ -320,24 +249,13 @@ const DashboardFinancieroIntegrado = () => {
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-gray-500">Por Pagar</h3>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-orange-500" />
-              <button
-                onClick={() => recargarDatos('porPagar')}
-                disabled={estadosCarga.porPagar === 'loading'}
-                className="p-1 text-gray-400 hover:text-orange-600 transition-colors"
-              >
-                <RefreshCw className={`h-3 w-3 ${
-                  estadosCarga.porPagar === 'loading' ? 'animate-spin' : ''
-                }`} />
-              </button>
-            </div>
+            <Calendar className="h-5 w-5 text-orange-500" />
           </div>
           <p className="text-2xl font-bold text-gray-900">
             {formatCurrency(calcularTotalPorPagar())}
           </p>
           <p className="text-sm text-gray-600">
-            {cuentasPorPagar.length} compras pendientes
+            {cuentasPorPagar.length} compras
           </p>
         </div>
 
@@ -358,29 +276,13 @@ const DashboardFinancieroIntegrado = () => {
         </div>
       </div>
 
-      {/* Sección de datos detallados */}
+      {/* Detalles en dos columnas */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Cuentas por Cobrar Detalladas */}
         <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Cuentas por Cobrar</h2>
-            <button
-              onClick={() => recargarDatos('porCobrar')}
-              disabled={estadosCarga.porCobrar === 'loading'}
-              className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
-            >
-              <RefreshCw className={`h-4 w-4 ${
-                estadosCarga.porCobrar === 'loading' ? 'animate-spin' : ''
-              }`} />
-            </button>
-          </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Últimas Cuentas por Cobrar</h2>
           
-          {estadosCarga.porCobrar === 'loading' ? (
-            <div className="flex items-center justify-center py-8">
-              <RefreshCw className="h-6 w-6 animate-spin text-blue-500" />
-              <span className="ml-2 text-gray-600">Cargando...</span>
-            </div>
-          ) : cuentasPendientes.length > 0 ? (
+          {cuentasPendientes.length > 0 ? (
             <div className="space-y-3 max-h-64 overflow-y-auto">
               {cuentasPendientes.slice(0, 5).map((cuenta, index) => (
                 <div key={cuenta.id || index} className="p-3 border border-gray-200 rounded">
@@ -410,25 +312,9 @@ const DashboardFinancieroIntegrado = () => {
 
         {/* Cuentas por Pagar Detalladas */}
         <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Cuentas por Pagar</h2>
-            <button
-              onClick={() => recargarDatos('porPagar')}
-              disabled={estadosCarga.porPagar === 'loading'}
-              className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
-            >
-              <RefreshCw className={`h-4 w-4 ${
-                estadosCarga.porPagar === 'loading' ? 'animate-spin' : ''
-              }`} />
-            </button>
-          </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Últimas Cuentas por Pagar</h2>
           
-          {estadosCarga.porPagar === 'loading' ? (
-            <div className="flex items-center justify-center py-8">
-              <RefreshCw className="h-6 w-6 animate-spin text-blue-500" />
-              <span className="ml-2 text-gray-600">Cargando...</span>
-            </div>
-          ) : cuentasPorPagar.length > 0 ? (
+          {cuentasPorPagar.length > 0 ? (
             <div className="space-y-3 max-h-64 overflow-y-auto">
               {cuentasPorPagar.slice(0, 5).map((cuenta, index) => (
                 <div key={cuenta.id || index} className="p-3 border border-gray-200 rounded">
@@ -457,15 +343,15 @@ const DashboardFinancieroIntegrado = () => {
         </div>
       </div>
 
-      {/* Información adicional en modo desarrollo */}
+      {/* Debug info solo en desarrollo */}
       {process.env.NODE_ENV === 'development' && (
         <div className="mt-8 p-4 bg-gray-100 rounded-lg">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Información de Debug</h3>
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Debug Info</h3>
           <div className="text-xs text-gray-600 space-y-1">
-            <p>Saldos bancarios: {saldosBancarios.length} cuentas</p>
-            <p>Cuentas por cobrar: {cuentasPendientes.length} facturas</p>
-            <p>Cuentas por pagar: {cuentasPorPagar.length} compras</p>
-            <p>Estado de carga: {JSON.stringify(estadosCarga)}</p>
+            <p>Saldos bancarios: {saldosBancarios.length} (array: {Array.isArray(saldosBancarios) ? 'Sí' : 'No'})</p>
+            <p>Cuentas por cobrar: {cuentasPendientes.length} (array: {Array.isArray(cuentasPendientes) ? 'Sí' : 'No'})</p>
+            <p>Cuentas por pagar: {cuentasPorPagar.length} (array: {Array.isArray(cuentasPorPagar) ? 'Sí' : 'No'})</p>
+            <p>Errores: {errors.length}</p>
           </div>
         </div>
       )}
