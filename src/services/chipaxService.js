@@ -1,7 +1,7 @@
-// chipaxService.js - SOLO DATOS REALES DE CHIPAX
-// Sigue EXACTAMENTE la documentación proporcionada
+// chipaxService.js - Servicio completo para integración con Chipax
+import axios from 'axios';
 
-// === CONFIGURACIÓN DE LA API ===
+// Configuración base
 const CHIPAX_API_URL = 'https://api.chipax.com/v2';
 const APP_ID = '605e0aa5-ca0c-4513-b6ef-0030ac1f0849';
 const SECRET_KEY = 'f01974df-86e1-45a0-924f-75961ea926fc';
@@ -9,42 +9,34 @@ const SECRET_KEY = 'f01974df-86e1-45a0-924f-75961ea926fc';
 // Cache del token
 let tokenCache = {
   token: null,
-  expiresAt: null,
-  isRefreshing: false
+  expiresAt: null
+};
+
+// Configuración de paginación
+const PAGINATION_CONFIG = {
+  PAGE_SIZE: 50,
+  MAX_PAGES: 150
 };
 
 /**
- * Función de autenticación - SIGUIENDO DOCUMENTACIÓN EXACTA
+ * Obtiene el token de autenticación
  */
 export const getChipaxToken = async () => {
   const now = new Date();
   
-  // Verificar token en cache
   if (tokenCache.token && tokenCache.expiresAt && tokenCache.expiresAt > now) {
-    console.log('🔑 Usando token válido en cache');
+    console.log('🔑 Usando token en cache');
     return tokenCache.token;
   }
 
-  // Evitar múltiples refreshes simultáneos
-  if (tokenCache.isRefreshing) {
-    console.log('🔄 Token refresh en progreso, esperando...');
-    let attempts = 0;
-    while (tokenCache.isRefreshing && attempts < 30) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      attempts++;
-    }
-    return tokenCache.token;
-  }
-
-  tokenCache.isRefreshing = true;
-  console.log('🔐 Obteniendo token de Chipax...');
+  console.log('🔐 Obteniendo nuevo token de Chipax...');
   
   try {
-    // ✅ SIGUIENDO DOCUMENTACIÓN: endpoint /login exacto
     const response = await fetch(`${CHIPAX_API_URL}/login`, {
       method: 'POST',
       headers: { 
-        'Content-Type': 'application/json' 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       body: JSON.stringify({ 
         app_id: APP_ID, 
@@ -52,338 +44,241 @@ export const getChipaxToken = async () => {
       })
     });
 
+    console.log('📡 Respuesta status:', response.status);
+
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
       throw new Error(`Error de autenticación ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('✅ Token obtenido exitosamente');
+    console.log('🏢 Empresa:', data.nombre || 'N/A');
     
-    // ✅ SIGUIENDO DOCUMENTACIÓN: token viene en data.token
-    if (!data.token) {
-      throw new Error('Token no encontrado en respuesta de Chipax');
-    }
-
-    // Calcular expiración (1 hora por defecto)
-    const expiresIn = data.tokenExpiration ? 
-      Math.floor((data.tokenExpiration * 1000 - Date.now()) / 1000) : 3600;
-
-    tokenCache.token = data.token;
-    tokenCache.expiresAt = new Date(Date.now() + (expiresIn * 1000));
+    tokenCache = {
+      token: data.token,
+      expiresAt: new Date(data.tokenExpiration * 1000)
+    };
     
-    console.log('✅ Token obtenido exitosamente de Chipax');
-    console.log('⏰ Expira:', tokenCache.expiresAt.toLocaleString());
-
-    return data.token;
+    return tokenCache.token;
     
   } catch (error) {
     console.error('❌ Error obteniendo token:', error);
+    tokenCache = { token: null, expiresAt: null };
     throw error;
-  } finally {
-    tokenCache.isRefreshing = false;
   }
 };
 
 /**
- * Función para obtener cuentas por cobrar - SIGUIENDO DOCUMENTACIÓN EXACTA
+ * Realiza petición a la API
  */
-export const obtenerCuentasPorCobrar = async () => {
-  console.log('\n📊 Obteniendo cuentas por cobrar desde Chipax...');
-  
+export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) => {
   try {
     const token = await getChipaxToken();
+    const url = endpoint.startsWith('http') ? endpoint : `${CHIPAX_API_URL}${endpoint}`;
     
-    // ✅ SIGUIENDO DOCUMENTACIÓN: endpoint y headers exactos
-    const response = await fetch(`${CHIPAX_API_URL}/dtes?porCobrar=1&page=1&limit=50`, {
-      headers: {
-        'Authorization': `JWT ${token}`, // ✅ SIGUIENDO DOCUMENTACIÓN: JWT prefix (no Bearer)
-        'Content-Type': 'application/json'
-      }
+    const headers = {
+      ...options.headers,
+      'Authorization': `JWT ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    
+    const response = await fetch(url, {
+      ...options,
+      headers
     });
 
+    if (showLogs) {
+      console.log(`🔍 ${endpoint} - Status: ${response.status}`);
+    }
+    
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Error response de Chipax:', errorText);
+      const text = await response.text();
       
-      if (response.status === 401) {
-        throw new Error('🔐 Sin permisos para acceder a DTEs. Contacta a Chipax para habilitar permisos de lectura.');
+      // Si es 401, reintentar con nuevo token
+      if (response.status === 401 && !options._retry) {
+        console.log('🔄 Token expirado, reintentando...');
+        tokenCache = { token: null, expiresAt: null };
+        return fetchFromChipax(endpoint, { ...options, _retry: true }, showLogs);
       }
       
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
+      throw new Error(`Error ${response.status}: ${text}`);
     }
 
-    const data = await response.json();
-    console.log('✅ Datos recibidos de Chipax API');
-    console.log('📊 Estructura de respuesta:', Object.keys(data));
+    return await response.json();
     
-    // ✅ SIGUIENDO DOCUMENTACIÓN: datos vienen en data.items
-    const dtes = data.items || [];
-    console.log(`📋 ${dtes.length} DTEs encontrados en Chipax`);
-    
-    if (dtes.length > 0) {
-      console.log('🔍 Estructura del primer DTE:', JSON.stringify(dtes[0], null, 2));
+  } catch (error) {
+    console.error(`❌ Error en ${endpoint}:`, error.message);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene todas las páginas de un endpoint
+ */
+export const fetchAllPaginatedData = async (baseEndpoint) => {
+  console.log(`📊 Cargando datos paginados de ${baseEndpoint}...`);
+  
+  let allItems = [];
+  let page = 1;
+  let hasMore = true;
+  
+  try {
+    while (hasMore && page <= PAGINATION_CONFIG.MAX_PAGES) {
+      const separator = baseEndpoint.includes('?') ? '&' : '?';
+      const endpoint = `${baseEndpoint}${separator}page=${page}&limit=${PAGINATION_CONFIG.PAGE_SIZE}`;
+      
+      const data = await fetchFromChipax(endpoint, {}, page === 1);
+      
+      // Manejo de diferentes estructuras de respuesta
+      if (data.items && Array.isArray(data.items)) {
+        allItems = [...allItems, ...data.items];
+        
+        if (data.paginationAttributes) {
+          const { currentPage, totalPages } = data.paginationAttributes;
+          hasMore = currentPage < totalPages;
+          
+          if (page === 1) {
+            console.log(`📄 Total: ${data.paginationAttributes.count || data.paginationAttributes.totalCount} items en ${totalPages} páginas`);
+          }
+        } else {
+          hasMore = false;
+        }
+      } else if (Array.isArray(data)) {
+        // Si la respuesta es directamente un array
+        allItems = [...allItems, ...data];
+        hasMore = data.length === PAGINATION_CONFIG.PAGE_SIZE;
+      } else if (data.docs && Array.isArray(data.docs)) {
+        // Para flujo de caja que usa 'docs' en lugar de 'items'
+        allItems = [...allItems, ...data.docs];
+        hasMore = data.pages ? page < data.pages : false;
+      } else {
+        hasMore = false;
+      }
+      
+      page++;
     }
-
-    // ✅ SIGUIENDO DOCUMENTACIÓN: adaptar DTEs exactamente como especifica
-    const cuentasAdaptadas = adaptarDTEs(dtes);
     
-    console.log(`✅ ${cuentasAdaptadas.length} cuentas por cobrar procesadas`);
-    console.log(`💰 Total por cobrar: $${cuentasAdaptadas.reduce((sum, c) => sum + c.saldo, 0).toLocaleString('es-CL')}`);
-
+    console.log(`✅ Total cargado: ${allItems.length} items`);
+    
     return {
-      items: cuentasAdaptadas,
+      items: allItems,
       paginationStats: {
-        totalItems: data.total || cuentasAdaptadas.length,
-        loadedItems: cuentasAdaptadas.length,
-        completenessPercent: 100,
-        loadedPages: 1,
-        totalPages: Math.ceil((data.total || cuentasAdaptadas.length) / 50),
-        failedPages: [],
-        duration: 0,
-        source: 'chipax_real_api',
-        endpoint: '/dtes?porCobrar=1'
+        totalItems: allItems.length,
+        pagesLoaded: page - 1
       }
     };
     
   } catch (error) {
-    console.error('❌ Error obteniendo cuentas por cobrar:', error);
-    throw error;
+    console.error('❌ Error en carga paginada:', error);
+    return {
+      items: allItems,
+      error: error.message
+    };
   }
 };
 
-/**
- * Adaptador de DTEs - SIGUIENDO DOCUMENTACIÓN EXACTA
- */
-const adaptarDTEs = (dtes) => {
-  console.log(`📊 Adaptando ${dtes.length} DTEs desde Chipax`);
-  
-  return dtes.map(dte => {
-    // ✅ SIGUIENDO DOCUMENTACIÓN: estructura exacta de adaptación
-    const cuentaAdaptada = {
-      id: dte.id,
-      folio: dte.folio,
-      tipo: dte.tipo === 33 ? 'Factura Electrónica' : `Tipo ${dte.tipo}`,
-      cliente: dte.razonSocial, // ✅ SIGUIENDO DOCUMENTACIÓN: string directo
-      fechaEmision: dte.fechaEmision,
-      fechaVencimiento: dte.fechaVencimiento,
-      monto: dte.montoTotal,
-      saldo: dte.Saldo?.saldoDeudor || 0, // ✅ SIGUIENDO DOCUMENTACIÓN: saldoDeudor es el real
-      estado: dte.Saldo?.saldoDeudor > 0 ? 'pendiente' : 'pagado',
-      
-      // Campos adicionales para el dashboard
-      moneda: 'CLP',
-      rut: dte.rut || '',
-      observaciones: `DTE ${dte.tipo} - ${dte.fechaEmision}`,
-      sucursal: 'Principal'
-    };
-    
-    // Calcular días vencidos
-    if (cuentaAdaptada.fechaVencimiento) {
-      const hoy = new Date();
-      const vencimiento = new Date(cuentaAdaptada.fechaVencimiento);
-      const diffTime = hoy - vencimiento;
-      cuentaAdaptada.diasVencidos = diffTime > 0 ? Math.ceil(diffTime / (1000 * 60 * 60 * 24)) : 0;
-    } else {
-      cuentaAdaptada.diasVencidos = 0;
-    }
-    
-    return cuentaAdaptada;
-  }).filter(cuenta => cuenta.saldo > 0); // ✅ SIGUIENDO DOCUMENTACIÓN: solo pendientes
-};
+// === ENDPOINTS ESPECÍFICOS ===
 
 /**
- * Obtiene saldos bancarios desde Chipax
+ * Obtiene las cuentas corrientes (saldos bancarios)
+ * Endpoint: /cuentas-corrientes
  */
 export const obtenerSaldosBancarios = async () => {
-  console.log('\n🏦 Obteniendo saldos bancarios desde Chipax...');
-  
+  console.log('\n💰 Obteniendo cuentas corrientes...');
   try {
-    const token = await getChipaxToken();
-    
-    // Probar diferentes endpoints para saldos bancarios
-    const endpointsToTry = [
-      '/cuentas-corrientes',
-      '/cuentas-bancarias', 
-      '/cuentas',
-      '/bancos'
-    ];
-    
-    for (const endpoint of endpointsToTry) {
-      try {
-        console.log(`🔍 Probando endpoint: ${endpoint}`);
-        
-        const response = await fetch(`${CHIPAX_API_URL}${endpoint}?page=1&limit=50`, {
-          headers: {
-            'Authorization': `JWT ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          const items = data.items || data.data || [];
-          
-          if (items.length > 0) {
-            console.log(`✅ ${items.length} cuentas bancarias obtenidas desde ${endpoint}`);
-            console.log('🔍 Estructura primera cuenta:', JSON.stringify(items[0], null, 2));
-            
-            // Adaptar saldos bancarios
-            const saldosAdaptados = items.map(cuenta => ({
-              id: cuenta.id,
-              nombre: cuenta.numeroCuenta || cuenta.numero || cuenta.cuenta || `Cuenta-${cuenta.id}`,
-              banco: cuenta.banco || cuenta.nombreBanco || cuenta.entidadBancaria || 'Banco no especificado',
-              saldo: cuenta.saldo || cuenta.Saldo?.saldoDeudor || cuenta.Saldo?.saldo || 0,
-              tipo: cuenta.tipo || cuenta.tipoCuenta || 'Cuenta Corriente',
-              moneda: cuenta.moneda || 'CLP',
-              ultimoMovimiento: cuenta.ultimoMovimiento || cuenta.fechaUltimoMovimiento || new Date().toISOString(),
-              sucursal: cuenta.sucursal || 'Principal'
-            }));
-            
-            const totalSaldos = saldosAdaptados.reduce((sum, c) => sum + c.saldo, 0);
-            console.log(`💰 Total saldos bancarios: $${totalSaldos.toLocaleString('es-CL')}`);
-            
-            return {
-              items: saldosAdaptados,
-              paginationStats: {
-                totalItems: saldosAdaptados.length,
-                loadedItems: saldosAdaptados.length,
-                completenessPercent: 100,
-                loadedPages: 1,
-                totalPages: 1,
-                failedPages: [],
-                duration: 0,
-                source: 'chipax_real_api',
-                endpoint: endpoint
-              }
-            };
-          }
-        } else if (response.status === 401) {
-          console.log(`❌ Sin permisos para ${endpoint} (401)`);
-        } else {
-          console.log(`❌ Error en ${endpoint}: ${response.status}`);
-        }
-      } catch (endpointError) {
-        console.log(`❌ Error probando ${endpoint}:`, endpointError.message);
-        continue;
-      }
-    }
-    
-    throw new Error('🔐 Sin permisos para acceder a ningún endpoint de saldos bancarios. Contacta a Chipax.');
-    
+    const data = await fetchAllPaginatedData('/cuentas-corrientes');
+    console.log(`✅ ${data.items.length} cuentas corrientes obtenidas`);
+    return data;
   } catch (error) {
-    console.error('❌ Error obteniendo saldos bancarios:', error);
+    console.error('❌ Error obteniendo cuentas corrientes:', error);
     throw error;
   }
 };
 
 /**
- * Obtiene cuentas por pagar desde Chipax
+ * Obtiene los DTEs (facturas de venta/cuentas por cobrar)
+ * Endpoint: /dtes?porCobrar=1
+ */
+export const obtenerCuentasPorCobrar = async () => {
+  console.log('\n📊 Obteniendo DTEs (facturas por cobrar)...');
+  try {
+    const data = await fetchAllPaginatedData('/dtes?porCobrar=1');
+    
+    console.log(`✅ ${data.items.length} DTEs por cobrar obtenidos`);
+    
+    // Log detallado para entender la estructura
+    if (data.items && data.items.length > 0) {
+      console.log('📋 Estructura completa del primer DTE:');
+      console.log(JSON.stringify(data.items[0], null, 2));
+      
+      // Ver qué campos están disponibles
+      console.log('🔍 Campos disponibles:', Object.keys(data.items[0]));
+      
+      // Ver si hay objetos anidados importantes
+      const dte = data.items[0];
+      if (dte.ClienteProveedor || dte.ClienteNormalizado) {
+        console.log('👤 Cliente:', dte.ClienteProveedor || dte.ClienteNormalizado);
+      }
+      if (dte.Saldo) {
+        console.log('💰 Saldo:', dte.Saldo);
+      }
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('❌ Error obteniendo DTEs:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene las compras (cuentas por pagar)
+ * Endpoint: /compras
  */
 export const obtenerCuentasPorPagar = async () => {
-  console.log('\n💸 Obteniendo cuentas por pagar desde Chipax...');
-  
+  console.log('\n💸 Obteniendo compras (cuentas por pagar)...');
   try {
-    const token = await getChipaxToken();
+    const data = await fetchAllPaginatedData('/compras');
     
-    const response = await fetch(`${CHIPAX_API_URL}/compras?page=1&limit=50`, {
-      headers: {
-        'Authorization': `JWT ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('🔐 Sin permisos para acceder a compras. Contacta a Chipax para habilitar permisos.');
-      }
+    // Filtrar solo las pendientes de pago si es necesario
+    if (data.items && data.items.length > 0) {
+      const todasLasCompras = data.items.length;
       
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
+      // Log para entender la estructura
+      console.log('🔍 Estructura de la primera compra:', data.items[0]);
+      
+      // Filtrar las que no tienen fecha de pago interna o están pendientes
+      data.items = data.items.filter(compra => 
+        !compra.fechaPagoInterna || 
+        compra.estado === 'pendiente' ||
+        compra.estado === 'aceptado' ||
+        (compra.Saldo && compra.Saldo.saldo_acreedor > 0)
+      );
+      
+      console.log(`📊 De ${todasLasCompras} compras, ${data.items.length} están pendientes de pago`);
     }
     
-    const data = await response.json();
-    const compras = data.items || [];
-    
-    console.log(`✅ ${compras.length} compras obtenidas desde Chipax`);
-    
-    if (compras.length > 0) {
-      console.log('🔍 Estructura primera compra:', JSON.stringify(compras[0], null, 2));
-    }
-    
-    // Adaptar compras
-    const comprasAdaptadas = compras.map(compra => ({
-      id: compra.id,
-      folio: compra.folio || compra.numero || `COMP-${compra.id}`,
-      proveedor: compra.proveedor || compra.razonSocial || 'Proveedor no especificado',
-      rut: compra.rut || '',
-      monto: compra.montoTotal || compra.monto || 0,
-      saldo: compra.saldo || compra.saldoPendiente || compra.montoTotal || 0,
-      fecha: compra.fecha || compra.fechaEmision || new Date().toISOString(),
-      fechaVencimiento: compra.fechaVencimiento,
-      tipo: 'Factura Compra',
-      estado: compra.estado || 'pendiente',
-      moneda: 'CLP',
-      observaciones: `Compra ${compra.folio || compra.id}`,
-      categoria: compra.categoria || 'General'
-    })).filter(compra => compra.saldo > 0); // Solo las pendientes
-    
-    const totalPorPagar = comprasAdaptadas.reduce((sum, c) => sum + c.saldo, 0);
-    console.log(`💰 Total por pagar: $${totalPorPagar.toLocaleString('es-CL')}`);
-    
-    return {
-      items: comprasAdaptadas,
-      paginationStats: {
-        totalItems: comprasAdaptadas.length,
-        loadedItems: comprasAdaptadas.length,
-        completenessPercent: 100,
-        source: 'chipax_real_api'
-      }
-    };
-    
+    console.log(`✅ ${data.items.length} compras por pagar obtenidas`);
+    return data;
   } catch (error) {
-    console.error('❌ Error obteniendo cuentas por pagar:', error);
+    console.error('❌ Error obteniendo compras:', error);
     throw error;
   }
 };
 
 /**
- * Obtiene clientes desde Chipax
+ * Obtiene la lista de clientes
+ * Endpoint: /clientes
  */
 export const obtenerClientes = async () => {
-  console.log('\n👥 Obteniendo clientes desde Chipax...');
-  
+  console.log('\n👥 Obteniendo clientes...');
   try {
-    const token = await getChipaxToken();
-    
-    const response = await fetch(`${CHIPAX_API_URL}/clientes?page=1&limit=100`, {
-      headers: {
-        'Authorization': `JWT ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('🔐 Sin permisos para acceder a clientes');
-      }
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const data = await response.json();
-    const clientes = data.items || [];
-    
-    console.log(`✅ ${clientes.length} clientes obtenidos desde Chipax`);
-    
-    return {
-      items: clientes,
-      paginationStats: {
-        totalItems: clientes.length,
-        loadedItems: clientes.length,
-        completenessPercent: 100,
-        source: 'chipax_real_api'
-      }
-    };
-    
+    const data = await fetchAllPaginatedData('/clientes');
+    console.log(`✅ ${data.items.length} clientes obtenidos`);
+    return data;
   } catch (error) {
     console.error('❌ Error obteniendo clientes:', error);
     throw error;
@@ -391,43 +286,15 @@ export const obtenerClientes = async () => {
 };
 
 /**
- * Obtiene proveedores desde Chipax
+ * Obtiene la lista de proveedores
+ * Endpoint: /proveedores
  */
 export const obtenerProveedores = async () => {
-  console.log('\n🏭 Obteniendo proveedores desde Chipax...');
-  
+  console.log('\n🏭 Obteniendo proveedores...');
   try {
-    const token = await getChipaxToken();
-    
-    const response = await fetch(`${CHIPAX_API_URL}/proveedores?page=1&limit=100`, {
-      headers: {
-        'Authorization': `JWT ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('🔐 Sin permisos para acceder a proveedores');
-      }
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const data = await response.json();
-    const proveedores = data.items || [];
-    
-    console.log(`✅ ${proveedores.length} proveedores obtenidos desde Chipax`);
-    
-    return {
-      items: proveedores,
-      paginationStats: {
-        totalItems: proveedores.length,
-        loadedItems: proveedores.length,
-        completenessPercent: 100,
-        source: 'chipax_real_api'
-      }
-    };
-    
+    const data = await fetchAllPaginatedData('/proveedores');
+    console.log(`✅ ${data.items.length} proveedores obtenidos`);
+    return data;
   } catch (error) {
     console.error('❌ Error obteniendo proveedores:', error);
     throw error;
@@ -435,246 +302,32 @@ export const obtenerProveedores = async () => {
 };
 
 /**
- * Obtiene flujo de caja desde Chipax
+ * Obtiene el flujo de caja desde cartolas
+ * Endpoint: /flujo-caja/cartolas
  */
 export const obtenerFlujoCaja = async () => {
-  console.log('\n💵 Obteniendo flujo de caja desde Chipax...');
-  
+  console.log('\n💵 Obteniendo flujo de caja...');
   try {
-    const token = await getChipaxToken();
-    
-    // Probar diferentes endpoints de flujo de caja
-    const endpointsToTry = [
-      '/flujo-caja/cartolas',
-      '/flujo-caja',
-      '/movimientos',
-      '/cartolas'
-    ];
-    
-    for (const endpoint of endpointsToTry) {
-      try {
-        const response = await fetch(`${CHIPAX_API_URL}${endpoint}?page=1&limit=50`, {
-          headers: {
-            'Authorization': `JWT ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          const movimientos = data.items || [];
-          
-          console.log(`✅ ${movimientos.length} movimientos obtenidos desde ${endpoint}`);
-          
-          return {
-            items: movimientos,
-            paginationStats: {
-              totalItems: movimientos.length,
-              loadedItems: movimientos.length,
-              completenessPercent: 100,
-              source: 'chipax_real_api',
-              endpoint: endpoint
-            }
-          };
-        }
-      } catch (endpointError) {
-        continue;
-      }
-    }
-    
-    throw new Error('🔐 Sin permisos para acceder a flujo de caja');
-    
+    const data = await fetchAllPaginatedData('/flujo-caja/cartolas');
+    console.log(`✅ ${data.items.length} movimientos de flujo de caja obtenidos`);
+    return data;
   } catch (error) {
     console.error('❌ Error obteniendo flujo de caja:', error);
     throw error;
   }
 };
 
-/**
- * Obtiene honorarios desde Chipax
- */
-export const obtenerHonorarios = async () => {
-  console.log('\n📄 Obteniendo honorarios desde Chipax...');
-  
-  try {
-    const token = await getChipaxToken();
-    
-    const response = await fetch(`${CHIPAX_API_URL}/honorarios?page=1&limit=50`, {
-      headers: {
-        'Authorization': `JWT ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('🔐 Sin permisos para acceder a honorarios');
-      }
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const data = await response.json();
-    const honorarios = data.items || [];
-    
-    console.log(`✅ ${honorarios.length} honorarios obtenidos desde Chipax`);
-    
-    return {
-      items: honorarios,
-      paginationStats: {
-        totalItems: honorarios.length,
-        loadedItems: honorarios.length,
-        completenessPercent: 100,
-        source: 'chipax_real_api'
-      }
-    };
-    
-  } catch (error) {
-    console.error('❌ Error obteniendo honorarios:', error);
-    throw error;
-  }
-};
-
-/**
- * Obtiene boletas de terceros desde Chipax
- */
-export const obtenerBoletasTerceros = async () => {
-  console.log('\n📋 Obteniendo boletas de terceros desde Chipax...');
-  
-  try {
-    const token = await getChipaxToken();
-    
-    const response = await fetch(`${CHIPAX_API_URL}/boletas-terceros?page=1&limit=50`, {
-      headers: {
-        'Authorization': `JWT ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('🔐 Sin permisos para acceder a boletas de terceros');
-      }
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const data = await response.json();
-    const boletas = data.items || [];
-    
-    console.log(`✅ ${boletas.length} boletas de terceros obtenidas desde Chipax`);
-    
-    return {
-      items: boletas,
-      paginationStats: {
-        totalItems: boletas.length,
-        loadedItems: boletas.length,
-        completenessPercent: 100,
-        source: 'chipax_real_api'
-      }
-    };
-    
-  } catch (error) {
-    console.error('❌ Error obteniendo boletas de terceros:', error);
-    throw error;
-  }
-};
-
-/**
- * Verifica conectividad con Chipax
- */
-export const verificarConectividadChipax = async () => {
-  console.log('🔍 Verificando conectividad con Chipax...');
-  
-  try {
-    const token = await getChipaxToken();
-    console.log('✅ Token obtenido correctamente');
-    
-    // Probar un endpoint básico
-    const response = await fetch(`${CHIPAX_API_URL}/dtes?porCobrar=1&page=1&limit=1`, {
-      headers: {
-        'Authorization': `JWT ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (response.ok) {
-      console.log('✅ Acceso completo a datos de Chipax');
-      return { 
-        ok: true, 
-        message: 'Conexión exitosa con acceso completo a datos',
-        hasDataAccess: true
-      };
-    } else if (response.status === 401) {
-      return { 
-        ok: false, 
-        message: '🔐 Sin permisos para acceder a datos. Contacta a Chipax para habilitar permisos de lectura.',
-        hasDataAccess: false,
-        suggestion: 'Solicita permisos de lectura para DTEs, cuentas bancarias y otros módulos'
-      };
-    } else {
-      return { 
-        ok: false, 
-        message: `Error inesperado: ${response.status}`,
-        hasDataAccess: false
-      };
-    }
-    
-  } catch (error) {
-    console.error('❌ Error de conectividad:', error);
-    return { 
-      ok: false, 
-      message: error.message,
-      hasDataAccess: false
-    };
-  }
-};
-
-/**
- * Obtiene estado de autenticación
- */
-export const obtenerEstadoAutenticacion = () => {
-  const now = new Date();
-  return {
-    tieneToken: !!tokenCache.token,
-    expira: tokenCache.expiresAt,
-    isRefreshing: tokenCache.isRefreshing,
-    minutosParaExpirar: tokenCache.expiresAt 
-      ? Math.round((tokenCache.expiresAt - now) / 60000)
-      : null,
-    credenciales: {
-      appId: APP_ID.substring(0, 8) + '...',
-      secretKey: SECRET_KEY.substring(0, 8) + '...'
-    },
-    empresa: 'PGR Seguridad S.p.A'
-  };
-};
-
-// Funciones legacy para compatibilidad (no se usan en esta versión)
-export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) => {
-  console.warn('⚠️ fetchFromChipax es legacy - usar funciones específicas');
-  throw new Error('Usar funciones específicas como obtenerCuentasPorCobrar()');
-};
-
-export const fetchAllPaginatedData = async (endpoint, options = {}) => {
-  console.warn('⚠️ fetchAllPaginatedData es legacy - usar funciones específicas');
-  throw new Error('Usar funciones específicas como obtenerCuentasPorCobrar()');
-};
-
-// Export por defecto
+// Exportar todo
 const chipaxService = {
   getChipaxToken,
-  obtenerCuentasPorCobrar,
+  fetchFromChipax,
+  fetchAllPaginatedData,
   obtenerSaldosBancarios,
+  obtenerCuentasPorCobrar,
   obtenerCuentasPorPagar,
   obtenerClientes,
   obtenerProveedores,
-  obtenerFlujoCaja,
-  obtenerHonorarios,
-  obtenerBoletasTerceros,
-  verificarConectividadChipax,
-  obtenerEstadoAutenticacion,
-  // Legacy functions
-  fetchFromChipax,
-  fetchAllPaginatedData
+  obtenerFlujoCaja
 };
 
 export default chipaxService;
