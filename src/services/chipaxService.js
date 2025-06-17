@@ -1,4 +1,4 @@
-// chipaxService.js - Versión corregida con manejo robusto de errores
+// chipaxService.js - Versión corregida con Authorization header
 
 const CHIPAX_API_URL = 'https://api.chipax.com/v2';
 const APP_ID = '605e0aa5-ca0c-4513-b6ef-0030ac1f0849';
@@ -77,19 +77,23 @@ const getChipaxToken = async () => {
   }
 };
 
-// === FUNCIÓN BASE PARA LLAMADAS A LA API ===
+// === FUNCIÓN BASE PARA LLAMADAS A LA API CON AUTHORIZATION ===
 const fetchFromChipax = async (endpoint, options = {}) => {
   const token = await getChipaxToken();
   
+  console.log(`🌐 Llamando a ${endpoint} con token: ${token.substring(0, 20)}...`);
+  
   const response = await fetch(`${CHIPAX_API_URL}${endpoint}`, {
     headers: {
-      'Authorization': `JWT ${token}`,
+      'Authorization': `JWT ${token}`,  // ✅ CORRECCIÓN: Authorization header
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       ...options.headers
     },
     ...options
   });
+
+  console.log(`📡 Status de ${endpoint}: ${response.status}`);
 
   if (!response.ok) {
     throw new Error(`Error ${response.status}: ${response.statusText} en ${endpoint}`);
@@ -103,16 +107,15 @@ const obtenerSaldosBancarios = async () => {
   console.log('🏦 Obteniendo saldos bancarios...');
   
   try {
-    // CORRECCIÓN: Usar el endpoint que sabemos que funciona
+    // ✅ CORRECCIÓN: Usar fetchFromChipax que incluye Authorization
     const data = await fetchFromChipax('/cuentas-corrientes');
     
-    // VALIDACIÓN CRÍTICA: Verificar que sea un array
+    // VALIDACIÓN: Verificar que sea un array
     if (!Array.isArray(data)) {
       console.warn('⚠️ Respuesta no es array:', typeof data);
       
       // Si es un objeto, buscar arrays dentro
       if (data && typeof data === 'object') {
-        // Buscar propiedades que contengan arrays
         for (const [key, value] of Object.entries(data)) {
           if (Array.isArray(value)) {
             console.log(`✅ Encontrado array en propiedad '${key}':`, value.length, 'items');
@@ -135,7 +138,6 @@ const obtenerSaldosBancarios = async () => {
     
   } catch (error) {
     console.error('❌ Error obteniendo saldos bancarios:', error);
-    // FALLBACK: Retornar array vacío en lugar de fallar
     return [];
   }
 };
@@ -145,9 +147,10 @@ const obtenerDTEsPorCobrar = async () => {
   console.log('📋 Obteniendo DTEs por cobrar...');
   
   try {
+    // ✅ CORRECCIÓN: Usar fetchFromChipax que incluye Authorization
     const data = await fetchFromChipax('/dtes?porCobrar=1');
     
-    // VALIDACIÓN CRÍTICA: Verificar estructura
+    // VALIDACIÓN: Verificar estructura
     if (!Array.isArray(data)) {
       console.warn('⚠️ DTEs: Respuesta no es array:', typeof data);
       
@@ -181,9 +184,10 @@ const obtenerCompras = async () => {
   console.log('💸 Obteniendo compras...');
   
   try {
+    // ✅ CORRECCIÓN: Usar fetchFromChipax que incluye Authorization
     const data = await fetchFromChipax('/compras');
     
-    // VALIDACIÓN CRÍTICA: Verificar estructura
+    // VALIDACIÓN: Verificar estructura
     if (!Array.isArray(data)) {
       console.warn('⚠️ Compras: Respuesta no es array:', typeof data);
       
@@ -217,6 +221,7 @@ const obtenerClientes = async () => {
   console.log('👥 Obteniendo clientes...');
   
   try {
+    // ✅ CORRECCIÓN: Usar fetchFromChipax que incluye Authorization
     const data = await fetchFromChipax('/clientes');
     
     if (!Array.isArray(data)) {
