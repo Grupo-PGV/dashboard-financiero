@@ -1,4 +1,4 @@
-// chipaxService.js - Servicio con estructura real de la API Chipax
+// chipaxService.js - CON HEADERS AUTHORIZATION CORREGIDOS
 
 const CHIPAX_API_URL = 'https://api.chipax.com/v2';
 const APP_ID = '605e0aa5-ca0c-4513-b6ef-0030ac1f0849';
@@ -9,12 +9,6 @@ let tokenCache = {
   token: null,
   expiresAt: null,
   isRefreshing: false
-};
-
-// Configuración de paginación
-const PAGINATION_CONFIG = {
-  PAGE_SIZE: 50,
-  MAX_PAGES: 150
 };
 
 /**
@@ -67,6 +61,7 @@ export const getChipaxToken = async () => {
       isRefreshing: false
     };
     
+    console.log('🔐 Token guardado. Longitud:', data.token.length);
     return tokenCache.token;
     
   } catch (error) {
@@ -77,21 +72,34 @@ export const getChipaxToken = async () => {
 };
 
 /**
- * Realiza petición a la API con Authorization header
+ * ✅ CORREGIDO: Realiza petición con Authorization header SIEMPRE
  */
 export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) => {
   try {
+    // ✅ PASO 1: Obtener token ANTES de hacer la petición
     const token = await getChipaxToken();
+    
+    if (!token) {
+      throw new Error('No se pudo obtener token de autenticación');
+    }
+    
     const url = endpoint.startsWith('http') ? endpoint : `${CHIPAX_API_URL}${endpoint}`;
     
+    // ✅ PASO 2: SIEMPRE incluir Authorization header
     const headers = {
-      'Authorization': `JWT ${token}`,  // ✅ Header de autorización
+      'Authorization': `JWT ${token}`,  // ✅ CRÍTICO: Authorization header
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       ...options.headers
     };
     
+    if (showLogs) {
+      console.log(`🌐 Llamando ${endpoint} con token: ${token.substring(0, 20)}...`);
+      console.log(`🔐 Authorization header: JWT ${token.substring(0, 10)}...`);
+    }
+    
     const response = await fetch(url, {
+      method: 'GET', // ✅ Método explícito
       ...options,
       headers
     });
@@ -103,9 +111,9 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
     if (!response.ok) {
       const text = await response.text();
       
-      // Si es 401, reintentar con nuevo token
+      // Si es 401, reintentar con nuevo token UNA VEZ
       if (response.status === 401 && !options._retry) {
-        console.log('🔄 Token expirado, reintentando...');
+        console.log('🔄 Token expirado, limpiando cache y reintentando...');
         tokenCache = { token: null, expiresAt: null, isRefreshing: false };
         return fetchFromChipax(endpoint, { ...options, _retry: true }, showLogs);
       }
@@ -122,14 +130,13 @@ export const fetchFromChipax = async (endpoint, options = {}, showLogs = true) =
 };
 
 /**
- * ✅ CORREGIDO: Obtiene cuentas corrientes y calcula saldos desde cartolas
- * Estructura real: Array directo con objetos {id, numeroCuenta, banco, TipoCuentaCorriente, Moneda}
+ * ✅ CORREGIDO: Obtiene cuentas corrientes con Authorization header
  */
 export const obtenerSaldosBancarios = async () => {
   console.log('\n💰 Obteniendo saldos bancarios...');
   
   try {
-    // 1. Obtener cuentas corrientes (array directo)
+    // 1. Obtener cuentas corrientes con Authorization header
     console.log('📋 Obteniendo cuentas corrientes...');
     const cuentas = await fetchFromChipax('/cuentas-corrientes');
     
@@ -141,7 +148,7 @@ export const obtenerSaldosBancarios = async () => {
     console.log(`✅ ${cuentas.length} cuentas corrientes obtenidas`);
     console.log('🔍 Estructura de la primera cuenta:', cuentas[0]);
     
-    // 2. Obtener cartolas para calcular saldos (estructura: {docs, pages, total})
+    // 2. Obtener cartolas para calcular saldos con Authorization header
     console.log('📊 Obteniendo cartolas para calcular saldos...');
     const cartolasResponse = await fetchFromChipax('/flujo-caja/cartolas');
     const cartolas = cartolasResponse.docs || cartolasResponse || [];
@@ -211,8 +218,7 @@ export const obtenerSaldosBancarios = async () => {
 };
 
 /**
- * ✅ CORREGIDO: Obtiene DTEs de venta (cuentas por cobrar)
- * Estructura real: Array con objetos que incluyen Saldo: {saldo_deudor, saldo_acreedor}
+ * ✅ CORREGIDO: Obtiene DTEs con Authorization header
  */
 export const obtenerCuentasPorCobrar = async () => {
   console.log('\n📊 Obteniendo DTEs de venta (cuentas por cobrar)...');
@@ -264,8 +270,7 @@ export const obtenerCuentasPorCobrar = async () => {
 };
 
 /**
- * ✅ CORREGIDO: Obtiene compras (cuentas por pagar)
- * Estructura real: Array con objetos que incluyen fecha_pago_interna y estado
+ * ✅ CORREGIDO: Obtiene compras con Authorization header
  */
 export const obtenerCuentasPorPagar = async () => {
   console.log('\n💸 Obteniendo compras (cuentas por pagar)...');
@@ -317,8 +322,7 @@ export const obtenerCuentasPorPagar = async () => {
 };
 
 /**
- * ✅ Obtiene clientes
- * Endpoint: /clientes
+ * ✅ CORREGIDO: Obtiene clientes con Authorization header
  */
 export const obtenerClientes = async () => {
   console.log('\n👥 Obteniendo clientes...');
@@ -339,8 +343,7 @@ export const obtenerClientes = async () => {
 };
 
 /**
- * ✅ Obtiene el flujo de caja desde cartolas
- * Estructura real: {docs: [...], pages: number, total: number}
+ * ✅ CORREGIDO: Obtiene flujo de caja con Authorization header
  */
 export const obtenerFlujoCaja = async () => {
   console.log('\n💵 Obteniendo flujo de caja...');
@@ -359,8 +362,7 @@ export const obtenerFlujoCaja = async () => {
 };
 
 /**
- * ✅ Obtiene movimientos
- * Endpoint: /movimientos
+ * ✅ CORREGIDO: Obtiene movimientos con Authorization header
  */
 export const obtenerMovimientos = async () => {
   console.log('\n🔄 Obteniendo movimientos...');
