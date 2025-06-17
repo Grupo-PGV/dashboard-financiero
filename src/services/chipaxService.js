@@ -192,7 +192,7 @@ const obtenerSaldosBancarios = async () => {
       
       const response = await fetch(`${CHIPAX_API_URL}${estrategia.endpoint}`, {
         headers: {
-          'Authorization': `Bearer ${tokenFresco}`,
+          'Authorization': `JWT ${tokenFresco}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         }
@@ -518,7 +518,7 @@ async function obtenerSaldosFallback(token) {
     
     const response = await fetch(`${CHIPAX_API_URL}/cuentas-corrientes`, {
       headers: {
-        'Authorization': `Bearer ${tokenFresco}`,
+        'Authorization': `JWT ${tokenFresco}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       }
@@ -713,7 +713,7 @@ async function fetchPaginatedData(token, endpoint, entityName) {
 
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${tokenFresco}`,
+          'Authorization': `JWT ${tokenFresco}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         }
@@ -807,7 +807,7 @@ const investigarEndpointsDisponibles = async () => {
     try {
       const response = await fetch(`${CHIPAX_API_URL}${endpoint}`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `JWT ${token}`,
           'Content-Type': 'application/json'
         }
       });
