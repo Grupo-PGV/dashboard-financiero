@@ -1,295 +1,265 @@
-// chipaxAdapter.js - Adaptador corregido con validaciones robustas
+// chipaxAdapter.js - Adaptador corregido para los endpoints oficiales
 
 /**
- * ADAPTADOR PRINCIPAL: Cuentas por Pagar (Compras)
- * CORRECCIÓN CRÍTICA: Maneja datos no-array y convierte proveedor a string
+ * ADAPTADOR PRINCIPAL: Saldos Bancarios (Cuentas Corrientes + Cartolas)
+ * Procesa cuentas corrientes con saldos calculados desde cartolas
  */
-export const adaptarCompras = (compras) => {
-  console.log('🛒 Iniciando adaptación de compras...');
-  console.log('📊 Tipo de datos recibidos:', typeof compras);
-  console.log('📊 Es array:', Array.isArray(compras));
+export const adaptarSaldosBancarios = (cuentasConSaldos) => {
+  console.log('🏦 Adaptando saldos bancarios...');
   
-  // VALIDACIÓN CRÍTICA: Verificar que tenemos datos válidos
-  if (!compras) {
-    console.warn('⚠️ adaptarCompras: datos nulos o undefined');
+  if (!Array.isArray(cuentasConSaldos)) {
+    console.warn('⚠️ adaptarSaldosBancarios: datos no son array');
     return [];
   }
   
-  // CORRECCIÓN: Si no es array, intentar convertir
-  let datosParaProcesar = compras;
+  return cuentasConSaldos.map((cuenta, index) => {
+    // Usar el saldo calculado desde cartolas
+    const saldo = cuenta.saldoCalculado || 0;
+    
+    return {
+      id: cuenta.id || index,
+      nombre: cuenta.numeroCuenta || cuenta.nombre || `Cuenta ${index + 1}`,
+      banco: cuenta.banco || cuenta.Banco?.nombre || 'Banco no especificado',
+      saldo: saldo,
+      tipo: cuenta.TipoCuentaCorriente?.tipoCuenta || 'Cuenta Corriente',
+      moneda: cuenta.Moneda?.moneda || 'CLP',
+      simboloMoneda: cuenta.Moneda?.simbolo || '$',
+      
+      // Información adicional de movimientos
+      movimientos: cuenta.movimientos || {
+        ingresos: 0,
+        egresos: 0,
+        ultimaActualizacion: null
+      },
+      
+      // Metadatos
+      origenSaldo: 'calculado_desde_cartolas',
+      fechaProcesamiento: new Date().toISOString()
+    };
+  });
+};
+
+/**
+ * ADAPTADOR: DTEs de Venta (Cuentas por Cobrar)
+ * Endpoint: /dtes
+ */
+export const adaptarCuentasPorCobrar = (dtes) => {
+  console.log('📊 Adaptando DTEs de venta (cuentas por cobrar)...');
+  
+  if (!Array.isArray(dtes)) {
+    console.warn('⚠️ adaptarCuentasPorCobrar: datos no son array');
+    return [];
+  }
+  
+  return dtes.map((dte, index) => {
+    // Extraer saldo pendiente
+    let saldoPendiente = 0;
+    
+    if (dte.Saldo && dte.Saldo.saldoDeudor !== undefined) {
+      saldoPendiente = parseFloat(dte.Saldo.saldoDeudor) || 0;
+    } else if (dte.montoTotal !== undefined) {
+      saldoPendiente = parseFloat(dte.montoTotal) || 0;
+    }
+    
+    // Extraer información del cliente
+    let cliente = 'Cliente no especificado';
+    let rutCliente = 'Sin RUT';
+    
+    if (dte.ClienteProveedor) {
+      cliente = dte.ClienteProveedor.razonSocial || dte.ClienteProveedor.nombre || cliente;
+      rutCliente = dte.ClienteProveedor.rut || rutCliente;
+    } else if (dte.ClienteNormalizado) {
+      cliente = dte.ClienteNormalizado.razonSocial || dte.ClienteNormalizado.nombre || cliente;
+      rutCliente = dte.ClienteNormalizado.rut || rutCliente;
+    } else if (dte.razonSocial) {
+      cliente = dte.razonSocial;
+      rutCliente = dte.rutEmisor || rutCliente;
+    }
+    
+    return {
+      id: dte.id || index,
+      folio: dte.folio || 'S/N',
+      razonSocial: cliente,
+      rutCliente: rutCliente,
+      monto: saldoPendiente,
+      montoTotal: parseFloat(dte.montoTotal) || 0,
+      fecha: dte.fecha || dte.fechaEmision || new Date().toISOString().split('T')[0],
+      fechaVencimiento: dte.fechaVencimiento || null,
+      tipo: dte.tipo || 33, // 33 = Factura electrónica
+      tipoDescripcion: obtenerTipoDocumento(dte.tipo),
+      estado: dte.estado || 'Pendiente',
+      moneda: dte.Moneda?.moneda || 'CLP',
+      
+      // Información de saldo detallada
+      saldoInfo: dte.Saldo || null,
+      
+      // Metadatos
+      origenDatos: 'dtes_venta',
+      fechaProcesamiento: new Date().toISOString()
+    };
+  });
+};
+
+/**
+ * ADAPTADOR: Compras (Cuentas por Pagar)
+ * Endpoint: /compras
+ */
+export const adaptarCuentasPorPagar = (compras) => {
+  console.log('💸 Adaptando compras (cuentas por pagar)...');
   
   if (!Array.isArray(compras)) {
-    console.warn('⚠️ adaptarCompras: Se esperaba un array, recibido:', typeof compras);
-    
-    // Si es un objeto, buscar arrays dentro
-    if (typeof compras === 'object' && compras !== null) {
-      console.log('🔍 Buscando arrays dentro del objeto...');
-      
-      // Buscar propiedades que contengan arrays
-      for (const [key, value] of Object.entries(compras)) {
-        if (Array.isArray(value)) {
-          console.log(`✅ Array encontrado en propiedad '${key}':`, value.length, 'items');
-          datosParaProcesar = value;
-          break;
-        }
-      }
-      
-      // Si no encontramos arrays, convertir el objeto a array
-      if (!Array.isArray(datosParaProcesar)) {
-        console.log('🔄 Convirtiendo objeto único a array');
-        datosParaProcesar = [compras];
-      }
-    } else {
-      console.error('❌ Datos inválidos para adaptarCompras');
-      return [];
-    }
-  }
-  
-  // Asegurar que ahora tenemos un array
-  if (!Array.isArray(datosParaProcesar)) {
-    console.error('❌ No se pudo convertir a array válido');
+    console.warn('⚠️ adaptarCuentasPorPagar: datos no son array');
     return [];
   }
   
-  console.log(`📦 Procesando ${datosParaProcesar.length} compras...`);
-  
-  return datosParaProcesar.map((compra, index) => {
-    // SOLUCIÓN PRINCIPAL: Convertir proveedor a string para evitar error de React
-    const proveedorNombre = extraerTextoSeguro(compra.razonSocial || compra.proveedor || compra.nombre) || 'Sin proveedor';
-    const proveedorRut = extraerTextoSeguro(compra.rutEmisor || compra.rut) || 'Sin RUT';
+  return compras.map((compra, index) => {
+    // Extraer monto pendiente
+    let montoPendiente = 0;
     
-    // Extraer monto con múltiples estrategias
-    const monto = extraerNumero(compra.montoTotal || compra.total || compra.monto || compra.valor) || 0;
+    if (compra.Saldo && compra.Saldo.saldoAcreedor !== undefined) {
+      montoPendiente = parseFloat(compra.Saldo.saldoAcreedor) || 0;
+    } else if (compra.montoTotal !== undefined) {
+      montoPendiente = parseFloat(compra.montoTotal) || 0;
+    }
     
-    const resultado = {
-      id: compra.id || `compra_${index}`,
-      numero: extraerTextoSeguro(compra.folio || compra.numero) || `C-${index + 1}`,
-      fecha: extraerFecha(compra.fecha || compra.fechaEmision) || new Date().toISOString().split('T')[0],
+    // Extraer información del proveedor
+    let proveedor = 'Proveedor no especificado';
+    let rutProveedor = 'Sin RUT';
+    
+    if (compra.ClienteProveedor) {
+      proveedor = compra.ClienteProveedor.razonSocial || compra.ClienteProveedor.nombre || proveedor;
+      rutProveedor = compra.ClienteProveedor.rut || rutProveedor;
+    } else if (compra.ProveedorNormalizado) {
+      proveedor = compra.ProveedorNormalizado.razonSocial || compra.ProveedorNormalizado.nombre || proveedor;
+      rutProveedor = compra.ProveedorNormalizado.rut || rutProveedor;
+    } else if (compra.razonSocial) {
+      proveedor = compra.razonSocial;
+      rutProveedor = compra.rutEmisor || rutProveedor;
+    }
+    
+    return {
+      id: compra.id || index,
+      numero: compra.folio || compra.numero || `C-${index + 1}`,
+      fecha: compra.fecha || compra.fechaEmision || new Date().toISOString().split('T')[0],
       
       // ✅ CORRECCIÓN PRINCIPAL: proveedor como string
-      proveedor: proveedorNombre,
+      proveedor: proveedor,
       
       // ✅ Información detallada del proveedor en objeto separado
       proveedorInfo: {
-        nombre: proveedorNombre,
-        rut: proveedorRut,
-        razonSocial: extraerTextoSeguro(compra.razonSocial)
+        nombre: proveedor,
+        rut: rutProveedor,
+        razonSocial: compra.razonSocial
       },
       
-      monto: monto,
-      moneda: extraerTextoSeguro(compra.moneda) || 'CLP',
-      tipo: extraerTextoSeguro(compra.tipo || compra.tipoDocumento) || 'Compra',
-      estado: extraerTextoSeguro(compra.estado) || 'Pendiente',
-      
-      // Campos adicionales
-      descripcion: extraerTextoSeguro(compra.descripcion || compra.detalle) || '',
-      categoria: extraerTextoSeguro(compra.categoria) || 'Sin categoría',
+      monto: montoPendiente,
+      montoTotal: parseFloat(compra.montoTotal) || 0,
+      moneda: compra.Moneda?.moneda || 'CLP',
+      tipo: compra.tipo || compra.tipoDocumento || 'Compra',
+      tipoDescripcion: obtenerTipoDocumento(compra.tipo),
+      estado: compra.estado || 'Pendiente',
       
       // Fechas importantes
-      fechaVencimiento: extraerFecha(compra.fechaVencimiento),
-      fechaPago: extraerFecha(compra.fechaPago),
+      fechaVencimiento: compra.fechaVencimiento || null,
+      fechaPago: compra.fechaPago || compra.fechaPagoInterna || null,
+      
+      // Información de saldo detallada
+      saldoInfo: compra.Saldo || null,
       
       // Metadatos
       origenDatos: 'compras',
       fechaProcesamiento: new Date().toISOString()
     };
-    
-    // Log detallado para la primera compra
-    if (index === 0) {
-      console.log('🔍 Primera compra adaptada:', {
-        proveedor: resultado.proveedor,
-        monto: resultado.monto,
-        esProveedorString: typeof resultado.proveedor === 'string'
-      });
-    }
-    
-    return resultado;
   });
 };
 
 /**
- * ADAPTADOR: DTEs (Documentos Tributarios Electrónicos) para Cuentas por Cobrar
+ * ADAPTADOR: Clientes
+ * Endpoint: /clientes
  */
-export const adaptarDTEs = (dtes) => {
-  console.log('📋 Iniciando adaptación de DTEs...');
+export const adaptarClientes = (clientes) => {
+  console.log('👥 Adaptando clientes...');
   
-  if (!dtes) {
-    console.warn('⚠️ adaptarDTEs: datos nulos');
+  if (!Array.isArray(clientes)) {
+    console.warn('⚠️ adaptarClientes: datos no son array');
     return [];
   }
   
-  let datosParaProcesar = dtes;
-  
-  if (!Array.isArray(dtes)) {
-    console.warn('⚠️ adaptarDTEs: Se esperaba un array, recibido:', typeof dtes);
+  return clientes.map((cliente, index) => ({
+    id: cliente.id || index,
+    razonSocial: cliente.razonSocial || cliente.nombre || 'Sin nombre',
+    rut: cliente.rut || 'Sin RUT',
+    giro: cliente.giro || 'Sin especificar',
+    direccion: cliente.direccion || 'Sin dirección',
+    ciudad: cliente.ciudad || 'Sin ciudad',
+    telefono: cliente.telefono || null,
+    email: cliente.email || null,
     
-    if (typeof dtes === 'object' && dtes !== null) {
-      // Buscar arrays dentro del objeto
-      for (const [key, value] of Object.entries(dtes)) {
-        if (Array.isArray(value)) {
-          console.log(`✅ DTEs encontrados en '${key}':`, value.length, 'items');
-          datosParaProcesar = value;
-          break;
-        }
-      }
-      
-      if (!Array.isArray(datosParaProcesar)) {
-        datosParaProcesar = [dtes];
-      }
-    } else {
-      return [];
-    }
-  }
-  
-  console.log(`📊 Procesando ${datosParaProcesar.length} DTEs...`);
-  
-  return datosParaProcesar.map((dte, index) => {
-    // Extraer saldo pendiente con múltiples estrategias
-    let saldoPendiente = 0;
-    
-    if (dte.Saldo && dte.Saldo.saldoDeudor !== undefined) {
-      saldoPendiente = extraerNumero(dte.Saldo.saldoDeudor);
-    } else if (dte.montoTotal !== undefined) {
-      saldoPendiente = extraerNumero(dte.montoTotal);
-    } else if (dte.total !== undefined) {
-      saldoPendiente = extraerNumero(dte.total);
-    }
-    
-    return {
-      id: dte.id || `dte_${index}`,
-      folio: extraerTextoSeguro(dte.folio) || `DTE-${index + 1}`,
-      razonSocial: extraerTextoSeguro(dte.razonSocial) || 'Cliente no especificado',
-      rutCliente: extraerTextoSeguro(dte.rutEmisor || dte.rut) || 'Sin RUT',
-      monto: saldoPendiente,
-      fecha: extraerFecha(dte.fecha || dte.fechaEmision) || new Date().toISOString().split('T')[0],
-      fechaVencimiento: extraerFecha(dte.fechaVencimiento),
-      tipo: extraerNumero(dte.tipo) || 33, // 33 = Factura electrónica
-      tipoDescripcion: obtenerTipoDocumento(dte.tipo),
-      estado: extraerTextoSeguro(dte.estado) || 'Pendiente',
-      moneda: extraerTextoSeguro(dte.moneda) || 'CLP',
-      
-      // Metadatos
-      origenDatos: 'dtes',
-      fechaProcesamiento: new Date().toISOString()
-    };
-  });
+    // Metadatos
+    origenDatos: 'clientes',
+    fechaProcesamiento: new Date().toISOString()
+  }));
 };
 
 /**
- * ADAPTADOR: Cuentas Corrientes para Saldos Bancarios
+ * ADAPTADOR: Flujo de Caja (Cartolas)
+ * Endpoint: /flujo-caja/cartolas
  */
-export const adaptarCuentasCorrientes = (cuentas) => {
-  console.log('🏦 Iniciando adaptación de cuentas corrientes...');
+export const adaptarFlujoCaja = (cartolas) => {
+  console.log('💵 Adaptando flujo de caja...');
   
-  if (!cuentas) {
-    console.warn('⚠️ adaptarCuentasCorrientes: datos nulos');
+  if (!Array.isArray(cartolas)) {
+    console.warn('⚠️ adaptarFlujoCaja: datos no son array');
     return [];
   }
   
-  let datosParaProcesar = cuentas;
-  
-  if (!Array.isArray(cuentas)) {
-    console.warn('⚠️ adaptarCuentasCorrientes: Se esperaba un array, recibido:', typeof cuentas);
+  return cartolas.map((cartola, index) => ({
+    id: cartola.id || index,
+    fecha: cartola.fecha || new Date().toISOString().split('T')[0],
+    tipo: cartola.tipo || 'movimiento',
+    monto: parseFloat(cartola.monto) || 0,
+    descripcion: cartola.descripcion || cartola.detalle || 'Sin descripción',
+    cuentaCorriente: cartola.cuentaCorriente || null,
+    categoria: cartola.categoria || 'Sin categoría',
+    referencia: cartola.referencia || null,
     
-    if (typeof cuentas === 'object' && cuentas !== null) {
-      for (const [key, value] of Object.entries(cuentas)) {
-        if (Array.isArray(value)) {
-          console.log(`✅ Cuentas encontradas en '${key}':`, value.length, 'items');
-          datosParaProcesar = value;
-          break;
-        }
-      }
-      
-      if (!Array.isArray(datosParaProcesar)) {
-        datosParaProcesar = [cuentas];
-      }
-    } else {
-      return [];
-    }
-  }
-  
-  console.log(`🏦 Procesando ${datosParaProcesar.length} cuentas corrientes...`);
-  
-  return datosParaProcesar.map((cuenta, index) => {
-    // Extraer saldo con múltiples estrategias
-    let saldo = 0;
-    
-    if (cuenta.saldo !== undefined) saldo = extraerNumero(cuenta.saldo);
-    else if (cuenta.saldoActual !== undefined) saldo = extraerNumero(cuenta.saldoActual);
-    else if (cuenta.saldoContable !== undefined) saldo = extraerNumero(cuenta.saldoContable);
-    else if (cuenta.saldoDisponible !== undefined) saldo = extraerNumero(cuenta.saldoDisponible);
-    else if (cuenta.balance !== undefined) saldo = extraerNumero(cuenta.balance);
-    else if (cuenta.Saldo && cuenta.Saldo.saldoDeudor !== undefined) saldo = extraerNumero(cuenta.Saldo.saldoDeudor);
-    
-    return {
-      id: cuenta.id || `cuenta_${index}`,
-      nombre: extraerTextoSeguro(cuenta.numeroCuenta || cuenta.nombre || cuenta.numero) || `Cuenta ${index + 1}`,
-      banco: extraerTextoSeguro(cuenta.banco || (cuenta.Banco && cuenta.Banco.nombre) || cuenta.nombreBanco) || 'Banco no especificado',
-      saldo: saldo,
-      tipo: extraerTextoSeguro(cuenta.tipo || (cuenta.TipoCuentaCorriente && cuenta.TipoCuentaCorriente.tipoCuenta)) || 'Cuenta Corriente',
-      moneda: extraerTextoSeguro(cuenta.moneda || (cuenta.Moneda && cuenta.Moneda.moneda)) || 'CLP',
-      simboloMoneda: extraerTextoSeguro(cuenta.simboloMoneda || (cuenta.Moneda && cuenta.Moneda.simbolo)) || '$',
-      
-      // Metadatos
-      origenDatos: 'cuentas-corrientes',
-      fechaProcesamiento: new Date().toISOString(),
-      ultimaActualizacion: extraerFecha(cuenta.fechaUltimaActualizacion) || new Date().toISOString()
-    };
-  });
+    // Metadatos
+    origenDatos: 'flujo_caja_cartolas',
+    fechaProcesamiento: new Date().toISOString()
+  }));
 };
 
-// === FUNCIONES AUXILIARES DE EXTRACCIÓN SEGURA ===
-
 /**
- * Extrae texto de forma segura, manejando objetos y valores nulos
+ * ADAPTADOR: Movimientos
+ * Endpoint: /movimientos
  */
-function extraerTextoSeguro(valor) {
-  if (valor === null || valor === undefined) {
-    return null;
+export const adaptarMovimientos = (movimientos) => {
+  console.log('🔄 Adaptando movimientos...');
+  
+  if (!Array.isArray(movimientos)) {
+    console.warn('⚠️ adaptarMovimientos: datos no son array');
+    return [];
   }
   
-  // Si es un objeto, intentar extraer propiedades útiles
-  if (typeof valor === 'object') {
-    if (valor.nombre) return String(valor.nombre);
-    if (valor.descripcion) return String(valor.descripcion);
-    if (valor.razonSocial) return String(valor.razonSocial);
+  return movimientos.map((movimiento, index) => ({
+    id: movimiento.id || index,
+    fecha: movimiento.fecha || new Date().toISOString().split('T')[0],
+    tipo: movimiento.tipo || 'movimiento',
+    monto: parseFloat(movimiento.monto) || 0,
+    descripcion: movimiento.descripcion || 'Sin descripción',
+    cuenta: movimiento.cuenta || 'Sin cuenta',
+    documento: movimiento.documento || null,
     
-    // Si es un objeto sin propiedades útiles, convertir a string
-    return JSON.stringify(valor);
-  }
-  
-  return String(valor);
-}
+    // Metadatos
+    origenDatos: 'movimientos',
+    fechaProcesamiento: new Date().toISOString()
+  }));
+};
+
+// === FUNCIONES AUXILIARES ===
 
 /**
- * Extrae números de forma segura
- */
-function extraerNumero(valor) {
-  if (valor === null || valor === undefined) {
-    return 0;
-  }
-  
-  const numero = parseFloat(valor);
-  return isNaN(numero) ? 0 : numero;
-}
-
-/**
- * Extrae fechas de forma segura
- */
-function extraerFecha(valor) {
-  if (!valor) return null;
-  
-  try {
-    const fecha = new Date(valor);
-    if (isNaN(fecha.getTime())) return null;
-    return fecha.toISOString().split('T')[0];
-  } catch (error) {
-    return null;
-  }
-}
-
-/**
- * Obtiene descripción del tipo de documento
+ * Obtiene descripción del tipo de documento tributario
  */
 function obtenerTipoDocumento(tipo) {
   const tipos = {
@@ -307,51 +277,56 @@ function obtenerTipoDocumento(tipo) {
 }
 
 /**
- * Función de prueba para verificar que el adaptador funciona
+ * Función de prueba para verificar adaptadores
  */
-export const probarAdaptadorCorregido = (datosComprasSample) => {
-  console.log('🧪 Probando adaptador corregido...');
+export const probarAdaptadores = () => {
+  console.log('🧪 Probando adaptadores...');
   
-  // Datos de prueba si no se proporcionan
-  const datosPrueba = datosComprasSample || [
-    {
-      id: 1,
-      folio: 'F001',
-      razonSocial: 'Proveedor Test',
-      rutEmisor: '12345678-9',
-      montoTotal: 100000,
-      fecha: '2025-06-17'
-    }
-  ];
+  // Datos de prueba
+  const cuentaPrueba = [{
+    id: 1,
+    numeroCuenta: '12345',
+    banco: 'Banco de Chile',
+    saldoCalculado: 1000000,
+    movimientos: { ingresos: 2000000, egresos: 1000000 }
+  }];
   
-  const resultado = adaptarCompras(datosPrueba);
+  const dtePrueba = [{
+    id: 1,
+    folio: 'F001',
+    razonSocial: 'Cliente Test',
+    Saldo: { saldoDeudor: 500000 }
+  }];
   
-  // Verificar que todos los proveedores sean strings
-  const proveedoresString = resultado.every(compra => typeof compra.proveedor === 'string');
+  const compraPrueba = [{
+    id: 1,
+    folio: 'C001',
+    razonSocial: 'Proveedor Test',
+    Saldo: { saldoAcreedor: 300000 }
+  }];
   
-  console.log('✅ Todos los proveedores son strings:', proveedoresString);
-  console.log('📊 Cantidad procesada:', resultado.length);
-  
-  if (resultado.length > 0) {
-    console.log('📋 Muestra del resultado:', {
-      proveedor: resultado[0].proveedor,
-      tipo: typeof resultado[0].proveedor,
-      proveedorInfo: resultado[0].proveedorInfo
-    });
-  }
-  
-  return {
-    esValido: proveedoresString,
-    muestra: resultado[0],
-    total: resultado.length,
-    todosSonStrings: proveedoresString
+  const resultados = {
+    saldos: adaptarSaldosBancarios(cuentaPrueba),
+    porCobrar: adaptarCuentasPorCobrar(dtePrueba),
+    porPagar: adaptarCuentasPorPagar(compraPrueba)
   };
+  
+  console.log('✅ Resultados de prueba:', resultados);
+  
+  // Verificar que proveedor sea string
+  const proveedorEsString = resultados.porPagar.every(c => typeof c.proveedor === 'string');
+  console.log('✅ Proveedores son strings:', proveedorEsString);
+  
+  return resultados;
 };
 
-// Exportaciones por defecto
+// Exportaciones
 export default {
-  adaptarCompras,
-  adaptarDTEs,
-  adaptarCuentasCorrientes,
-  probarAdaptadorCorregido
+  adaptarSaldosBancarios,
+  adaptarCuentasPorCobrar,
+  adaptarCuentasPorPagar,
+  adaptarClientes,
+  adaptarFlujoCaja,
+  adaptarMovimientos,
+  probarAdaptadores
 };
