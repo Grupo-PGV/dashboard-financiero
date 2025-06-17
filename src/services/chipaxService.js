@@ -812,12 +812,9 @@ export const investigarEndpointsDisponibles = async () => {
 // === EXPORTACIONES ===
 
 export {
-  obtenerCompras,
   obtenerDTEsPorCobrar,
   obtenerClientes,
   obtenerProveedores,
   fetchPaginatedData,
   investigarEndpointsDisponibles
 };
-
-export default chipaxService;
