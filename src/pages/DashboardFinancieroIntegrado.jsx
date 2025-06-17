@@ -1,9 +1,11 @@
-// DashboardFinancieroIntegrado.jsx - Dashboard principal completo
+// DashboardFinancieroIntegrado.jsx - Dashboard principal actualizado para Fase 2
 import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, Calendar, Filter, Info, Wallet, PieChart, TrendingUp, 
-  Database, CheckCircle, Clock, RefreshCw, Settings, FileText
+  Database, CheckCircle, Clock, RefreshCw, Settings, FileText, TestTube
 } from 'lucide-react';
+
+// Importar componentes
 import ChipaxDataUpdater from '../components/ChipaxDataUpdater';
 import BankBalanceCard from '../components/BankBalanceCard';
 import CashFlowChart from '../components/CashFlowChart';
@@ -13,6 +15,10 @@ import PaginationDebugger from '../components/PaginationDebugger';
 import ChipaxDataInspector from '../components/ChipaxDataInspector';
 import ChipaxDTEAnalyzer from '../components/ChipaxDTEAnalyzer';
 import ChipaxDebugPanel from '../components/ChipaxDebugPanel';
+
+// Importar servicios actualizados
+import { testearSaldosBancarios, investigarEndpointsDisponibles } from '../services/chipaxService';
+import { probarAdaptadorCorregido } from '../services/chipaxAdapter';
 
 const DashboardFinancieroIntegrado = () => {
   // Estados principales
@@ -42,97 +48,281 @@ const DashboardFinancieroIntegrado = () => {
     fechaFin: new Date().toISOString().split('T')[0]
   });
 
-  // Handlers principales
-  const handleDataSourceChange = (source) => {
-    setDataSource(source);
-    console.log(`📊 Fuente de datos cambiada a: ${source}`);
-  };
+  // Estados adicionales para Fase 2
+  const [strategiaSaldosUsada, setStrategiaSaldosUsada] = useState('');
+  const [testResults, setTestResults] = useState(null);
+  const [showTestPanel, setShowTestPanel] = useState(false);
 
-  const handleFlujoCajaPeriodChange = (periodo) => setPeriodoFlujo(periodo);
-  const handleDateRangeChange = (newRange) => setFechasRango(newRange);
+  // === HANDLERS PRINCIPALES ===
 
-  // Handlers para actualización de datos con información de paginación
-  const handleUpdateSaldos = (saldos) => {
-    setSaldosBancarios(saldos);
-    console.log(`✅ Saldos bancarios actualizados: ${saldos.length} cuentas`);
-  };
-
-  const handleUpdateCuentasPendientes = (cuentas, info = null) => {
-    setCuentasPendientes(cuentas);
-    if (info) {
-      setPaginationInfo(prev => ({ ...prev, cuentasPendientes: info }));
+  /**
+   * HANDLER ACTUALIZADO: Maneja la actualización de saldos bancarios
+   * Ahora compatible con el nuevo sistema de múltiples estrategias
+   */
+  const handleUpdateSaldos = async (nuevosSaldos, paginationInfo) => {
+    console.log('💰 Actualizando saldos bancarios...');
+    
+    // Si nuevosSaldos viene del nuevo servicio con múltiples estrategias
+    if (nuevosSaldos && typeof nuevosSaldos === 'object' && nuevosSaldos.data) {
+      const { data, estrategiaUsada, totalSaldos, cantidadCuentas, warning } = nuevosSaldos;
+      
+      console.log(`✅ Saldos obtenidos con estrategia: ${estrategiaUsada}`);
+      console.log(`💰 Total: ${totalSaldos?.toLocaleString('es-CL') || 0}`);
+      console.log(`🏦 Cantidad de cuentas: ${cantidadCuentas}`);
+      
+      // Guardar información de la estrategia usada
+      setStrategiaSaldosUsada(estrategiaUsada);
+      
+      // Mostrar warning si existe
+      if (warning) {
+        console.warn(`⚠️ ${warning}`);
+      }
+      
+      setSaldosBancarios(data);
+    } 
+    // Si es un array directo (respuesta tradicional)
+    else if (Array.isArray(nuevosSaldos)) {
+      setSaldosBancarios(nuevosSaldos);
+      setStrategiaSaldosUsada('Método tradicional');
     }
-    console.log(`✅ Cuentas por cobrar actualizadas: ${cuentas.length} facturas`);
-  };
-
-  const handleUpdateCuentasPorPagar = (cuentas, info = null) => {
-    setCuentasPorPagar(cuentas);
-    if (info) {
-      setPaginationInfo(prev => ({ ...prev, cuentasPorPagar: info }));
+    // Si no hay datos válidos
+    else {
+      console.warn('⚠️ No se recibieron saldos válidos');
+      setSaldosBancarios([]);
     }
-    console.log(`✅ Cuentas por pagar actualizadas: ${cuentas.length} facturas`);
-  };
-
-  const handleUpdateFacturasPendientes = (facturas) => {
-    setFacturasPendientes(facturas);
-    console.log(`✅ Facturas pendientes actualizadas: ${facturas.length} facturas`);
-  };
-
-  const handleUpdateFlujoCaja = (flujo) => {
-    setFlujoCaja(flujo);
-    console.log(`✅ Flujo de caja actualizado`);
-  };
-
-  const handleUpdateClientes = (clientesData, info = null) => {
-    setClientes(clientesData);
-    if (info) {
-      setPaginationInfo(prev => ({ ...prev, clientes: info }));
+    
+    if (paginationInfo) {
+      setPaginationInfo(prev => ({
+        ...prev,
+        saldosBancarios: paginationInfo
+      }));
     }
-    console.log(`✅ Clientes actualizados: ${clientesData.length || 'N/A'} clientes`);
   };
 
-  const handleUpdateEgresosProgramados = (egresos) => {
-    setEgresosProgramados(egresos);
-    console.log(`✅ Egresos programados actualizados: ${egresos.length} egresos`);
+  /**
+   * HANDLER ACTUALIZADO: Maneja las cuentas por pagar
+   * Ahora verifica que el adaptador funcione correctamente
+   */
+  const handleUpdateCuentasPorPagar = async (nuevasCuentas, paginationInfo) => {
+    console.log('💸 Actualizando cuentas por pagar...');
+    
+    if (Array.isArray(nuevasCuentas)) {
+      // Verificar que el primer elemento tenga proveedor como string
+      if (nuevasCuentas.length > 0) {
+        const primeraFactura = nuevasCuentas[0];
+        console.log('🔍 Verificando adaptación de cuentas por pagar:');
+        console.log(`✅ proveedor es string: ${typeof primeraFactura.proveedor === 'string'}`);
+        console.log(`✅ proveedorInfo existe: ${!!primeraFactura.proveedorInfo}`);
+        
+        if (typeof primeraFactura.proveedor !== 'string') {
+          console.error('❌ ERROR: El campo proveedor no es un string. El adaptador no está funcionando correctamente.');
+          setErrors(prev => ({
+            ...prev,
+            cuentasPorPagar: 'Error: El adaptador de compras necesita corrección'
+          }));
+          return;
+        }
+      }
+      
+      setCuentasPorPagar(nuevasCuentas);
+      
+      // Limpiar errores si todo está bien
+      setErrors(prev => {
+        const { cuentasPorPagar, ...rest } = prev;
+        return rest;
+      });
+      
+      console.log(`✅ Cuentas por pagar actualizadas: ${nuevasCuentas.length} facturas`);
+    } else {
+      console.warn('⚠️ Datos inválidos para cuentas por pagar');
+    }
+    
+    if (paginationInfo) {
+      setPaginationInfo(prev => ({
+        ...prev,
+        cuentasPorPagar: paginationInfo
+      }));
+    }
   };
 
-  const handleUpdateBancos = (bancosData) => {
-    setBancos(bancosData);
-    console.log(`✅ Bancos actualizados: ${bancosData.length} bancos`);
+  const handleUpdateCuentasPendientes = async (nuevasCuentas, paginationInfo) => {
+    console.log('📋 Actualizando cuentas pendientes...');
+    
+    if (Array.isArray(nuevasCuentas)) {
+      setCuentasPendientes(nuevasCuentas);
+      console.log(`✅ Cuentas pendientes actualizadas: ${nuevasCuentas.length} facturas`);
+    }
+    
+    if (paginationInfo) {
+      setPaginationInfo(prev => ({
+        ...prev,
+        cuentasPendientes: paginationInfo
+      }));
+    }
   };
 
-  // Handler para detalles de sincronización
+  const handleUpdateFacturasPendientes = async (nuevasFacturas, paginationInfo) => {
+    console.log('⏳ Actualizando facturas pendientes...');
+    
+    if (Array.isArray(nuevasFacturas)) {
+      setFacturasPendientes(nuevasFacturas);
+    }
+    
+    if (paginationInfo) {
+      setPaginationInfo(prev => ({
+        ...prev,
+        facturasPendientes: paginationInfo
+      }));
+    }
+  };
+
+  const handleUpdateFlujoCaja = async (nuevoFlujo) => {
+    console.log('💵 Actualizando flujo de caja...');
+    setFlujoCaja(nuevoFlujo);
+  };
+
+  const handleUpdateClientes = async (nuevosClientes, paginationInfo) => {
+    console.log('👥 Actualizando clientes...');
+    
+    if (Array.isArray(nuevosClientes)) {
+      setClientes(nuevosClientes);
+    }
+    
+    if (paginationInfo) {
+      setPaginationInfo(prev => ({
+        ...prev,
+        clientes: paginationInfo
+      }));
+    }
+  };
+
+  const handleUpdateEgresosProgramados = async (nuevosEgresos) => {
+    console.log('📅 Actualizando egresos programados...');
+    setEgresosProgramados(nuevosEgresos || []);
+  };
+
+  const handleUpdateBancos = async (nuevosBancos) => {
+    console.log('🏦 Actualizando información de bancos...');
+    setBancos(nuevosBancos || []);
+  };
+
+  const handleDataSourceChange = (newSource) => {
+    console.log(`🔄 Cambio de fuente de datos: ${newSource}`);
+    setDataSource(newSource);
+  };
+
   const handleSyncDetails = (details) => {
     setLastSyncDetails(details);
-    console.log('📊 Detalles de sincronización recibidos:', details);
   };
 
-  const handleExportToExcel = (dataType) => {
-    alert(`Exportación a Excel de ${dataType} no implementada.`);
+  // === FUNCIONES DE TESTING PARA FASE 2 ===
+
+  /**
+   * Ejecuta pruebas específicas de la Fase 2
+   */
+  const ejecutarPruebasFase2 = async () => {
+    console.log('🧪 EJECUTANDO PRUEBAS DE LA FASE 2');
+    setLoading(true);
+    setShowTestPanel(true);
+    
+    const resultados = {
+      timestamp: new Date().toISOString(),
+      pruebas: {}
+    };
+    
+    try {
+      // 1. Probar el adaptador corregido de compras
+      console.log('🔧 Probando adaptador de compras...');
+      const pruebaAdaptador = probarAdaptadorCorregido();
+      resultados.pruebas.adaptadorCompras = {
+        exito: pruebaAdaptador && pruebaAdaptador.length > 0,
+        detalles: pruebaAdaptador,
+        mensaje: 'Adaptador de compras verificado'
+      };
+      
+      // 2. Probar estrategias de saldos bancarios
+      console.log('🏦 Probando estrategias de saldos...');
+      const pruebaSaldos = await testearSaldosBancarios();
+      resultados.pruebas.saldosBancarios = {
+        exito: pruebaSaldos.success,
+        estrategiaUsada: pruebaSaldos.estrategiaUsada,
+        totalSaldos: pruebaSaldos.totalSaldos,
+        cantidadCuentas: pruebaSaldos.cantidadCuentas,
+        mensaje: pruebaSaldos.success ? 'Saldos obtenidos exitosamente' : 'No se pudieron obtener saldos'
+      };
+      
+      // 3. Investigar endpoints disponibles
+      console.log('🔍 Investigando endpoints...');
+      const endpoints = await investigarEndpointsDisponibles();
+      resultados.pruebas.endpointsDisponibles = {
+        exito: endpoints.length > 0,
+        disponibles: endpoints.filter(e => e.existe).length,
+        total: endpoints.length,
+        detalles: endpoints,
+        mensaje: `${endpoints.filter(e => e.existe).length} de ${endpoints.length} endpoints disponibles`
+      };
+      
+      setTestResults(resultados);
+      console.log('✅ Pruebas completadas:', resultados);
+      
+    } catch (error) {
+      console.error('❌ Error en las pruebas:', error);
+      resultados.error = error.message;
+      setTestResults(resultados);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Funciones de cálculo
-  const calcularSaldoTotal = () => saldosBancarios.reduce((acc, c) => acc + c.saldo, 0);
-  const calcularTotalPorCobrar = () => cuentasPendientes.reduce((acc, c) => acc + c.saldo, 0);
-  const calcularTotalPorPagar = () => cuentasPorPagar.reduce((acc, c) => acc + c.saldo, 0);
+  // === FUNCIONES DE CÁLCULO ===
 
-  const handleAprobarFactura = (id) => setFacturasPendientes(prev => prev.filter(f => f.id !== id));
-  const handleRechazarFactura = (id) => setFacturasPendientes(prev => prev.filter(f => f.id !== id));
+  const calcularTotalSaldos = () => {
+    return saldosBancarios.reduce((total, cuenta) => total + (cuenta.saldo || 0), 0);
+  };
 
-  const formatCurrency = (amount, currency = 'CLP') =>
-    new Intl.NumberFormat('es-CL', { 
-      style: 'currency', 
-      currency, 
-      maximumFractionDigits: currency === 'CLP' ? 0 : 2 
-    }).format(amount);
+  const calcularTotalPorCobrar = () => {
+    return cuentasPendientes.reduce((total, cuenta) => total + (cuenta.saldo || 0), 0);
+  };
 
-  // Componente para mostrar información de paginación
+  const calcularTotalPorPagar = () => {
+    return cuentasPorPagar.reduce((total, cuenta) => total + (cuenta.saldo || 0), 0);
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0
+    }).format(amount || 0);
+  };
+
+  // === HANDLERS ADICIONALES ===
+
+  const handleAprobarFactura = async (facturaId) => {
+    console.log(`✅ Aprobando factura ${facturaId}`);
+    // Implementar lógica de aprobación
+  };
+
+  const handleRechazarFactura = async (facturaId, motivo) => {
+    console.log(`❌ Rechazando factura ${facturaId}: ${motivo}`);
+    // Implementar lógica de rechazo
+  };
+
+  const handleExportToExcel = (tipo) => {
+    console.log(`📊 Exportando a Excel: ${tipo}`);
+    // Implementar exportación
+  };
+
+  const handleFlujoCajaPeriodChange = (nuevoPeriodo) => {
+    setPeriodoFlujo(nuevoPeriodo);
+  };
+
+  // === COMPONENTE DE INFORMACIÓN DE PAGINACIÓN ===
+
   const PaginationInfoCard = ({ title, info, total }) => {
-    if (!info) return null;
-
-    const isComplete = info.completenessPercent === 100;
-    const hasFailures = info.failedPages && info.failedPages.length > 0;
-
+    const isComplete = info?.completenessPercent === 100;
+    const hasFailures = info?.failedPages?.length > 0;
+    
     return (
       <div className={`p-3 rounded border ${
         isComplete ? 'bg-green-50 border-green-200' : 
@@ -149,24 +339,90 @@ const DashboardFinancieroIntegrado = () => {
             {isComplete ? <CheckCircle size={12} className="mr-1" /> : 
              hasFailures ? <AlertCircle size={12} className="mr-1" /> : 
              <Clock size={12} className="mr-1" />}
-            {info.completenessPercent.toFixed(1)}%
+            {info?.completenessPercent?.toFixed(1) || 0}%
           </div>
         </div>
         
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div>
             <span className="text-gray-600">Páginas:</span>
-            <p className="font-medium">{info.totalPagesLoaded}/{info.totalPagesRequested}</p>
+            <p className="font-medium">{info?.totalPagesLoaded || 0}/{info?.totalPagesRequested || 0}</p>
           </div>
           <div>
             <span className="text-gray-600">Items:</span>
-            <p className="font-medium">{total || info.totalItemsLoaded}</p>
+            <p className="font-medium">{total || info?.totalItemsLoaded || 0}</p>
           </div>
         </div>
         
         {hasFailures && (
           <div className="mt-2 text-xs text-amber-700">
             <span>Páginas fallidas: {info.failedPages.join(', ')}</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // === PANEL DE PRUEBAS DE FASE 2 ===
+
+  const TestPanelFase2 = () => {
+    if (!showTestPanel) return null;
+    
+    return (
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+            <TestTube size={20} className="mr-2 text-purple-600" />
+            Pruebas de la Fase 2
+          </h3>
+          <button
+            onClick={() => setShowTestPanel(false)}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            ✕
+          </button>
+        </div>
+        
+        {loading && (
+          <div className="flex items-center justify-center py-8">
+            <RefreshCw className="animate-spin mr-2" size={20} />
+            <span>Ejecutando pruebas...</span>
+          </div>
+        )}
+        
+        {testResults && (
+          <div className="space-y-4">
+            <div className="text-sm text-gray-600">
+              Ejecutado: {new Date(testResults.timestamp).toLocaleString()}
+            </div>
+            
+            {Object.entries(testResults.pruebas).map(([nombre, resultado]) => (
+              <div key={nombre} className={`p-4 rounded border ${
+                resultado.exito ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium">{nombre}</h4>
+                  <span className={`text-sm ${
+                    resultado.exito ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {resultado.exito ? '✅ Éxito' : '❌ Error'}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-700">{resultado.mensaje}</p>
+                
+                {resultado.estrategiaUsada && (
+                  <p className="text-xs text-gray-600 mt-1">
+                    Estrategia: {resultado.estrategiaUsada}
+                  </p>
+                )}
+                
+                {resultado.totalSaldos && (
+                  <p className="text-xs text-gray-600 mt-1">
+                    Total saldos: {resultado.totalSaldos.toLocaleString('es-CL')}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -182,10 +438,28 @@ const DashboardFinancieroIntegrado = () => {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Dashboard Financiero</h1>
               <p className="text-gray-600">Gestiona tus finanzas en tiempo real con datos de Chipax</p>
+              {strategiaSaldosUsada && (
+                <p className="text-xs text-green-600 mt-1">
+                  Saldos obtenidos con: {strategiaSaldosUsada}
+                </p>
+              )}
             </div>
             
             {/* Controles del header */}
             <div className="flex items-center space-x-2">
+              <button
+                onClick={ejecutarPruebasFase2}
+                disabled={loading}
+                className={`px-3 py-1 rounded text-sm flex items-center ${
+                  loading 
+                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed' 
+                    : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                }`}
+              >
+                <TestTube size={16} className="mr-1" />
+                Probar Fase 2
+              </button>
+              
               <button
                 onClick={() => setShowDTEAnalyzer(!showDTEAnalyzer)}
                 className={`px-3 py-1 rounded text-sm flex items-center ${
@@ -234,6 +508,9 @@ const DashboardFinancieroIntegrado = () => {
       </header>
 
       <div className="container mx-auto px-4 py-6">
+        {/* Panel de pruebas de Fase 2 */}
+        <TestPanelFase2 />
+        
         {/* Panel de debug (condicional) */}
         {showDebugPanel && (
           <div className="mb-6">
@@ -269,38 +546,63 @@ const DashboardFinancieroIntegrado = () => {
             saldoInicial={0}
             onDataSourceChange={handleDataSourceChange}
             onSyncDetails={handleSyncDetails}
+            loading={loading}
+            setLoading={setLoading}
           />
         </div>
+
+        {/* Errores de adaptación */}
+        {Object.keys(errors).length > 0 && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+            <h3 className="text-red-800 font-medium flex items-center mb-2">
+              <AlertCircle size={16} className="mr-2" />
+              Errores Detectados
+            </h3>
+            {Object.entries(errors).map(([key, error]) => (
+              <p key={key} className="text-red-700 text-sm">
+                <strong>{key}:</strong> {error}
+              </p>
+            ))}
+          </div>
+        )}
 
         {/* Información de paginación */}
         {Object.keys(paginationInfo).length > 0 && (
           <div className="mb-6 bg-white rounded-lg shadow p-4">
             <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
               <Info size={16} className="mr-2 text-blue-600" />
-              Información de Carga de Datos
+              Estado de Carga de Datos
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {paginationInfo.saldosBancarios && (
+                <PaginationInfoCard 
+                  title="Saldos Bancarios" 
+                  info={paginationInfo.saldosBancarios} 
+                  total={saldosBancarios.length}
+                />
+              )}
+              
               {paginationInfo.cuentasPendientes && (
-                <PaginationInfoCard
-                  title="Cuentas por Cobrar"
-                  info={paginationInfo.cuentasPendientes}
+                <PaginationInfoCard 
+                  title="Cuentas por Cobrar" 
+                  info={paginationInfo.cuentasPendientes} 
                   total={cuentasPendientes.length}
                 />
               )}
               
               {paginationInfo.cuentasPorPagar && (
-                <PaginationInfoCard
-                  title="Cuentas por Pagar"
-                  info={paginationInfo.cuentasPorPagar}
+                <PaginationInfoCard 
+                  title="Cuentas por Pagar" 
+                  info={paginationInfo.cuentasPorPagar} 
                   total={cuentasPorPagar.length}
                 />
               )}
               
               {paginationInfo.clientes && (
-                <PaginationInfoCard
-                  title="Clientes"
-                  info={paginationInfo.clientes}
+                <PaginationInfoCard 
+                  title="Clientes" 
+                  info={paginationInfo.clientes} 
                   total={clientes.length}
                 />
               )}
@@ -308,54 +610,48 @@ const DashboardFinancieroIntegrado = () => {
           </div>
         )}
 
-        {/* Errores */}
-        {Object.keys(errors).length > 0 && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-start">
-              <AlertCircle size={20} className="text-red-600 mr-2 mt-0.5" />
-              <div>
-                <h3 className="text-red-800 font-medium">Errores al cargar datos</h3>
-                <ul className="mt-1 text-sm text-red-700 space-y-1">
-                  {Object.entries(errors).map(([key, value]) => (
-                    <li key={key}>{key}: {value}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tarjetas principales */}
+        {/* Cards de resumen financiero */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          {/* Saldos Bancarios */}
-          <div className="bg-white shadow rounded-lg p-4">
-            <div className="flex items-center mb-4">
-              <Wallet size={20} className="text-blue-600 mr-2" />
-              <h2 className="text-lg font-semibold text-gray-900">Saldos Bancarios</h2>
+          {/* Saldos bancarios */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Saldos Bancarios</h3>
+              <Wallet className="text-blue-600" size={24} />
             </div>
-            <div className="text-3xl font-bold text-gray-900 mb-2">
-              {formatCurrency(calcularSaldoTotal())}
+            <div className="flex items-center justify-between">
+              {paginationInfo.saldosBancarios && (
+                <div className={`text-xs px-2 py-1 rounded ${
+                  paginationInfo.saldosBancarios.completenessPercent === 100 
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {paginationInfo.saldosBancarios.completenessPercent.toFixed(0)}%
+                </div>
+              )}
             </div>
-            <div className="text-sm text-gray-500 mb-4">
-              Total en {saldosBancarios.length} cuentas
+            <div className="text-3xl font-bold text-blue-600 mb-2">
+              {formatCurrency(calcularTotalSaldos())}
             </div>
-            <div className="grid grid-cols-1 gap-3">
-              {saldosBancarios.map(cuenta => (
-                <BankBalanceCard key={cuenta.id} cuenta={cuenta} loading={loading} />
-              ))}
+            <div className="text-sm text-gray-500">
+              {saldosBancarios.length} cuentas bancarias
             </div>
+            {strategiaSaldosUsada && (
+              <div className="mt-2 text-xs text-green-600">
+                Método: {strategiaSaldosUsada}
+              </div>
+            )}
           </div>
 
-          {/* Cuentas por Cobrar - SIMPLIFICADA */}
-          <div className="bg-white shadow rounded-lg p-4">
+          {/* Cuentas por cobrar */}
+          <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center">
-                <TrendingUp size={20} className="text-green-600 mr-2" />
-                <h2 className="text-lg font-semibold text-gray-900">Cuentas por Cobrar</h2>
-              </div>
+              <h3 className="text-lg font-medium text-gray-900">Por Cobrar</h3>
+              <TrendingUp className="text-green-600" size={24} />
+            </div>
+            <div className="flex items-center justify-between">
               {paginationInfo.cuentasPendientes && (
                 <div className={`text-xs px-2 py-1 rounded ${
-                  paginationInfo.cuentasPendientes.completenessPercent === 100
+                  paginationInfo.cuentasPendientes.completenessPercent === 100 
                     ? 'bg-green-100 text-green-700'
                     : 'bg-amber-100 text-amber-700'
                 }`}>
@@ -369,24 +665,18 @@ const DashboardFinancieroIntegrado = () => {
             <div className="text-sm text-gray-500">
               {cuentasPendientes.length} facturas pendientes de cobro
             </div>
-            <div className="mt-4 pt-4 border-t text-sm text-gray-600">
-              <p className="flex items-center">
-                <Calendar size={16} className="mr-2" />
-                Ver detalle completo más abajo
-              </p>
-            </div>
           </div>
 
-          {/* Cuentas por Pagar - SIMPLIFICADA */}
-          <div className="bg-white shadow rounded-lg p-4">
+          {/* Cuentas por pagar */}
+          <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center">
-                <PieChart size={20} className="text-red-600 mr-2" />
-                <h2 className="text-lg font-semibold text-gray-900">Cuentas por Pagar</h2>
-              </div>
+              <h3 className="text-lg font-medium text-gray-900">Por Pagar</h3>
+              <PieChart className="text-red-600" size={24} />
+            </div>
+            <div className="flex items-center justify-between">
               {paginationInfo.cuentasPorPagar && (
                 <div className={`text-xs px-2 py-1 rounded ${
-                  paginationInfo.cuentasPorPagar.completenessPercent === 100
+                  paginationInfo.cuentasPorPagar.completenessPercent === 100 
                     ? 'bg-green-100 text-green-700'
                     : 'bg-amber-100 text-amber-700'
                 }`}>
@@ -400,12 +690,11 @@ const DashboardFinancieroIntegrado = () => {
             <div className="text-sm text-gray-500">
               {cuentasPorPagar.length} facturas pendientes de pago
             </div>
-            <div className="mt-4 pt-4 border-t text-sm text-gray-600">
-              <p className="flex items-center">
-                <Calendar size={16} className="mr-2" />
-                Ver detalle completo más abajo
-              </p>
-            </div>
+            {errors.cuentasPorPagar && (
+              <div className="mt-2 text-xs text-red-600">
+                ⚠️ Requiere corrección del adaptador
+              </div>
+            )}
           </div>
         </div>
 
@@ -470,8 +759,6 @@ const DashboardFinancieroIntegrado = () => {
           </div>
         )}
       </div>
-      
-      <ChipaxDebugPanel />
     </div>
   );
 };
