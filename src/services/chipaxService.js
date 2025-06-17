@@ -1,5 +1,5 @@
-// chipaxService.js - Servicio completo actualizado para integración con API de Chipax v2
-// VERSIÓN CON INVESTIGACIÓN AUTOMÁTICA DE SALDOS BANCARIOS
+// chipaxService.js - Servicio completo para integración con API de Chipax v2
+// VERSIÓN LIMPIA SIN EXPORTACIONES DUPLICADAS
 
 // === CONFIGURACIÓN DE LA API ===
 const CHIPAX_API_URL = 'https://api.chipax.com/v2';
@@ -33,7 +33,7 @@ const PAGINATION_CONFIG = {
  * Obtiene el token de autenticación de Chipax
  * @returns {Promise<string>} Token JWT
  */
-export const getChipaxToken = async () => {
+const getChipaxToken = async () => {
   const now = new Date();
   
   // Verificar si ya se está renovando el token
@@ -113,7 +113,7 @@ export const getChipaxToken = async () => {
  * FUNCIÓN PRINCIPAL: Obtiene saldos bancarios con múltiples estrategias
  * Esta función intenta diferentes endpoints hasta encontrar saldos reales
  */
-export const obtenerSaldosBancarios = async () => {
+const obtenerSaldosBancarios = async () => {
   console.log('🏦 INICIANDO OBTENCIÓN DE SALDOS BANCARIOS');
   console.log('📋 Probando múltiples estrategias...');
   
@@ -535,7 +535,7 @@ async function obtenerSaldosFallback(token) {
 /**
  * Obtiene DTEs (Documentos Tributarios Electrónicos) por cobrar
  */
-export const obtenerDTEsPorCobrar = async () => {
+const obtenerDTEsPorCobrar = async () => {
   console.log('📋 Obteniendo DTEs por cobrar...');
   
   const token = await getChipaxToken();
@@ -571,7 +571,7 @@ export const obtenerDTEsPorCobrar = async () => {
 /**
  * Obtiene compras (cuentas por pagar)
  */
-export const obtenerCompras = async () => {
+const obtenerCompras = async () => {
   console.log('💸 Obteniendo compras...');
   
   const token = await getChipaxToken();
@@ -609,7 +609,7 @@ export const obtenerCompras = async () => {
 /**
  * Obtiene clientes
  */
-export const obtenerClientes = async () => {
+const obtenerClientes = async () => {
   console.log('👥 Obteniendo clientes...');
   
   const token = await getChipaxToken();
@@ -637,7 +637,7 @@ export const obtenerClientes = async () => {
 /**
  * Obtiene proveedores
  */
-export const obtenerProveedores = async () => {
+const obtenerProveedores = async () => {
   console.log('🏭 Obteniendo proveedores...');
   
   const token = await getChipaxToken();
@@ -752,7 +752,7 @@ async function fetchPaginatedData(token, endpoint, entityName) {
 /**
  * Función para testing en desarrollo
  */
-export const testearSaldosBancarios = async () => {
+const testearSaldosBancarios = async () => {
   console.log('🧪 INICIANDO PRUEBAS DE SALDOS BANCARIOS');
   const resultado = await obtenerSaldosBancarios();
   console.log('📊 Resultado de la prueba:', resultado);
@@ -762,7 +762,7 @@ export const testearSaldosBancarios = async () => {
 /**
  * Función para investigar todos los endpoints disponibles
  */
-export const investigarEndpointsDisponibles = async () => {
+const investigarEndpointsDisponibles = async () => {
   console.log('🔍 INVESTIGANDO ENDPOINTS DISPONIBLES');
   
   const endpointsAProbar = [
@@ -809,12 +809,16 @@ export const investigarEndpointsDisponibles = async () => {
   return resultados;
 };
 
-// === EXPORTACIONES ===
+// === EXPORTACIONES - SOLO UNA VEZ ===
 
 export {
+  getChipaxToken,
+  obtenerSaldosBancarios,
+  obtenerCompras,
   obtenerDTEsPorCobrar,
   obtenerClientes,
   obtenerProveedores,
   fetchPaginatedData,
-  investigarEndpointsDisponibles
+  investigarEndpointsDisponibles,
+  testearSaldosBancarios
 };
