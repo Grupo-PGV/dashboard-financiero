@@ -1,33 +1,38 @@
-// DashboardFinancieroIntegrado.jsx - Versión ultra simplificada que funciona
+// DashboardFinancieroIntegrado.jsx - Con importaciones corregidas
 import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, Calendar, Wallet, PieChart, TrendingUp, 
   RefreshCw, CheckCircle, Clock
 } from 'lucide-react';
 
-// Importar servicios corregidos
+// ✅ IMPORTACIONES CORREGIDAS - Usar los nombres correctos del adaptador
 import chipaxService from '../services/chipaxService';
-import { adaptarCompras } from '../services/chipaxAdapter';
+import { 
+  adaptarSaldosBancarios, 
+  adaptarCuentasPorCobrar, 
+  adaptarCuentasPorPagar  // ✅ Cambio: era 'adaptarCompras'
+} from '../services/chipaxAdapter';
 
 const DashboardFinancieroIntegrado = () => {
-  // Estados esenciales - SOLO arrays para evitar errores
+  // Estados esenciales
   const [saldosBancarios, setSaldosBancarios] = useState([]);
   const [cuentasPendientes, setCuentasPendientes] = useState([]);
   const [cuentasPorPagar, setCuentasPorPagar] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState([]);
 
-  // === FUNCIONES DE CARGA SIMPLIFICADAS ===
+  // === FUNCIONES DE CARGA CORREGIDAS ===
 
   const cargarSaldosBancarios = async () => {
     try {
       console.log('🏦 Cargando saldos bancarios...');
       const datos = await chipaxService.obtenerSaldosBancarios();
       
-      // VALIDACIÓN CRÍTICA: Asegurar que sea array
+      // ✅ CORRECCIÓN: Usar adaptarSaldosBancarios
       if (Array.isArray(datos)) {
-        setSaldosBancarios(datos);
-        console.log(`✅ ${datos.length} saldos cargados`);
+        const saldosAdaptados = adaptarSaldosBancarios(datos);
+        setSaldosBancarios(saldosAdaptados);
+        console.log(`✅ ${saldosAdaptados.length} saldos cargados`);
       } else {
         console.warn('⚠️ Saldos no es array, usando array vacío');
         setSaldosBancarios([]);
@@ -42,12 +47,13 @@ const DashboardFinancieroIntegrado = () => {
   const cargarCuentasPorCobrar = async () => {
     try {
       console.log('📋 Cargando cuentas por cobrar...');
-      const datos = await chipaxService.obtenerDTEsPorCobrar();
+      const datos = await chipaxService.obtenerCuentasPorCobrar();
       
-      // VALIDACIÓN CRÍTICA: Asegurar que sea array
+      // ✅ CORRECCIÓN: Usar adaptarCuentasPorCobrar
       if (Array.isArray(datos)) {
-        setCuentasPendientes(datos);
-        console.log(`✅ ${datos.length} cuentas por cobrar cargadas`);
+        const cuentasAdaptadas = adaptarCuentasPorCobrar(datos);
+        setCuentasPendientes(cuentasAdaptadas);
+        console.log(`✅ ${cuentasAdaptadas.length} cuentas por cobrar cargadas`);
       } else {
         console.warn('⚠️ Cuentas por cobrar no es array, usando array vacío');
         setCuentasPendientes([]);
@@ -62,20 +68,12 @@ const DashboardFinancieroIntegrado = () => {
   const cargarCuentasPorPagar = async () => {
     try {
       console.log('💸 Cargando cuentas por pagar...');
-      const comprasRaw = await chipaxService.obtenerCompras();
+      const comprasRaw = await chipaxService.obtenerCuentasPorPagar();
       
-      // VALIDACIÓN: Verificar que obtenemos datos
-      if (!comprasRaw) {
-        console.warn('⚠️ No se obtuvieron datos de compras');
-        setCuentasPorPagar([]);
-        return;
-      }
-      
-      // Aplicar adaptador corregido
-      const comprasAdaptadas = adaptarCompras(comprasRaw);
-      
-      // VALIDACIÓN CRÍTICA: Verificar que es array y elementos válidos
-      if (Array.isArray(comprasAdaptadas)) {
+      // ✅ CORRECCIÓN: Usar adaptarCuentasPorPagar (no adaptarCompras)
+      if (Array.isArray(comprasRaw)) {
+        const comprasAdaptadas = adaptarCuentasPorPagar(comprasRaw);
+        
         // Verificar que los proveedores sean strings
         const primerElemento = comprasAdaptadas[0];
         if (primerElemento && typeof primerElemento.proveedor === 'string') {
@@ -87,7 +85,7 @@ const DashboardFinancieroIntegrado = () => {
           setErrors(prev => [...prev, 'Por pagar: Error en adaptación de proveedor']);
         }
       } else {
-        console.warn('⚠️ Adaptador no retornó array válido');
+        console.warn('⚠️ Compras no es array, usando array vacío');
         setCuentasPorPagar([]);
       }
     } catch (error) {
