@@ -140,10 +140,10 @@ const fetchFromChipax = async (endpoint, options = {}) => {
 };
 
 /**
- * ✅ FUNCIÓN CORREGIDA: Obtener TODAS las 6,400 compras para llegar a las recientes
+ * ✅ FUNCIÓN CORREGIDA: Con mejor manejo de rate limiting y pausas más largas
  */
 const obtenerCuentasPorPagar = async () => {
-  console.log('💸 Obteniendo compras (PROCESANDO todas las 6,400 facturas disponibles)...');
+  console.log('💸 Obteniendo compras (CON CONTROL DE RATE LIMITING)...');
 
   try {
     let allCompras = [];
@@ -151,17 +151,17 @@ const obtenerCuentasPorPagar = async () => {
     let hasMoreData = true;
     const limit = 50;
     
-    // ✅ AJUSTE MODERADO: Para aprovechar las 6,400 facturas disponibles
-    const maxPages = 128; // 128 páginas × 50 = 6,400 facturas (todas las disponibles)
+    // ✅ AJUSTE: Empezar con menos páginas para evitar rate limiting
+    const maxPages = 80; // Reducido para evitar bloqueos de API
     
-    console.log(`🔍 Buscando facturas recientes en las ${maxPages} páginas disponibles (todas las 6,400 facturas)...`);
+    console.log(`🔍 Buscando facturas recientes con control de velocidad (máximo ${maxPages} páginas)...`);
 
     while (hasMoreData && currentPage <= maxPages) {
       try {
         console.log(`📄 Cargando página ${currentPage}/${maxPages}...`);
         
         const url = `/compras?limit=${limit}&page=${currentPage}`;
-        const data = await fetchFromChipax(url, { maxRetries: 1, retryDelay: 300 });
+        const data = await fetchFromChipax(url, { maxRetries: 2, retryDelay: 500 });
         
         let pageItems = [];
         if (Array.isArray(data)) {
@@ -176,8 +176,8 @@ const obtenerCuentasPorPagar = async () => {
           allCompras.push(...pageItems);
           console.log(`✅ Página ${currentPage}: ${pageItems.length} items (total: ${allCompras.length})`);
           
-          // ✅ MEJORA: Verificar progreso cada 25 páginas
-          if (currentPage % 25 === 0) {
+          // ✅ MEJORA: Verificar progreso cada 20 páginas (reducido)
+          if (currentPage % 20 === 0) {
             const fechasRecepcion = pageItems
               .map(item => item.fechaRecepcion || item.fecha_recepcion || item.created)
               .filter(fecha => fecha)
@@ -189,12 +189,6 @@ const obtenerCuentasPorPagar = async () => {
               const diasDesdeMasReciente = Math.floor((hoy - fechaMasReciente) / (1000 * 60 * 60 * 24));
               
               console.log(`📊 Progreso página ${currentPage}: factura más reciente hace ${diasDesdeMasReciente} días (${fechaMasReciente.toISOString().split('T')[0]})`);
-              
-              // Si encontramos facturas muy recientes (menos de 90 días), podemos considerar parar
-              if (diasDesdeMasReciente <= 90 && allCompras.length >= 2000) {
-                console.log(`🎯 Encontradas facturas relativamente recientes (${diasDesdeMasReciente} días), tenemos ${allCompras.length} facturas`);
-                // Continuar pero podríamos parar si llegamos a algo muy reciente
-              }
             }
           }
           
@@ -207,12 +201,19 @@ const obtenerCuentasPorPagar = async () => {
           hasMoreData = false;
         }
 
-        // Pausa más corta para procesar más rápido
-        await new Promise(resolve => setTimeout(resolve, 50));
+        // ✅ PAUSA MÁS LARGA para evitar rate limiting
+        await new Promise(resolve => setTimeout(resolve, 200)); // Aumentado de 50ms a 200ms
 
       } catch (error) {
         console.error(`❌ Error en página ${currentPage}:`, error);
-        hasMoreData = false;
+        
+        // ✅ MANEJO ESPECÍFICO DE RATE LIMITING
+        if (error.message.includes('429') || error.message.includes('Too Many Requests')) {
+          console.warn(`⚠️ Rate limit alcanzado en página ${currentPage}. Procesando ${allCompras.length} facturas obtenidas hasta ahora...`);
+          hasMoreData = false; // Parar aquí en lugar de fallar
+        } else {
+          hasMoreData = false;
+        }
       }
     }
 
@@ -223,10 +224,25 @@ const obtenerCuentasPorPagar = async () => {
       return [];
     }
 
-    // ORDENAMIENTO por fecha de RECEPCIÓN (mismo que antes)
+    // ✅ PROCESO MEJORADO: Verificar calidad de datos antes de ordenar
+    console.log('🔍 Analizando calidad de datos obtenidos...');
+    
+    const comprasConFechas = allCompras.filter(compra => {
+      const tieneFecha = compra.fechaRecepcion || 
+                        compra.fecha_recepcion || 
+                        compra.created || 
+                        compra.fechaEmision || 
+                        compra.fecha_emision || 
+                        compra.fecha;
+      return tieneFecha;
+    });
+    
+    console.log(`📊 ${comprasConFechas.length} de ${allCompras.length} facturas tienen fechas válidas`);
+
+    // ORDENAMIENTO por fecha de RECEPCIÓN
     console.log('🔄 Ordenando compras por fecha de RECEPCIÓN (más recientes primero)...');
     
-    allCompras.sort((a, b) => {
+    comprasConFechas.sort((a, b) => {
       const fechaA = new Date(
         a.fechaRecepcion || 
         a.fecha_recepcion || 
@@ -250,10 +266,11 @@ const obtenerCuentasPorPagar = async () => {
       return fechaB - fechaA; // Descendente (más recientes primero)
     });
 
-    // ✅ AJUSTE: Para aprovechar todas las 6,400 facturas y mostrar más
-    const comprasRecientes = allCompras.slice(0, 800); // Mostrar las 800 más recientes de las 6,400
+    // ✅ AJUSTE: Tomar todas las que pudimos obtener (máximo 1000)
+    const cantidadParaMostrar = Math.min(1000, comprasConFechas.length);
+    const comprasRecientes = comprasConFechas.slice(0, cantidadParaMostrar);
 
-    // Debug: verificar el rango de fechas de RECEPCIÓN
+    // Debug mejorado
     if (comprasRecientes.length > 0) {
       const primeraCompra = comprasRecientes[0];
       const ultimaCompra = comprasRecientes[comprasRecientes.length - 1];
@@ -282,34 +299,33 @@ const obtenerCuentasPorPagar = async () => {
       console.log(`✅ ${comprasRecientes.length} compras más recientes seleccionadas`);
       console.log(`📅 Rango de RECEPCIÓN: ${fechaRecepcionAntigua} → ${fechaRecepcionReciente}`);
 
-      // Verificar si tenemos datos recientes POR RECEPCIÓN
       const fechaReciente = new Date(fechaRecepcionReciente);
       const hoy = new Date();
       const diffDias = Math.floor((hoy - fechaReciente) / (1000 * 60 * 60 * 24));
       
-      if (diffDias > 30) {
-        console.warn(`⚠️ ADVERTENCIA: La factura más reciente fue recibida hace ${diffDias} días (${fechaReciente.toISOString().split('T')[0]})`);
-        
-        if (diffDias > 365) {
-          console.warn(`⚠️ Las facturas son de más de 1 año. Considera verificar si tu sistema Chipax tiene facturas más recientes.`);
-        } else if (diffDias > 180) {
-          console.warn(`⚠️ Las facturas son de más de 6 meses. Podrías necesitar aún más páginas o un endpoint diferente.`);
-        } else {
-          console.warn(`⚠️ Las facturas son de hace ${Math.floor(diffDias/30)} meses. Están mejorando, prueba aumentar maxPages aún más.`);
-        }
-        
-        console.warn(`📊 Total facturas procesadas: ${allCompras.length} | Páginas procesadas: ${currentPage - 1}/${maxPages}`);
-      } else {
-        console.log(`✅ ¡ÉXITO! Datos recientes: última factura recibida hace ${diffDias} días`);
+      // ✅ DIAGNÓSTICO MEJORADO
+      console.log('\n🎯 DIAGNÓSTICO DE DATOS:');
+      console.log('======================');
+      console.log(`📊 Total facturas procesadas: ${allCompras.length}`);
+      console.log(`📅 Factura más reciente: ${fechaReciente.toISOString().split('T')[0]} (hace ${diffDias} días)`);
+      
+      if (diffDias > 365) {
+        console.warn(`🔍 ANÁLISIS: Todas las facturas son de hace más de 1 año`);
+        console.warn(`   • Esto sugiere que tu sistema Chipax no ha recibido facturas nuevas desde ${fechaReciente.toISOString().split('T')[0]}`);
+        console.warn(`   • Posibles causas:`);
+        console.warn(`     - El sistema no está recibiendo facturas nuevas`);
+        console.warn(`     - Las facturas nuevas están en un endpoint diferente`);
+        console.warn(`     - Hay filtros de fecha que no estamos aplicando`);
+        console.warn(`   • Recomendación: Verificar con Chipax si hay facturas más recientes`);
       }
-
-      // Análisis de progreso de fechas en grupos
-      console.log('📊 ANÁLISIS DE FECHAS POR GRUPOS:');
+      
+      // Análisis de fechas por grupos
+      console.log('\n📊 ANÁLISIS DE FECHAS POR GRUPOS:');
       const grupos = [
-        { nombre: 'Primeras 100', facturas: comprasRecientes.slice(0, 100) },
-        { nombre: 'Del 100 al 300', facturas: comprasRecientes.slice(100, 300) },
-        { nombre: 'Del 300 al 500', facturas: comprasRecientes.slice(300, 500) },
-        { nombre: 'Del 500 al 800', facturas: comprasRecientes.slice(500, 800) }
+        { nombre: 'Primeras 50', facturas: comprasRecientes.slice(0, 50) },
+        { nombre: 'Del 50 al 150', facturas: comprasRecientes.slice(50, 150) },
+        { nombre: 'Del 150 al 300', facturas: comprasRecientes.slice(150, 300) },
+        { nombre: 'Del 300 al 500', facturas: comprasRecientes.slice(300, 500) }
       ];
       
       grupos.forEach(grupo => {
@@ -329,13 +345,15 @@ const obtenerCuentasPorPagar = async () => {
         }
       });
 
-      // MOSTRAR MUESTRA DE FECHAS DE RECEPCIÓN vs EMISIÓN
-      console.log('🔍 DEBUG: Primeras 5 compras (recepción vs emisión):');
-      comprasRecientes.slice(0, 5).forEach((compra, i) => {
+      // Mostrar primeras 3 facturas
+      console.log('\n🔍 DEBUG: Primeras 3 compras (fechas detalladas):');
+      comprasRecientes.slice(0, 3).forEach((compra, i) => {
         console.log(`${i + 1}. Folio ${compra.folio}:`);
         console.log(`   Emisión: ${compra.fechaEmision}`);
         console.log(`   Recepción: ${compra.fechaRecepcion || compra.fecha_recepcion || 'N/A'}`);
         console.log(`   Created: ${compra.created || 'N/A'}`);
+        console.log(`   Estado: ${compra.estado || 'Sin estado'}`);
+        console.log(`   Monto: ${compra.montoTotal || 'Sin monto'}`);
       });
     }
 
