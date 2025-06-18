@@ -173,7 +173,7 @@ export const adaptarSaldosBancarios = (cuentasConSaldos) => {
       tipo: cuenta.TipoCuentaCorriente?.tipoCuenta || 'Cuenta Corriente',
       nombreCorto: cuenta.TipoCuentaCorriente?.nombreCorto || 'CC',
       moneda: cuenta.Moneda?.moneda || 'CLP',
-      simboloMoneda: cuenta.Moneda?.simbolo || '$',
+      simboloMoneda: cuenta.Moneda?.simbolo || ',
       decimales: cuenta.Moneda?.decimales || 0,
       
       movimientos: cuenta.movimientos || {
