@@ -1,478 +1,563 @@
+// DashboardFinancieroIntegrado.jsx - VERSIÓN CORREGIDA PARA NETLIFY
 import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, Calendar, Wallet, PieChart, TrendingUp, 
   RefreshCw, CheckCircle, Clock, ChevronLeft, ChevronRight,
-  Database, Search, Bug, XCircle
+  Database, Search, Bug
 } from 'lucide-react';
 
-// Simulación de servicios (reemplazar con imports reales)
-const chipaxService = {
-  obtenerCuentasPorPagar: async () => {
-    // Simulación de datos para demostración
-    return [
-      {
-        id: 1,
-        folio: '12345',
-        razonSocial: 'PROVEEDOR EJEMPLO SPA',
-        fechaEmision: '2025-01-15',
-        estado: 'pagado', // Estado original de Chipax
-        montoTotal: 1500000,
-        fechaPagoInterna: '2025-01-20'
-      },
-      {
-        id: 2,
-        folio: '12346',
-        razonSocial: 'OTRO PROVEEDOR LTDA',
-        fechaEmision: '2025-01-10',
-        estado: 'aceptado',
-        montoTotal: 800000
-      },
-      {
-        id: 3,
-        folio: '12347',
-        razonSocial: 'SERVICIO EJEMPLO SA',
-        fechaEmision: '2024-12-28',
-        estado: 'pagado',
-        montoTotal: 2300000,
-        fechaPagoInterna: '2025-01-05'
-      }
-    ];
-  }
-};
+import chipaxService from '../services/chipaxService';
+import ChipaxComprasDebugger from '../components/ChipaxComprasDebugger';
+import { 
+  adaptarCuentasPorCobrar, 
+  adaptarCuentasPorPagar,
+  filtrarComprasPendientes,
+  filtrarComprasPorFecha 
+} from '../services/chipaxAdapter';
 
-// ✅ ADAPTADOR CON ESTADOS CORREGIDOS
-const adaptarCuentasPorPagarCorregido = (compras) => {
-  if (!Array.isArray(compras)) return [];
-
-  return compras.map((compra, index) => {
-    const montoTotal = parseFloat(compra.montoTotal || 0);
-    const estaAnulado = compra.anulado === 'S' || compra.anulado === true;
-    const fechaPagoReal = compra.fechaPago || 
-                         (compra.fechaPagoInterna && compra.eventoReceptor === 'D' ? compra.fechaPagoInterna : null);
-    
-    let estado, saldoPendiente, descripcionEstado, categoria;
-    
-    if (estaAnulado) {
-      estado = 'Anulado';
-      saldoPendiente = 0;
-      descripcionEstado = 'Factura anulada';
-      categoria = 'anulado';
-    } else {
-      const estadoChipax = (compra.estado || '').toLowerCase().trim();
-      
-      switch (estadoChipax) {
-        case 'pagado':
-        case 'paid':
-          // 🎯 CORRECCIÓN: Las "pagadas" son pendientes de aprobación
-          estado = 'Pendiente Aprobación';
-          saldoPendiente = montoTotal;
-          descripcionEstado = 'Pendiente de aprobación (aparecía como pagada)';
-          categoria = 'pendiente_aprobacion';
-          break;
-          
-        case 'aceptado':
-        case 'accepted':
-          estado = 'Aceptado';
-          saldoPendiente = montoTotal;
-          descripcionEstado = 'Factura aceptada, pendiente de pago';
-          categoria = 'aceptado';
-          break;
-          
-        case 'pendiente':
-          estado = 'Pendiente Proceso';
-          saldoPendiente = montoTotal;
-          descripcionEstado = 'En proceso';
-          categoria = 'pendiente_proceso';
-          break;
-          
-        default:
-          if (fechaPagoReal) {
-            estado = 'Pagado Realmente';
-            saldoPendiente = 0;
-            descripcionEstado = 'Realmente pagado';
-            categoria = 'pagado_realmente';
-          } else {
-            estado = 'Estado Desconocido';
-            saldoPendiente = montoTotal;
-            descripcionEstado = 'Estado no reconocido';
-            categoria = 'desconocido';
-          }
-      }
-    }
-    
-    return {
-      id: compra.id || index,
-      folio: compra.folio || 'S/N',
-      razonSocial: compra.razonSocial || 'Proveedor no especificado',
-      fecha: compra.fechaEmision || compra.fecha || new Date().toISOString().split('T')[0],
-      monto: saldoPendiente,
-      montoTotal: montoTotal,
-      estado: estado,
-      estadoOriginal: compra.estado,
-      descripcionEstado: descripcionEstado,
-      categoria: categoria,
-      fechaPago: fechaPagoReal,
-      estaPagado: estado === 'Pagado Realmente',
-      necesitaAprobacion: estado === 'Pendiente Aprobación',
-      estaAprobado: estado === 'Aceptado' || estado === 'Pagado Realmente'
-    };
-  });
-};
-
-// ✅ CALCULAR RESUMEN SOLO PARA 2025
-const calcularResumen2025 = (cuentasPorPagar) => {
-  if (!Array.isArray(cuentasPorPagar)) {
-    return {
-      totalFacturas: 0,
-      totalMonto: 0,
-      pendientesAprobacion: { count: 0, monto: 0 },
-      aceptadas: { count: 0, monto: 0 },
-      pagadasRealmente: { count: 0, monto: 0 },
-      anuladas: { count: 0, monto: 0 }
-    };
-  }
-
-  // Filtrar solo facturas de 2025
-  const facturas2025 = cuentasPorPagar.filter(factura => {
-    const año = new Date(factura.fecha).getFullYear();
-    return año === 2025;
-  });
-
-  const pendientesAprobacion = facturas2025.filter(f => f.estado === 'Pendiente Aprobación');
-  const aceptadas = facturas2025.filter(f => f.estado === 'Aceptado');
-  const pagadasRealmente = facturas2025.filter(f => f.estado === 'Pagado Realmente');
-  const anuladas = facturas2025.filter(f => f.estado === 'Anulado');
-
-  const sumarMontos = (facturas) => 
-    facturas.reduce((total, f) => total + (f.montoTotal || 0), 0);
-
-  return {
-    totalFacturas: facturas2025.length,
-    totalMonto: sumarMontos(facturas2025),
-    pendientesAprobacion: {
-      count: pendientesAprobacion.length,
-      monto: sumarMontos(pendientesAprobacion)
-    },
-    aceptadas: {
-      count: aceptadas.length,
-      monto: sumarMontos(aceptadas)
-    },
-    pagadasRealmente: {
-      count: pagadasRealmente.length,
-      monto: sumarMontos(pagadasRealmente)
-    },
-    anuladas: {
-      count: anuladas.length,
-      monto: sumarMontos(anuladas)
-    }
-  };
-};
-
-// ✅ COMPONENTE: Cuadro Resumen 2025
-const CuadroResumen2025 = ({ cuentasPorPagar, loading }) => {
-  const resumen = calcularResumen2025(cuentasPorPagar);
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-CL', {
-      style: 'currency',
-      currency: 'CLP',
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
-
-  const formatPercentage = (parte, total) => {
-    if (total === 0) return '0%';
-    return `${((parte / total) * 100).toFixed(1)}%`;
-  };
-
-  if (loading) {
-    return (
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <RefreshCw className="animate-spin text-blue-500" size={20} />
-          <h3 className="text-lg font-semibold">Cargando Resumen 2025...</h3>
-        </div>
-      </div>
-    );
-  }
-
-  if (resumen.totalFacturas === 0) {
-    return (
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <AlertCircle className="text-orange-500" size={20} />
-          <h3 className="text-lg font-semibold">Resumen Facturas 2025</h3>
-        </div>
-        <div className="text-center py-8">
-          <p className="text-gray-500">No se encontraron facturas de 2025</p>
-          <p className="text-sm text-gray-400 mt-2">
-            Las facturas más recientes pueden estar en páginas posteriores
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <PieChart className="text-blue-500" size={20} />
-          <h3 className="text-lg font-semibold">Resumen Facturas 2025</h3>
-        </div>
-        <div className="text-sm text-gray-500">
-          Estados Corregidos
-        </div>
-      </div>
-
-      {/* Totales principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="bg-blue-50 rounded-lg p-4">
-          <div className="text-sm font-medium text-blue-700">Total Facturas 2025</div>
-          <div className="text-2xl font-bold text-blue-900">{resumen.totalFacturas}</div>
-        </div>
-        <div className="bg-green-50 rounded-lg p-4">
-          <div className="text-sm font-medium text-green-700">Monto Total 2025</div>
-          <div className="text-2xl font-bold text-green-900">
-            {formatCurrency(resumen.totalMonto)}
-          </div>
-        </div>
-      </div>
-
-      {/* Estados detallados */}
-      <div className="space-y-4">
-        <h4 className="font-semibold text-gray-800 mb-3">
-          Estados Corregidos (Clasificación Real)
-        </h4>
-
-        {/* Pendientes de Aprobación */}
-        <div className="border-l-4 border-orange-400 bg-orange-50 p-4 rounded-r-lg">
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="text-orange-600" size={16} />
-                <h5 className="font-semibold text-orange-800">Pendientes de Aprobación</h5>
-                <span className="bg-orange-200 text-orange-800 px-2 py-1 rounded-full text-xs font-medium">
-                  CORREGIDO
-                </span>
-              </div>
-              <p className="text-sm text-orange-700 mb-2">
-                Aparecían como "pagadas" pero necesitan aprobación
-              </p>
-            </div>
-            <div className="text-right ml-4">
-              <div className="text-lg font-bold text-orange-900">
-                {resumen.pendientesAprobacion.count}
-              </div>
-              <div className="text-sm font-semibold text-orange-800">
-                {formatCurrency(resumen.pendientesAprobacion.monto)}
-              </div>
-              <div className="text-xs text-orange-600">
-                {formatPercentage(resumen.pendientesAprobacion.monto, resumen.totalMonto)}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Aceptadas */}
-        <div className="border-l-4 border-blue-400 bg-blue-50 p-4 rounded-r-lg">
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="text-blue-600" size={16} />
-                <h5 className="font-semibold text-blue-800">Aceptadas</h5>
-              </div>
-              <p className="text-sm text-blue-700">
-                Facturas aprobadas, pendientes de pago
-              </p>
-            </div>
-            <div className="text-right ml-4">
-              <div className="text-lg font-bold text-blue-900">
-                {resumen.aceptadas.count}
-              </div>
-              <div className="text-sm font-semibold text-blue-800">
-                {formatCurrency(resumen.aceptadas.monto)}
-              </div>
-              <div className="text-xs text-blue-600">
-                {formatPercentage(resumen.aceptadas.monto, resumen.totalMonto)}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Pagadas Realmente */}
-        <div className="border-l-4 border-green-400 bg-green-50 p-4 rounded-r-lg">
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <Wallet className="text-green-600" size={16} />
-                <h5 className="font-semibold text-green-800">Pagadas Realmente</h5>
-              </div>
-              <p className="text-sm text-green-700">
-                Facturas realmente pagadas (con fecha de pago)
-              </p>
-            </div>
-            <div className="text-right ml-4">
-              <div className="text-lg font-bold text-green-900">
-                {resumen.pagadasRealmente.count}
-              </div>
-              <div className="text-sm font-semibold text-green-800">
-                {formatCurrency(resumen.pagadasRealmente.monto)}
-              </div>
-              <div className="text-xs text-green-600">
-                {formatPercentage(resumen.pagadasRealmente.monto, resumen.totalMonto)}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Anuladas (si hay) */}
-        {resumen.anuladas.count > 0 && (
-          <div className="border-l-4 border-gray-400 bg-gray-50 p-4 rounded-r-lg">
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <XCircle className="text-gray-600" size={16} />
-                  <h5 className="font-semibold text-gray-800">Anuladas</h5>
-                </div>
-                <p className="text-sm text-gray-700">
-                  Facturas anuladas o rechazadas
-                </p>
-              </div>
-              <div className="text-right ml-4">
-                <div className="text-lg font-bold text-gray-900">
-                  {resumen.anuladas.count}
-                </div>
-                <div className="text-sm font-semibold text-gray-800">
-                  {formatCurrency(resumen.anuladas.monto)}
-                </div>
-                <div className="text-xs text-gray-600">
-                  {formatPercentage(resumen.anuladas.monto, resumen.totalMonto)}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Nota explicativa */}
-      <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-        <div className="flex items-start gap-2">
-          <AlertCircle className="text-yellow-600 mt-0.5" size={16} />
-          <div className="text-sm">
-            <p className="font-semibold text-yellow-800 mb-1">
-              Estados Corregidos según Análisis
-            </p>
-            <p className="text-yellow-700">
-              Las facturas que aparecían como "Pagado Realmente" han sido reclasificadas 
-              como "Pendientes de Aprobación" según el descubrimiento de que aún no han 
-              sido aceptadas y se encuentran pendientes de aprobación.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ✅ COMPONENTE PRINCIPAL DEL DASHBOARD
 const DashboardFinancieroIntegrado = () => {
+  // Estados principales
+  const [saldosBancarios, setSaldosBancarios] = useState([]);
+  const [cuentasPorCobrar, setCuentasPorCobrar] = useState([]);
   const [cuentasPorPagar, setCuentasPorPagar] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState([]);
+  const [pestanaActiva, setPestanaActiva] = useState('dashboard');
+  
+  // Estados para filtrado
+  const [filtroCompras, setFiltroCompras] = useState({
+    soloNoPagadas: false,
+    fechaInicio: '',
+    fechaFin: '',
+    folioFiltro: ''
+  });
 
-  // Cargar datos
+  // Estados para paginación
+  const [paginacionCompras, setPaginacionCompras] = useState({
+    paginaActual: 1,
+    itemsPorPagina: 50
+  });
+
+  const [paginacionCobrar, setPaginacionCobrar] = useState({
+    paginaActual: 1,
+    itemsPorPagina: 50
+  });
+
+  // === FUNCIONES DE CARGA ===
+  const cargarSaldosBancarios = async () => {
+    try {
+      console.log('🏦 Cargando saldos bancarios...');
+      const datos = await chipaxService.obtenerSaldosBancarios();
+      
+      if (Array.isArray(datos)) {
+        setSaldosBancarios(datos);
+        console.log(`✅ ${datos.length} saldos cargados`);
+      } else {
+        console.warn('⚠️ Saldos no es array, usando array vacío');
+        setSaldosBancarios([]);
+      }
+    } catch (error) {
+      console.error('❌ Error cargando saldos:', error);
+      setSaldosBancarios([]);
+      setErrors(prev => [...prev, `Saldos: ${error.message}`]);
+    }
+  };
+
+  const cargarCuentasPorCobrar = async () => {
+    try {
+      console.log('📋 Cargando cuentas por cobrar...');
+      const dtes = await chipaxService.obtenerCuentasPorCobrar();
+      
+      if (Array.isArray(dtes)) {
+        const cuentasAdaptadas = adaptarCuentasPorCobrar(dtes);
+        setCuentasPorCobrar(cuentasAdaptadas);
+        console.log(`✅ ${cuentasAdaptadas.length} cuentas por cobrar cargadas`);
+      } else {
+        console.warn('⚠️ DTEs no es array');
+        setCuentasPorCobrar([]);
+      }
+    } catch (error) {
+      console.error('❌ Error cargando cuentas por cobrar:', error);
+      setCuentasPorCobrar([]);
+      setErrors(prev => [...prev, `Cuentas por cobrar: ${error.message}`]);
+    }
+  };
+
   const cargarCuentasPorPagar = async () => {
     try {
-      setLoading(true);
-      setErrors([]);
       console.log('💸 Cargando cuentas por pagar...');
+      const compras = await chipaxService.obtenerCuentasPorPagar();
       
-      const datos = await chipaxService.obtenerCuentasPorPagar();
-      const datosAdaptados = adaptarCuentasPorPagarCorregido(datos);
-      
-      setCuentasPorPagar(datosAdaptados);
-      console.log(`✅ ${datosAdaptados.length} cuentas por pagar cargadas y adaptadas`);
-      
+      if (Array.isArray(compras)) {
+        const cuentasAdaptadas = adaptarCuentasPorPagar(compras);
+        setCuentasPorPagar(cuentasAdaptadas);
+        console.log(`✅ ${cuentasAdaptadas.length} cuentas por pagar cargadas`);
+      } else {
+        console.warn('⚠️ Compras no es array');
+        setCuentasPorPagar([]);
+      }
     } catch (error) {
       console.error('❌ Error cargando cuentas por pagar:', error);
-      setErrors(prev => [...prev, { 
-        tipo: 'cuentas_por_pagar', 
-        mensaje: error.message 
-      }]);
+      setCuentasPorPagar([]);
+      setErrors(prev => [...prev, `Cuentas por pagar: ${error.message}`]);
+    }
+  };
+
+  const cargarSolo2025 = async () => {
+    try {
+      setLoading(true);
+      console.log('🚀 Cargando SOLO facturas de 2025...');
+      
+      const compras = await chipaxService.obtenerCuentasPorPagar();
+      
+      if (Array.isArray(compras)) {
+        // Filtrar solo 2025
+        const compras2025 = compras.filter(compra => {
+          const fecha = compra.fechaEmision || compra.fecha_emision || compra.fecha || '';
+          return fecha.includes('2025');
+        });
+        
+        const cuentasAdaptadas = adaptarCuentasPorPagar(compras2025);
+        setCuentasPorPagar(cuentasAdaptadas);
+        console.log(`✅ ${cuentasAdaptadas.length} facturas de 2025 cargadas`);
+      }
+    } catch (error) {
+      console.error('❌ Error cargando 2025:', error);
+      setErrors(prev => [...prev, `2025: ${error.message}`]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Cargar datos al montar el componente
+  const cargarTodosDatos = async () => {
+    setLoading(true);
+    setErrors([]);
+    
+    try {
+      console.log('🔄 Iniciando carga completa...');
+      
+      await Promise.all([
+        cargarSaldosBancarios(),
+        cargarCuentasPorCobrar(),
+        cargarCuentasPorPagar()
+      ]);
+      
+      console.log('✅ Carga completa finalizada');
+    } catch (error) {
+      console.error('❌ Error en carga completa:', error);
+      setErrors(prev => [...prev, `Carga general: ${error.message}`]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Carga inicial
   useEffect(() => {
-    cargarCuentasPorPagar();
+    cargarTodosDatos();
   }, []);
 
+  // === FUNCIONES DE FILTRADO Y PAGINACIÓN ===
+  const obtenerComprasFiltradas = () => {
+    let comprasFiltradas = [...cuentasPorPagar];
+
+    if (filtroCompras.soloNoPagadas) {
+      comprasFiltradas = comprasFiltradas.filter(compra => 
+        compra.estado !== 'Pagado' && !compra.estaPagado
+      );
+    }
+
+    if (filtroCompras.folioFiltro) {
+      comprasFiltradas = comprasFiltradas.filter(compra =>
+        compra.folio.toString().toLowerCase().includes(filtroCompras.folioFiltro.toLowerCase())
+      );
+    }
+
+    if (filtroCompras.fechaInicio && filtroCompras.fechaFin) {
+      comprasFiltradas = filtrarComprasPorFecha(comprasFiltradas, filtroCompras.fechaInicio, filtroCompras.fechaFin);
+    }
+
+    return comprasFiltradas;
+  };
+
+  const obtenerComprasPaginadas = () => {
+    const filtradas = obtenerComprasFiltradas();
+    const inicio = (paginacionCompras.paginaActual - 1) * paginacionCompras.itemsPorPagina;
+    const fin = inicio + paginacionCompras.itemsPorPagina;
+    return filtradas.slice(inicio, fin);
+  };
+
+  const obtenerCobrarPaginadas = () => {
+    const inicio = (paginacionCobrar.paginaActual - 1) * paginacionCobrar.itemsPorPagina;
+    const fin = inicio + paginacionCobrar.itemsPorPagina;
+    return cuentasPorCobrar.slice(inicio, fin);
+  };
+
+  const getTotalPaginasCompras = () => {
+    return Math.ceil(obtenerComprasFiltradas().length / paginacionCompras.itemsPorPagina);
+  };
+
+  const getTotalPaginasCobrar = () => {
+    return Math.ceil(cuentasPorCobrar.length / paginacionCobrar.itemsPorPagina);
+  };
+
+  // === FUNCIONES DE UTILIDAD ===
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      maximumFractionDigits: 0
+    }).format(amount || 0);
+  };
+
+  // === COMPONENTES ===
+  const ComponentePaginacion = ({ paginacion, setPaginacion, totalPaginas, nombre }) => {
+    const paginasAMostrar = [];
+    const maxPaginas = 5;
+    
+    let inicio = Math.max(1, paginacion.paginaActual - Math.floor(maxPaginas / 2));
+    let fin = Math.min(totalPaginas, inicio + maxPaginas - 1);
+    
+    if (fin - inicio + 1 < maxPaginas) {
+      inicio = Math.max(1, fin - maxPaginas + 1);
+    }
+    
+    for (let i = inicio; i <= fin; i++) {
+      paginasAMostrar.push(i);
+    }
+
+    return (
+      <div className="flex items-center justify-between px-4 py-3 bg-white border-t">
+        <div className="text-sm text-gray-700">
+          Mostrando {((paginacion.paginaActual - 1) * paginacion.itemsPorPagina) + 1} a{' '}
+          {Math.min(paginacion.paginaActual * paginacion.itemsPorPagina, 
+                   nombre === 'compras' ? obtenerComprasFiltradas().length : cuentasPorCobrar.length)} de{' '}
+          {nombre === 'compras' ? obtenerComprasFiltradas().length : cuentasPorCobrar.length} registros
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: 1 }))}
+            disabled={paginacion.paginaActual === 1}
+            className="px-2 py-1 text-gray-500 hover:text-gray-700 disabled:opacity-50"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          
+          {paginasAMostrar.map(pagina => (
+            <button
+              key={pagina}
+              onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: pagina }))}
+              className={`px-3 py-1 text-sm rounded ${
+                pagina === paginacion.paginaActual
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {pagina}
+            </button>
+          ))}
+          
+          <button
+            onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: totalPaginas }))}
+            disabled={paginacion.paginaActual === totalPaginas}
+            className="px-2 py-1 text-gray-500 hover:text-gray-700 disabled:opacity-50"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const ControlesPrincipales = () => (
+    <div className="mb-6 flex flex-wrap gap-4">
+      <button
+        onClick={cargarTodosDatos}
+        disabled={loading}
+        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+      >
+        <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+        {loading ? 'Cargando...' : 'Actualizar Todo'}
+      </button>
+
+      <button
+        onClick={cargarSolo2025}
+        disabled={loading}
+        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+      >
+        <Calendar size={16} />
+        Solo 2025 (Rápido)
+      </button>
+
+      {errors.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg">
+          <AlertCircle size={16} />
+          {errors.length} error(es)
+        </div>
+      )}
+    </div>
+  );
+
+  const EstadisticasGenerales = () => {
+    const totalSaldos = saldosBancarios.reduce((sum, cuenta) => sum + (cuenta.saldoCalculado || 0), 0);
+    const totalPorCobrar = cuentasPorCobrar.reduce((sum, cuenta) => sum + (cuenta.saldo || 0), 0);
+    const totalPorPagar = cuentasPorPagar.reduce((sum, cuenta) => sum + (cuenta.monto || 0), 0);
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center">
+            <div className="p-3 bg-blue-100 rounded-full">
+              <Wallet className="text-blue-600" size={24} />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Saldos Bancarios</p>
+              <p className="text-2xl font-semibold text-gray-900">{formatCurrency(totalSaldos)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center">
+            <div className="p-3 bg-green-100 rounded-full">
+              <TrendingUp className="text-green-600" size={24} />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Por Cobrar</p>
+              <p className="text-2xl font-semibold text-gray-900">{formatCurrency(totalPorCobrar)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center">
+            <div className="p-3 bg-red-100 rounded-full">
+              <AlertCircle className="text-red-600" size={24} />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Por Pagar</p>
+              <p className="text-2xl font-semibold text-gray-900">{formatCurrency(totalPorPagar)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const TablaCompras = () => (
+    <div className="bg-white rounded-lg shadow-md">
+      <div className="px-6 py-4 border-b border-gray-200">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-semibold text-gray-900">Cuentas por Pagar</h2>
+          <div className="flex items-center gap-4">
+            <input
+              type="text"
+              placeholder="Buscar por folio..."
+              value={filtroCompras.folioFiltro}
+              onChange={(e) => setFiltroCompras(prev => ({ ...prev, folioFiltro: e.target.value }))}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+            />
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={filtroCompras.soloNoPagadas}
+                onChange={(e) => setFiltroCompras(prev => ({ ...prev, soloNoPagadas: e.target.checked }))}
+              />
+              Solo no pagadas
+            </label>
+          </div>
+        </div>
+      </div>
+      <div className="p-6">
+        {cuentasPorPagar.length > 0 ? (
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Folio</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proveedor</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monto</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {obtenerComprasPaginadas().map((compra, index) => (
+                    <tr key={index}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {compra.folio}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {compra.proveedor}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {compra.fecha}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          compra.estado === 'Pagado Realmente' ? 'bg-green-100 text-green-800' :
+                          compra.estado === 'Pendiente Aprobación' ? 'bg-orange-100 text-orange-800' :
+                          compra.estado === 'Aceptado' ? 'bg-blue-100 text-blue-800' :
+                          compra.estado === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {compra.estado}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatCurrency(compra.montoTotal)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            
+            <ComponentePaginacion 
+              paginacion={paginacionCompras}
+              setPaginacion={setPaginacionCompras}
+              totalPaginas={getTotalPaginasCompras()}
+              nombre="compras"
+            />
+          </>
+        ) : (
+          <p className="text-gray-500">No hay datos de cuentas por pagar disponibles.</p>
+        )}
+      </div>
+    </div>
+  );
+
+  const TablaCobrar = () => (
+    <div className="bg-white rounded-lg shadow-md">
+      <div className="px-6 py-4 border-b border-gray-200">
+        <h2 className="text-xl font-semibold text-gray-900">Cuentas por Cobrar</h2>
+      </div>
+      <div className="p-6">
+        {cuentasPorCobrar.length > 0 ? (
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Folio</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vencimiento</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Saldo</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {obtenerCobrarPaginadas().map((cuenta, index) => (
+                    <tr key={index}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {cuenta.folio}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {cuenta.cliente}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {cuenta.fechaEmision}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {cuenta.fechaVencimiento || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatCurrency(cuenta.saldo)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            
+            <ComponentePaginacion 
+              paginacion={paginacionCobrar}
+              setPaginacion={setPaginacionCobrar}
+              totalPaginas={getTotalPaginasCobrar()}
+              nombre="cobrar"
+            />
+          </>
+        ) : (
+          <p className="text-gray-500">No hay datos de cuentas por cobrar disponibles.</p>
+        )}
+      </div>
+    </div>
+  );
+
+  // === RENDER PRINCIPAL ===
   return (
-    <div className=\"min-h-screen bg-gray-50 p-4\">
-      <div className=\"max-w-6xl mx-auto\">
+    <div className="min-h-screen bg-gray-50 p-4">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className=\"flex justify-between items-center mb-6\">
+        <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className=\"text-2xl font-bold text-gray-900\">
+            <h1 className="text-2xl font-bold text-gray-900">
               Dashboard Financiero Integrado
             </h1>
-            <p className=\"text-gray-600 mt-1\">
-              Resumen de facturas 2025 con estados corregidos
+            <p className="text-gray-600 mt-1">
+              Gestión completa de flujo de caja con datos de Chipax
             </p>
           </div>
-          <button
-            onClick={cargarCuentasPorPagar}
-            disabled={loading}
-            className=\"flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50\"
-          >
-            <RefreshCw className={loading ? 'animate-spin' : ''} size={16} />
-            {loading ? 'Cargando...' : 'Actualizar'}
-          </button>
+          
+          {/* Navegación de pestañas */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPestanaActiva('dashboard')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                pestanaActiva === 'dashboard'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <PieChart size={16} className="inline mr-2" />
+              Dashboard
+            </button>
+            <button
+              onClick={() => setPestanaActiva('debugger')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                pestanaActiva === 'debugger'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <Bug size={16} className="inline mr-2" />
+              Debugger
+            </button>
+          </div>
         </div>
 
         {/* Errores */}
         {errors.length > 0 && (
-          <div className=\"bg-red-50 border border-red-200 rounded-lg p-4 mb-6\">
-            <div className=\"flex items-center gap-2 mb-2\">
-              <AlertCircle className=\"text-red-500\" size={20} />
-              <h3 className=\"font-semibold text-red-700\">Errores de Carga</h3>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="text-red-500" size={20} />
+              <h3 className="font-semibold text-red-700">Errores de Carga</h3>
             </div>
-            <ul className=\"text-sm text-red-600 space-y-1\">
+            <ul className="text-sm text-red-600 space-y-1">
               {errors.map((error, index) => (
-                <li key={index}>• {error.tipo}: {error.mensaje}</li>
+                <li key={index}>• {error}</li>
               ))}
             </ul>
           </div>
         )}
 
-        {/* Cuadro Resumen 2025 */}
-        <CuadroResumen2025 
-          cuentasPorPagar={cuentasPorPagar} 
-          loading={loading}
-        />
+        {/* Contenido según pestaña activa */}
+        {pestanaActiva === 'dashboard' && (
+          <>
+            <ControlesPrincipales />
+            <EstadisticasGenerales />
+            
+            <div className="space-y-8">
+              <TablaCompras />
+              <TablaCobrar />
+            </div>
+          </>
+        )}
 
-        {/* Información adicional */}
-        <div className=\"bg-white rounded-lg shadow-md p-6\">
-          <h3 className=\"text-lg font-semibold mb-4\">Información del Sistema</h3>
-          <div className=\"grid grid-cols-1 md:grid-cols-3 gap-4 text-sm\">
-            <div>
-              <span className=\"font-medium\">Total Facturas Cargadas:</span>
-              <span className=\"ml-2\">{cuentasPorPagar.length}</span>
-            </div>
-            <div>
-              <span className=\"font-medium\">Última Actualización:</span>
-              <span className=\"ml-2\">{new Date().toLocaleString('es-CL')}</span>
-            </div>
-            <div>
-              <span className=\"font-medium\">Estados Corregidos:</span>
-              <span className=\"ml-2 text-green-600\">✓ Activo</span>
-            </div>
-          </div>
-        </div>
+        {pestanaActiva === 'debugger' && (
+          <ChipaxComprasDebugger />
+        )}
       </div>
     </div>
   );
