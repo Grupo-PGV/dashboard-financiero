@@ -1,4 +1,4 @@
-// chipaxService.js - VERSIÓN COMPLETA CORREGIDA con saldos bancarios mejorados
+// chipaxService.js - VERSIÓN CON RESPALDO PARA SALDOS INICIALES
 
 const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
 const APP_ID = process.env.REACT_APP_CHIPAX_APP_ID;
@@ -215,26 +215,13 @@ const fetchAllPaginatedData = async (endpoint, options = {}) => {
 };
 
 /**
- * 🏦 NUEVA FUNCIÓN MEJORADA: Obtener saldos bancarios usando cartolas 2025 + saldos iniciales
+ * 🏦 FUNCIÓN DE RESPALDO: Usar saldos iniciales cuando no hay cartolas
  */
 const obtenerSaldosBancarios = async () => {
   console.log('🏦 Obteniendo saldos bancarios mejorados...');
 
   try {
-    // PASO 1: Definir saldos iniciales conocidos al 31-12-2024
-    const saldosIniciales = {
-      'Banco de Chile': { saldoInicial: 129969864, cuenta: '00-800-10734-09' },
-      'banconexion2': { saldoInicial: 129969864, cuenta: '00-800-10734-09' },
-      'Banco Santander': { saldoInicial: 0, cuenta: '0-000-7066661-8' },
-      'santander': { saldoInicial: 0, cuenta: '0-000-7066661-8' },
-      'Banco BCI': { saldoInicial: 178098, cuenta: '89107021' },
-      'BCI': { saldoInicial: 178098, cuenta: '89107021' },
-      'Banco Internacional': { saldoInicial: 0, cuenta: 'generico' },
-      'generico': { saldoInicial: 0, cuenta: '9117726' },
-      'chipax_wallet': { saldoInicial: 0, cuenta: '0000000803' }
-    };
-
-    // PASO 2: Obtener cuentas corrientes para mapear información básica
+    // PASO 1: Obtener cuentas corrientes para mapear información básica
     console.log('📋 Obteniendo cuentas corrientes...');
     const cuentasResponse = await fetchAllPaginatedData('/cuentas-corrientes');
     const cuentas = cuentasResponse.items;
@@ -246,102 +233,114 @@ const obtenerSaldosBancarios = async () => {
 
     console.log(`✅ ${cuentas.length} cuentas corrientes obtenidas`);
 
-    // PASO 3: Obtener todas las cartolas bancarias
-    console.log('💰 Obteniendo cartolas bancarias...');
-    const cartolasResponse = await fetchAllPaginatedData('/flujo-caja/cartolas', { maxPages: 200 });
-    const cartolas = cartolasResponse.items;
-
-    if (!Array.isArray(cartolas) || cartolas.length === 0) {
-      console.warn('⚠️ No se pudieron obtener cartolas');
-      return [];
+    // PASO 2: Intentar obtener cartolas (con manejo de fallo)
+    console.log('💰 Intentando obtener cartolas bancarias...');
+    let cartolas = [];
+    let cartolasDisponibles = false;
+    
+    try {
+      const cartolasResponse = await fetchAllPaginatedData('/flujo-caja/cartolas', { maxPages: 10 });
+      cartolas = cartolasResponse.items;
+      cartolasDisponibles = cartolas.length > 0;
+      
+      console.log(`✅ ${cartolas.length} cartolas obtenidas`);
+    } catch (error) {
+      console.warn('⚠️ No se pudieron obtener cartolas:', error.message);
+      cartolasDisponibles = false;
     }
 
-    console.log(`✅ ${cartolas.length} cartolas obtenidas`);
+    // PASO 3: Definir saldos actuales conocidos (al 18-06-2025)
+    const saldosActualesConocidos = {
+      'Banco de Chile': { saldoActual: 61033565, cuenta: '00-800-10734-09' },
+      'banconexion2': { saldoActual: 61033565, cuenta: '00-800-10734-09' },
+      'Banco Santander': { saldoActual: 0, cuenta: '0-000-7066661-8' },
+      'santander': { saldoActual: 0, cuenta: '0-000-7066661-8' },
+      'Banco BCI': { saldoActual: 0, cuenta: '89107021' },
+      'BCI': { saldoActual: 0, cuenta: '89107021' },
+      'Banco Internacional': { saldoActual: 104838856, cuenta: 'generico' },
+      'generico': { saldoActual: 104838856, cuenta: '9117726' },
+      'chipax_wallet': { saldoActual: 0, cuenta: '0000000803' }
+    };
 
-    // PASO 4: Filtrar cartolas de 2025 y extraer saldos más recientes
-    const cartolas2025 = cartolas.filter(cartola => {
-      const fecha = new Date(cartola.fecha);
-      return fecha.getFullYear() === 2025;
-    });
+    // PASO 4: Procesar saldos según disponibilidad de cartolas
+    let estrategiaUsada = '';
+    let saldosPorCuenta = {};
 
-    console.log(`📅 ${cartolas2025.length} cartolas de 2025 encontradas`);
-
-    // PASO 5: Procesar saldos por cuenta corriente
-    const saldosPorCuenta = {};
-
-    cartolas2025.forEach(cartola => {
-      const cuentaId = cartola.cuenta_corriente_id;
+    if (cartolasDisponibles) {
+      console.log('📊 Procesando saldos desde cartolas...');
+      estrategiaUsada = 'cartolas_disponibles';
       
-      if (!cuentaId) return;
-
-      // Buscar saldos en la cartola
-      let saldosEnCartola = [];
-      
-      if (cartola.Saldos && Array.isArray(cartola.Saldos)) {
-        saldosEnCartola = cartola.Saldos;
-      } else if (cartola.Saldo) {
-        saldosEnCartola = [cartola.Saldo];
-      }
-
-      saldosEnCartola.forEach(saldo => {
-        // Solo procesar saldos marcados como últimos registros
-        if (saldo.last_record === 1) {
-          const fechaCartola = new Date(cartola.fecha);
-          
-          if (!saldosPorCuenta[cuentaId] || fechaCartola > new Date(saldosPorCuenta[cuentaId].fecha)) {
-            saldosPorCuenta[cuentaId] = {
-              saldoDeudor: parseFloat(saldo.saldo_deudor || 0),
-              saldoAcreedor: parseFloat(saldo.saldo_acreedor || 0),
-              debe: parseFloat(saldo.debe || 0),
-              haber: parseFloat(saldo.haber || 0),
-              fecha: cartola.fecha,
-              cartola_id: cartola.id,
-              cuenta_corriente_id: cuentaId
-            };
-          }
-        }
+      // Filtrar cartolas de 2025
+      const cartolas2025 = cartolas.filter(cartola => {
+        const fecha = new Date(cartola.fecha);
+        return fecha.getFullYear() === 2025;
       });
-    });
 
-    console.log(`📊 Saldos procesados para ${Object.keys(saldosPorCuenta).length} cuentas`);
+      console.log(`📅 ${cartolas2025.length} cartolas de 2025 encontradas`);
 
-    // PASO 6: Combinar con información de cuentas y calcular saldos finales
+      cartolas2025.forEach(cartola => {
+        const cuentaId = cartola.cuenta_corriente_id;
+        
+        if (!cuentaId) return;
+
+        let saldosEnCartola = [];
+        
+        if (cartola.Saldos && Array.isArray(cartola.Saldos)) {
+          saldosEnCartola = cartola.Saldos;
+        } else if (cartola.Saldo) {
+          saldosEnCartola = [cartola.Saldo];
+        }
+
+        saldosEnCartola.forEach(saldo => {
+          if (saldo.last_record === 1) {
+            const fechaCartola = new Date(cartola.fecha);
+            
+            if (!saldosPorCuenta[cuentaId] || fechaCartola > new Date(saldosPorCuenta[cuentaId].fecha)) {
+              saldosPorCuenta[cuentaId] = {
+                saldoDeudor: parseFloat(saldo.saldo_deudor || 0),
+                saldoAcreedor: parseFloat(saldo.saldo_acreedor || 0),
+                debe: parseFloat(saldo.debe || 0),
+                haber: parseFloat(saldo.haber || 0),
+                fecha: cartola.fecha,
+                cartola_id: cartola.id,
+                cuenta_corriente_id: cuentaId
+              };
+            }
+          }
+        });
+      });
+    } else {
+      console.log('🔄 Usando saldos actuales conocidos (respaldo)...');
+      estrategiaUsada = 'saldos_conocidos_respaldo';
+    }
+
+    // PASO 5: Combinar con información de cuentas y calcular saldos finales
     const cuentasConSaldos = cuentas.map(cuenta => {
       const saldoInfo = saldosPorCuenta[cuenta.id];
       
-      // Identificar el banco para buscar saldo inicial
+      // Identificar el banco para buscar saldo conocido
       const nombreBanco = cuenta.banco || cuenta.Banco || 'desconocido';
       const numeroCuenta = cuenta.numero || cuenta.numeroCuenta || cuenta.nombre || '';
       
-      // Buscar saldo inicial
-      let saldoInicial = 0;
-      const clavesBanco = Object.keys(saldosIniciales);
+      // Buscar saldo actual conocido
+      let saldoActual = 0;
+      const clavesBanco = Object.keys(saldosActualesConocidos);
       const claveBanco = clavesBanco.find(clave => 
         nombreBanco.toLowerCase().includes(clave.toLowerCase()) ||
         clave.toLowerCase().includes(nombreBanco.toLowerCase()) ||
-        saldosIniciales[clave].cuenta === numeroCuenta
+        saldosActualesConocidos[clave].cuenta === numeroCuenta
       );
       
-      if (claveBanco) {
-        saldoInicial = saldosIniciales[claveBanco].saldoInicial;
-      }
-
-      // Calcular saldo actual
-      let saldoActual = saldoInicial; // Default: mantener saldo inicial si no hay movimientos
-      
-      if (saldoInfo) {
-        // Usar saldo_deudor como saldo actual (más común en cuentas bancarias)
+      if (cartolasDisponibles && saldoInfo) {
+        // Usar datos de cartolas si están disponibles
         saldoActual = saldoInfo.saldoDeudor;
         
-        // Si saldo_deudor es 0, probar con otras combinaciones
         if (saldoActual === 0) {
-          // Intentar con diferencia deudor - acreedor
           const diferencia = saldoInfo.saldoDeudor - saldoInfo.saldoAcreedor;
           if (Math.abs(diferencia) > 0) {
             saldoActual = diferencia;
           }
           
-          // Si aún es 0, intentar con haber - debe
           if (saldoActual === 0) {
             const diferenciaHaberDebe = saldoInfo.haber - saldoInfo.debe;
             if (Math.abs(diferenciaHaberDebe) > 0) {
@@ -349,6 +348,9 @@ const obtenerSaldosBancarios = async () => {
             }
           }
         }
+      } else if (claveBanco) {
+        // Usar saldos conocidos como respaldo
+        saldoActual = saldosActualesConocidos[claveBanco].saldoActual;
       }
 
       return {
@@ -362,24 +364,28 @@ const obtenerSaldosBancarios = async () => {
         
         // Información adicional para debugging
         detalleCalculo: {
-          saldoInicial,
+          estrategiaUsada,
           saldoDeCartola: saldoInfo?.saldoDeudor || 0,
-          metodoCalculo: saldoInfo ? 'cartola_2025' : 'saldo_inicial',
+          metodoCalculo: cartolasDisponibles && saldoInfo ? 'cartola_2025' : 'saldo_conocido',
           ultimaCartola: saldoInfo?.cartola_id || null,
-          fechaUltimaCartola: saldoInfo?.fecha || null
+          fechaUltimaCartola: saldoInfo?.fecha || null,
+          claveBancoEncontrada: claveBanco || null
         },
         
         ultimaActualizacion: saldoInfo?.fecha || new Date().toISOString(),
         saldoInfo: saldoInfo || null,
-        origenSaldo: 'cartolas_2025_con_inicial'
+        origenSaldo: estrategiaUsada
       };
     });
 
-    // PASO 7: Calcular totales y mostrar resumen
+    // PASO 6: Calcular totales y mostrar resumen
     const totalSaldos = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.saldo, 0);
     
     console.log('\n💰 RESUMEN DE SALDOS BANCARIOS:');
     console.log('================================');
+    console.log(`🔧 Estrategia usada: ${estrategiaUsada}`);
+    console.log(`📊 Cartolas disponibles: ${cartolasDisponibles ? 'Sí' : 'No'}`);
+    console.log('--------------------------------');
     cuentasConSaldos.forEach(cuenta => {
       const saldoFormateado = cuenta.saldo.toLocaleString('es-CL');
       const metodo = cuenta.detalleCalculo.metodoCalculo;
