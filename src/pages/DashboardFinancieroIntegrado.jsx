@@ -1,89 +1,76 @@
-// DashboardFinancieroIntegrado.jsx - Con importaciones corregidas
+// === ACTUALIZACIONES PARA EL COMPONENTE DASHBOARD ===
+
 import React, { useState, useEffect } from 'react';
 import { 
-  AlertCircle, Calendar, Wallet, PieChart, TrendingUp, 
-  RefreshCw, CheckCircle, Clock
-} from 'lucide-react';
-
-// ✅ IMPORTACIONES CORREGIDAS - Usar los nombres correctos del adaptador
-import chipaxService from '../services/chipaxService';
-import { 
-  adaptarSaldosBancarios, 
   adaptarCuentasPorCobrar, 
-  adaptarCuentasPorPagar  // ✅ Cambio: era 'adaptarCompras'
+  adaptarCuentasPorPagar, 
+  filtrarComprasPendientes,
+  filtrarComprasPorFecha 
 } from '../services/chipaxAdapter';
 
 const DashboardFinancieroIntegrado = () => {
-  // Estados esenciales
+  // Estados existentes
   const [saldosBancarios, setSaldosBancarios] = useState([]);
-  const [cuentasPendientes, setCuentasPendientes] = useState([]);
+  const [cuentasPorCobrar, setCuentasPorCobrar] = useState([]);
   const [cuentasPorPagar, setCuentasPorPagar] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState([]);
-
-  // === FUNCIONES DE CARGA CORREGIDAS ===
-
-  const cargarSaldosBancarios = async () => {
-    try {
-      console.log('🏦 Cargando saldos bancarios...');
-      const datos = await chipaxService.obtenerSaldosBancarios();
-      
-      // ✅ CORRECCIÓN: Usar adaptarSaldosBancarios
-      if (Array.isArray(datos)) {
-        const saldosAdaptados = adaptarSaldosBancarios(datos);
-        setSaldosBancarios(saldosAdaptados);
-        console.log(`✅ ${saldosAdaptados.length} saldos cargados`);
-      } else {
-        console.warn('⚠️ Saldos no es array, usando array vacío');
-        setSaldosBancarios([]);
-      }
-    } catch (error) {
-      console.error('❌ Error cargando saldos:', error);
-      setSaldosBancarios([]);
-      setErrors(prev => [...prev, `Saldos: ${error.message}`]);
-    }
-  };
-
+  
+  // ✅ NUEVOS ESTADOS PARA FILTRADO
+  const [filtroCompras, setFiltroCompras] = useState({
+    soloNoPagadas: false,
+    fechaInicio: '',
+    fechaFin: '',
+    folioFiltro: ''
+  });
+  
+  // ✅ FUNCIÓN MEJORADA: Cargar cuentas por cobrar
   const cargarCuentasPorCobrar = async () => {
+    console.log('📋 Cargando cuentas por cobrar...');
+    
     try {
-      console.log('📋 Cargando cuentas por cobrar...');
-      const datos = await chipaxService.obtenerCuentasPorCobrar();
+      const dtes = await chipaxService.obtenerCuentasPorCobrar();
+      console.log('📊 DTEs obtenidos:', dtes);
       
-      // ✅ CORRECCIÓN: Usar adaptarCuentasPorCobrar
-      if (Array.isArray(datos)) {
-        const cuentasAdaptadas = adaptarCuentasPorCobrar(datos);
-        setCuentasPendientes(cuentasAdaptadas);
-        console.log(`✅ ${cuentasAdaptadas.length} cuentas por cobrar cargadas`);
+      if (Array.isArray(dtes)) {
+        const dtesAdaptados = adaptarCuentasPorCobrar(dtes);
+        
+        // ✅ VALIDACIÓN: Verificar que tenemos datos válidos
+        const dtesConSaldo = dtesAdaptados.filter(dte => dte.monto > 0);
+        
+        console.log(`✅ ${dtesAdaptados.length} cuentas por cobrar cargadas`);
+        console.log(`💰 ${dtesConSaldo.length} con saldo pendiente`);
+        
+        setCuentasPorCobrar(dtesAdaptados);
       } else {
-        console.warn('⚠️ Cuentas por cobrar no es array, usando array vacío');
-        setCuentasPendientes([]);
+        console.warn('⚠️ DTEs no es array, usando array vacío');
+        setCuentasPorCobrar([]);
       }
     } catch (error) {
       console.error('❌ Error cargando cuentas por cobrar:', error);
-      setCuentasPendientes([]);
+      setCuentasPorCobrar([]);
       setErrors(prev => [...prev, `Por cobrar: ${error.message}`]);
     }
   };
 
+  // ✅ FUNCIÓN MEJORADA: Cargar cuentas por pagar
   const cargarCuentasPorPagar = async () => {
+    console.log('💸 Cargando cuentas por pagar...');
+    
     try {
-      console.log('💸 Cargando cuentas por pagar...');
-      const comprasRaw = await chipaxService.obtenerCuentasPorPagar();
+      const compras = await chipaxService.obtenerCuentasPorPagar();
+      console.log('📊 Compras obtenidas:', compras);
       
-      // ✅ CORRECCIÓN: Usar adaptarCuentasPorPagar (no adaptarCompras)
-      if (Array.isArray(comprasRaw)) {
-        const comprasAdaptadas = adaptarCuentasPorPagar(comprasRaw);
+      if (Array.isArray(compras)) {
+        const comprasAdaptadas = adaptarCuentasPorPagar(compras);
         
-        // Verificar que los proveedores sean strings
-        const primerElemento = comprasAdaptadas[0];
-        if (primerElemento && typeof primerElemento.proveedor === 'string') {
-          setCuentasPorPagar(comprasAdaptadas);
-          console.log(`✅ ${comprasAdaptadas.length} cuentas por pagar cargadas`);
-        } else {
-          console.error('❌ Error: proveedor no es string después de adaptación');
-          setCuentasPorPagar([]);
-          setErrors(prev => [...prev, 'Por pagar: Error en adaptación de proveedor']);
-        }
+        console.log(`✅ ${comprasAdaptadas.length} cuentas por pagar cargadas`);
+        
+        // ✅ MOSTRAR ESTADÍSTICAS
+        const pendientes = filtrarComprasPendientes(comprasAdaptadas);
+        console.log(`💰 ${pendientes.length} compras realmente pendientes`);
+        
+        setCuentasPorPagar(comprasAdaptadas);
       } else {
         console.warn('⚠️ Compras no es array, usando array vacío');
         setCuentasPorPagar([]);
@@ -95,266 +82,260 @@ const DashboardFinancieroIntegrado = () => {
     }
   };
 
-  // Cargar todos los datos al iniciar
-  const cargarTodosLosDatos = async () => {
-    setLoading(true);
-    setErrors([]); // Limpiar errores previos
-    
-    console.log('🚀 Iniciando carga completa del dashboard...');
-    
-    try {
-      // Cargar en secuencia para evitar problemas de concurrencia
-      await cargarSaldosBancarios();
-      await cargarCuentasPorCobrar();
-      await cargarCuentasPorPagar();
-      
-      console.log('✅ Carga completa finalizada');
-    } catch (error) {
-      console.error('❌ Error en carga completa:', error);
-      setErrors(prev => [...prev, `Carga general: ${error.message}`]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Cargar datos al montar el componente
-  useEffect(() => {
-    cargarTodosLosDatos();
-  }, []);
-
-  // === FUNCIONES DE CÁLCULO SEGURAS ===
-
-  const calcularTotalSaldos = () => {
-    if (!Array.isArray(saldosBancarios)) return 0;
-    return saldosBancarios.reduce((total, cuenta) => {
-      const saldo = parseFloat(cuenta.saldo) || 0;
-      return total + saldo;
-    }, 0);
-  };
-
+  // ✅ FUNCIONES DE CÁLCULO CORREGIDAS
   const calcularTotalPorCobrar = () => {
-    if (!Array.isArray(cuentasPendientes)) return 0;
-    return cuentasPendientes.reduce((total, cuenta) => {
-      const monto = parseFloat(cuenta.monto) || 0;
-      return total + monto;
-    }, 0);
+    if (!Array.isArray(cuentasPorCobrar)) return 0;
+    
+    return cuentasPorCobrar
+      .filter(cuenta => cuenta.estado === 'Pendiente' && !cuenta.anulado)
+      .reduce((total, cuenta) => total + (cuenta.monto || 0), 0);
   };
 
   const calcularTotalPorPagar = () => {
     if (!Array.isArray(cuentasPorPagar)) return 0;
-    return cuentasPorPagar.reduce((total, cuenta) => {
-      const monto = parseFloat(cuenta.monto) || 0;
-      return total + monto;
-    }, 0);
+    
+    // ✅ OPCIÓN 1: Solo pendientes (recomendado para el resumen)
+    if (filtroCompras.soloNoPagadas) {
+      return filtrarComprasPendientes(cuentasPorPagar)
+        .reduce((total, compra) => total + (compra.monto || 0), 0);
+    }
+    
+    // ✅ OPCIÓN 2: Todas las compras (para vista completa)
+    return cuentasPorPagar.reduce((total, compra) => total + (compra.monto || 0), 0);
   };
 
-  const calcularPosicionNeta = () => {
-    return calcularTotalSaldos() + calcularTotalPorCobrar() - calcularTotalPorPagar();
+  // ✅ FUNCIÓN PARA FILTRAR COMPRAS EN LA UI
+  const obtenerComprasFiltradas = () => {
+    if (!Array.isArray(cuentasPorPagar)) return [];
+    
+    let comprasFiltradas = [...cuentasPorPagar];
+    
+    // Filtro por estado de pago
+    if (filtroCompras.soloNoPagadas) {
+      comprasFiltradas = filtrarComprasPendientes(comprasFiltradas);
+    }
+    
+    // Filtro por rango de fechas
+    if (filtroCompras.fechaInicio && filtroCompras.fechaFin) {
+      comprasFiltradas = filtrarComprasPorFecha(
+        comprasFiltradas, 
+        filtroCompras.fechaInicio, 
+        filtroCompras.fechaFin
+      );
+    }
+    
+    // Filtro por folio
+    if (filtroCompras.folioFiltro.trim()) {
+      comprasFiltradas = comprasFiltradas.filter(compra => 
+        compra.folio.toString().includes(filtroCompras.folioFiltro.trim())
+      );
+    }
+    
+    return comprasFiltradas;
   };
 
-  // === FUNCIONES DE UTILIDAD ===
-
-  const formatCurrency = (amount) => {
-    const numero = parseFloat(amount) || 0;
-    return new Intl.NumberFormat('es-CL', {
-      style: 'currency',
-      currency: 'CLP',
-      minimumFractionDigits: 0
-    }).format(numero);
+  // ✅ FUNCIÓN PARA OBTENER CUENTAS POR COBRAR PENDIENTES
+  const obtenerCobrarPendientes = () => {
+    if (!Array.isArray(cuentasPorCobrar)) return [];
+    
+    return cuentasPorCobrar.filter(cuenta => 
+      cuenta.estado === 'Pendiente' && 
+      !cuenta.anulado && 
+      cuenta.monto > 0
+    );
   };
+
+  // Componente de filtros para compras
+  const FiltrosCompras = () => (
+    <div className="bg-gray-50 p-4 rounded-lg mb-4">
+      <h4 className="font-medium text-gray-700 mb-3">Filtros para Compras</h4>
+      
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Filtro solo no pagadas */}
+        <label className="flex items-center">
+          <input
+            type="checkbox"
+            checked={filtroCompras.soloNoPagadas}
+            onChange={(e) => setFiltroCompras(prev => ({
+              ...prev,
+              soloNoPagadas: e.target.checked
+            }))}
+            className="mr-2"
+          />
+          Solo no pagadas
+        </label>
+        
+        {/* Filtro por folio */}
+        <input
+          type="text"
+          placeholder="Filtrar por folio"
+          value={filtroCompras.folioFiltro}
+          onChange={(e) => setFiltroCompras(prev => ({
+            ...prev,
+            folioFiltro: e.target.value
+          }))}
+          className="px-3 py-2 border border-gray-300 rounded"
+        />
+        
+        {/* Filtro fecha inicio */}
+        <input
+          type="date"
+          value={filtroCompras.fechaInicio}
+          onChange={(e) => setFiltroCompras(prev => ({
+            ...prev,
+            fechaInicio: e.target.value
+          }))}
+          className="px-3 py-2 border border-gray-300 rounded"
+        />
+        
+        {/* Filtro fecha fin */}
+        <input
+          type="date"
+          value={filtroCompras.fechaFin}
+          onChange={(e) => setFiltroCompras(prev => ({
+            ...prev,
+            fechaFin: e.target.value
+          }))}
+          className="px-3 py-2 border border-gray-300 rounded"
+        />
+      </div>
+      
+      {/* Estadísticas de filtrado */}
+      <div className="mt-3 text-sm text-gray-600">
+        Mostrando {obtenerComprasFiltradas().length} de {cuentasPorPagar.length} compras
+        {filtroCompras.soloNoPagadas && ` (${filtrarComprasPendientes(cuentasPorPagar).length} pendientes)`}
+      </div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Dashboard Financiero</h1>
-            <p className="text-gray-600">PGR Seguridad S.p.A - Chipax API v2</p>
-          </div>
-          
-          <button
-            onClick={cargarTodosLosDatos}
-            disabled={loading}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              loading 
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Cargando...' : 'Recargar'}
-          </button>
-        </div>
-
-        {/* Estado de carga */}
-        {loading && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center">
-              <RefreshCw className="h-4 w-4 animate-spin text-blue-500 mr-2" />
-              <span className="text-blue-700">Cargando datos desde Chipax...</span>
-            </div>
-          </div>
-        )}
+    <div className="p-6 max-w-7xl mx-auto">
+      {/* Header existente */}
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Dashboard Financiero</h1>
+        <button
+          onClick={cargarTodosLosDatos}
+          disabled={loading}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
+        >
+          {loading ? 'Cargando...' : 'Actualizar'}
+        </button>
       </div>
 
-      {/* Mostrar errores si existen */}
-      {errors.length > 0 && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-          <h3 className="text-red-800 font-medium flex items-center mb-2">
-            <AlertCircle className="h-4 w-4 mr-2" />
-            Errores Durante la Carga
-          </h3>
-          <ul className="text-red-700 text-sm space-y-1">
-            {errors.map((error, index) => (
-              <li key={index}>• {error}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Tarjetas de resumen financiero */}
+      {/* Tarjetas de resumen CORREGIDAS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* Saldos Bancarios */}
+        {/* Cuentas por Cobrar - Solo pendientes */}
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-500">Saldos Bancarios</h3>
-            <Wallet className="h-5 w-5 text-blue-500" />
-          </div>
-          <p className="text-2xl font-bold text-gray-900">
-            {formatCurrency(calcularTotalSaldos())}
-          </p>
-          <p className="text-sm text-gray-600">
-            {saldosBancarios.length} cuentas
-          </p>
-        </div>
-
-        {/* Cuentas por Cobrar */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-500">Por Cobrar</h3>
+            <h3 className="text-sm font-medium text-gray-500">Por Cobrar (Pendiente)</h3>
             <TrendingUp className="h-5 w-5 text-green-500" />
           </div>
           <p className="text-2xl font-bold text-gray-900">
             {formatCurrency(calcularTotalPorCobrar())}
           </p>
           <p className="text-sm text-gray-600">
-            {cuentasPendientes.length} facturas
+            {obtenerCobrarPendientes().length} facturas pendientes
           </p>
         </div>
 
-        {/* Cuentas por Pagar */}
+        {/* Cuentas por Pagar - Con filtro */}
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-500">Por Pagar</h3>
+            <h3 className="text-sm font-medium text-gray-500">
+              Por Pagar {filtroCompras.soloNoPagadas ? '(Pendiente)' : '(Total)'}
+            </h3>
             <Calendar className="h-5 w-5 text-orange-500" />
           </div>
           <p className="text-2xl font-bold text-gray-900">
             {formatCurrency(calcularTotalPorPagar())}
           </p>
           <p className="text-sm text-gray-600">
-            {cuentasPorPagar.length} compras
+            {obtenerComprasFiltradas().length} compras
           </p>
         </div>
+        
+        {/* Otras tarjetas... */}
+      </div>
 
-        {/* Posición Neta */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-500">Posición Neta</h3>
-            <PieChart className="h-5 w-5 text-purple-500" />
-          </div>
-          <p className={`text-2xl font-bold ${
-            calcularPosicionNeta() >= 0 ? 'text-green-600' : 'text-red-600'
-          }`}>
-            {formatCurrency(calcularPosicionNeta())}
-          </p>
-          <p className="text-sm text-gray-600">
-            {calcularPosicionNeta() >= 0 ? 'Posición positiva' : 'Posición negativa'}
-          </p>
+      {/* Sección de Cuentas por Pagar con filtros */}
+      <div className="bg-white p-6 rounded-lg shadow mb-8">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Cuentas por Pagar</h2>
+        
+        <FiltrosCompras />
+        
+        <div className="overflow-x-auto">
+          <table className="min-w-full table-auto">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="px-4 py-2 text-left">Folio</th>
+                <th className="px-4 py-2 text-left">Proveedor</th>
+                <th className="px-4 py-2 text-left">Fecha</th>
+                <th className="px-4 py-2 text-left">Fecha Pago</th>
+                <th className="px-4 py-2 text-left">Monto</th>
+                <th className="px-4 py-2 text-left">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {obtenerComprasFiltradas().map((compra) => (
+                <tr key={compra.id} className="border-b">
+                  <td className="px-4 py-2">{compra.folio}</td>
+                  <td className="px-4 py-2">{compra.razonSocial}</td>
+                  <td className="px-4 py-2">{compra.fecha}</td>
+                  <td className="px-4 py-2">
+                    {compra.fechaPago ? compra.fechaPago : 'Sin pagar'}
+                  </td>
+                  <td className="px-4 py-2">{formatCurrency(compra.monto)}</td>
+                  <td className="px-4 py-2">
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      compra.estado === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' :
+                      compra.estado === 'Pagado' ? 'bg-green-100 text-green-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {compra.estado}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Detalles en dos columnas */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Cuentas por Cobrar Detalladas */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Últimas Cuentas por Cobrar</h2>
-          
-          {cuentasPendientes.length > 0 ? (
-            <div className="space-y-3 max-h-64 overflow-y-auto">
-              {cuentasPendientes.slice(0, 5).map((cuenta, index) => (
-                <div key={cuenta.id || index} className="p-3 border border-gray-200 rounded">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="font-medium text-gray-900">Folio {cuenta.folio}</p>
-                      <p className="text-sm text-gray-600">{cuenta.razonSocial}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-green-600">
-                        {formatCurrency(cuenta.monto)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+      {/* Sección de Cuentas por Cobrar */}
+      <div className="bg-white p-6 rounded-lg shadow">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Cuentas por Cobrar Pendientes</h2>
+        
+        <div className="overflow-x-auto">
+          <table className="min-w-full table-auto">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="px-4 py-2 text-left">Folio</th>
+                <th className="px-4 py-2 text-left">Cliente</th>
+                <th className="px-4 py-2 text-left">Fecha</th>
+                <th className="px-4 py-2 text-left">Vencimiento</th>
+                <th className="px-4 py-2 text-left">Monto Pendiente</th>
+                <th className="px-4 py-2 text-left">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {obtenerCobrarPendientes().map((cuenta) => (
+                <tr key={cuenta.id} className="border-b">
+                  <td className="px-4 py-2">{cuenta.folio}</td>
+                  <td className="px-4 py-2">{cuenta.razonSocial}</td>
+                  <td className="px-4 py-2">{cuenta.fecha}</td>
+                  <td className="px-4 py-2">{cuenta.fechaVencimiento || 'Sin fecha'}</td>
+                  <td className="px-4 py-2">{formatCurrency(cuenta.monto)}</td>
+                  <td className="px-4 py-2">
+                    <span className="px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">
+                      {cuenta.estado}
+                    </span>
+                  </td>
+                </tr>
               ))}
-              {cuentasPendientes.length > 5 && (
-                <p className="text-sm text-gray-500 text-center">
-                  Y {cuentasPendientes.length - 5} más...
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className="text-gray-500 text-center py-8">No hay cuentas por cobrar</p>
-          )}
-        </div>
-
-        {/* Cuentas por Pagar Detalladas */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Últimas Cuentas por Pagar</h2>
-          
-          {cuentasPorPagar.length > 0 ? (
-            <div className="space-y-3 max-h-64 overflow-y-auto">
-              {cuentasPorPagar.slice(0, 5).map((cuenta, index) => (
-                <div key={cuenta.id || index} className="p-3 border border-gray-200 rounded">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="font-medium text-gray-900">Folio {cuenta.numero}</p>
-                      <p className="text-sm text-gray-600">{cuenta.proveedor}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-red-600">
-                        {formatCurrency(cuenta.monto)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {cuentasPorPagar.length > 5 && (
-                <p className="text-sm text-gray-500 text-center">
-                  Y {cuentasPorPagar.length - 5} más...
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className="text-gray-500 text-center py-8">No hay cuentas por pagar</p>
-          )}
+            </tbody>
+          </table>
         </div>
       </div>
-
-      {/* Debug info solo en desarrollo */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mt-8 p-4 bg-gray-100 rounded-lg">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Debug Info</h3>
-          <div className="text-xs text-gray-600 space-y-1">
-            <p>Saldos bancarios: {saldosBancarios.length} (array: {Array.isArray(saldosBancarios) ? 'Sí' : 'No'})</p>
-            <p>Cuentas por cobrar: {cuentasPendientes.length} (array: {Array.isArray(cuentasPendientes) ? 'Sí' : 'No'})</p>
-            <p>Cuentas por pagar: {cuentasPorPagar.length} (array: {Array.isArray(cuentasPorPagar) ? 'Sí' : 'No'})</p>
-            <p>Errores: {errors.length}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
-
-export default DashboardFinancieroIntegrado;
