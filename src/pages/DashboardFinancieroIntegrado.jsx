@@ -112,10 +112,9 @@ const DashboardFinancieroIntegrado = () => {
   const cargarSolo2025 = async () => {
     try {
       setLoading(true);
-      setErrors([]); // Limpiar errores previos
+      setErrors([]);
       console.log('🚀 Cargando SOLO facturas de 2025...');
       
-      // Cargar compras de 2025
       const compras = await chipaxService.obtenerCuentasPorPagar();
       
       if (Array.isArray(compras)) {
@@ -129,32 +128,34 @@ const DashboardFinancieroIntegrado = () => {
         setCuentasPorPagar(cuentasAdaptadas);
         console.log(`✅ ${cuentasAdaptadas.length} facturas de 2025 cargadas`);
       }
-
-      // ✅ TAMBIÉN cargar cuentas por cobrar
-      try {
-        await cargarCuentasPorCobrar();
-      } catch (cobrarError) {
-        console.warn('⚠️ Error cargando cuentas por cobrar:', cobrarError.message);
-        // No detener el proceso si las cuentas por cobrar fallan
-      }
-
-      // ✅ TAMBIÉN cargar saldos bancarios
-      try {
-        await cargarSaldosBancarios();
-      } catch (saldosError) {
-        console.warn('⚠️ Error cargando saldos bancarios:', saldosError.message);
-        // No detener el proceso si los saldos fallan
-      }
-
     } catch (error) {
-      console.error('❌ Error cargando 2025:', error);
-      
-      // Manejo específico de errores CORS
-      if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
-        setErrors(prev => [...prev, 'Error de CORS: Verifica la configuración de la API']);
-      } else {
-        setErrors(prev => [...prev, `2025: ${error.message}`]);
-      }
+      console.error('❌ Error cargando facturas 2025:', error);
+      setErrors(prev => [...prev, `Facturas 2025: ${error.message}`]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ FUNCIONES ESPECÍFICAS para cada módulo
+  const cargarSoloSaldos = async () => {
+    try {
+      setLoading(true);
+      console.log('🏦 Cargando solo saldos bancarios...');
+      await cargarSaldosBancarios();
+    } catch (error) {
+      console.error('❌ Error cargando saldos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cargarSoloCuentasPorCobrar = async () => {
+    try {
+      setLoading(true);
+      console.log('📋 Cargando solo cuentas por cobrar...');
+      await cargarCuentasPorCobrar();
+    } catch (error) {
+      console.error('❌ Error cargando cuentas por cobrar:', error);
     } finally {
       setLoading(false);
     }
@@ -182,10 +183,35 @@ const DashboardFinancieroIntegrado = () => {
     }
   };
 
-  // Carga inicial - SOLO 2025 por defecto
+  // Carga inicial - SOLO verificar conectividad
   useEffect(() => {
-    cargarSolo2025(); // ✅ Cambio: usar cargarSolo2025 en lugar de cargarTodosDatos
+    verificarConectividad();
   }, []);
+
+  // ✅ NUEVA FUNCIÓN: Solo verificar que la API funciona
+  const verificarConectividad = async () => {
+    try {
+      setLoading(true);
+      setErrors([]);
+      console.log('🔍 Verificando conectividad con Chipax...');
+      
+      // Solo hacer login para verificar que la API responde
+      await chipaxService.getChipaxToken();
+      
+      console.log('✅ Conectividad con Chipax verificada');
+      setErrors([]);
+    } catch (error) {
+      console.error('❌ Error de conectividad:', error);
+      
+      if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
+        setErrors(['⚠️ Error de CORS detectado. La API funciona pero requiere configuración especial desde navegador.']);
+      } else {
+        setErrors([`❌ Error de conectividad: ${error.message}`]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // === FUNCIONES DE FILTRADO Y PAGINACIÓN ===
   const obtenerComprasFiltradas = () => {
@@ -301,29 +327,98 @@ const DashboardFinancieroIntegrado = () => {
   };
 
   const ControlesPrincipales = () => (
-    <div className="mb-6 flex flex-wrap gap-4">
-      <button
-        onClick={cargarSolo2025}
-        disabled={loading}
-        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-      >
-        <Calendar size={16} />
-        {loading ? 'Cargando...' : 'Solo 2025 (Actual)'}
-      </button>
+    <div className="mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        {/* Botón Cuentas por Pagar */}
+        <button
+          onClick={cargarSolo2025}
+          disabled={loading}
+          className="flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+        >
+          <AlertCircle size={16} />
+          <div className="text-left">
+            <div className="text-sm font-medium">Cuentas por Pagar</div>
+            <div className="text-xs opacity-90">Facturas 2025</div>
+          </div>
+        </button>
 
-      <button
-        onClick={cargarTodosDatos}
-        disabled={loading}
-        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-      >
-        <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-        Cargar Todas (Lento)
-      </button>
+        {/* Botón Cuentas por Cobrar */}
+        <button
+          onClick={cargarSoloCuentasPorCobrar}
+          disabled={loading}
+          className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+        >
+          <TrendingUp size={16} />
+          <div className="text-left">
+            <div className="text-sm font-medium">Cuentas por Cobrar</div>
+            <div className="text-xs opacity-90">Facturas pendientes</div>
+          </div>
+        </button>
+
+        {/* Botón Saldos Bancarios */}
+        <button
+          onClick={cargarSoloSaldos}
+          disabled={loading}
+          className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        >
+          <Wallet size={16} />
+          <div className="text-left">
+            <div className="text-sm font-medium">Saldos Bancarios</div>
+            <div className="text-xs opacity-90">Cuentas corrientes</div>
+          </div>
+        </button>
+
+        {/* Botón Cargar Todo */}
+        <button
+          onClick={cargarTodosDatos}
+          disabled={loading}
+          className="flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
+        >
+          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          <div className="text-left">
+            <div className="text-sm font-medium">Cargar Todo</div>
+            <div className="text-xs opacity-90">Proceso completo</div>
+          </div>
+        </button>
+      </div>
+
+      {/* Estado de conectividad */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {loading ? (
+            <>
+              <RefreshCw className="animate-spin text-blue-500" size={16} />
+              <span className="text-sm text-blue-600">Cargando...</span>
+            </>
+          ) : errors.length === 0 ? (
+            <>
+              <CheckCircle className="text-green-500" size={16} />
+              <span className="text-sm text-green-600">✅ API Chipax conectada</span>
+            </>
+          ) : (
+            <>
+              <AlertCircle className="text-red-500" size={16} />
+              <span className="text-sm text-red-600">⚠️ Verificar conectividad</span>
+            </>
+          )}
+        </div>
+
+        <button
+          onClick={verificarConectividad}
+          disabled={loading}
+          className="text-sm text-gray-600 hover:text-gray-800 underline"
+        >
+          Verificar conexión
+        </button>
+      </div>
 
       {errors.length > 0 && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg">
-          <AlertCircle size={16} />
-          {errors.length} error(es)
+        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <div className="text-sm text-red-600">
+            {errors.map((error, index) => (
+              <div key={index}>• {error}</div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -331,29 +426,40 @@ const DashboardFinancieroIntegrado = () => {
 
   const EstadisticasGenerales = () => {
     const totalSaldos = saldosBancarios.reduce((sum, cuenta) => sum + (cuenta.saldoCalculado || 0), 0);
-    const totalPorCobrar = cuentasPorCobrar.reduce((sum, cuenta) => sum + (cuenta.saldo || 0), 0);
     
-    // ✅ SOLO mostrar el total de las facturas cargadas (659 de 2025)
+    // ✅ CORRECCIÓN: Sumar correctamente las cuentas por cobrar
+    const totalPorCobrar = cuentasPorCobrar.reduce((sum, cuenta) => sum + (cuenta.saldo || cuenta.monto || 0), 0);
+    
+    // Total de facturas cargadas
     const totalPorPagar = cuentasPorPagar.reduce((sum, cuenta) => sum + (cuenta.monto || 0), 0);
     
-    // ✅ Información adicional sobre el filtro activo
+    // Información sobre el filtro activo
     const facturas2025 = cuentasPorPagar.filter(c => new Date(c.fecha).getFullYear() === 2025);
     const añoMostrado = facturas2025.length === cuentasPorPagar.length ? '2025' : 'Múltiples años';
 
     return (
       <div className="space-y-4">
-        {/* Indicador del filtro activo */}
+        {/* Indicador de datos cargados */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center gap-2">
-            <Calendar className="text-blue-600" size={16} />
-            <span className="text-sm font-medium text-blue-800">
-              Mostrando facturas de: {añoMostrado} ({cuentasPorPagar.length} facturas)
-            </span>
-            {facturas2025.length === cuentasPorPagar.length && (
-              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
-                SOLO 2025
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <Wallet className="text-blue-600" size={16} />
+              <span className="text-blue-800">
+                Saldos: {saldosBancarios.length > 0 ? `${saldosBancarios.length} cuentas` : 'Sin cargar'}
               </span>
-            )}
+            </div>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="text-blue-600" size={16} />
+              <span className="text-blue-800">
+                Por Cobrar: {cuentasPorCobrar.length > 0 ? `${cuentasPorCobrar.length} facturas` : 'Sin cargar'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <AlertCircle className="text-blue-600" size={16} />
+              <span className="text-blue-800">
+                Por Pagar: {cuentasPorPagar.length > 0 ? `${cuentasPorPagar.length} facturas ${añoMostrado}` : 'Sin cargar'}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -365,7 +471,14 @@ const DashboardFinancieroIntegrado = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Saldos Bancarios</p>
-                <p className="text-2xl font-semibold text-gray-900">{formatCurrency(totalSaldos)}</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {saldosBancarios.length > 0 ? formatCurrency(totalSaldos) : 'Sin datos'}
+                </p>
+                {saldosBancarios.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {saldosBancarios.length} cuentas
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -377,7 +490,14 @@ const DashboardFinancieroIntegrado = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Por Cobrar</p>
-                <p className="text-2xl font-semibold text-gray-900">{formatCurrency(totalPorCobrar)}</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {cuentasPorCobrar.length > 0 ? formatCurrency(totalPorCobrar) : 'Sin datos'}
+                </p>
+                {cuentasPorCobrar.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {cuentasPorCobrar.length} facturas
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -391,10 +511,14 @@ const DashboardFinancieroIntegrado = () => {
                 <p className="text-sm font-medium text-gray-600">
                   Por Pagar {añoMostrado === '2025' ? '(2025)' : ''}
                 </p>
-                <p className="text-2xl font-semibold text-gray-900">{formatCurrency(totalPorPagar)}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {cuentasPorPagar.length} facturas
+                <p className="text-2xl font-semibold text-gray-900">
+                  {cuentasPorPagar.length > 0 ? formatCurrency(totalPorPagar) : 'Sin datos'}
                 </p>
+                {cuentasPorPagar.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {cuentasPorPagar.length} facturas
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -663,7 +787,7 @@ const DashboardFinancieroIntegrado = () => {
           </div>
         </div>
 
-        {/* Errores */}
+        {/* Errores - Solo si hay errores */}
         {errors.length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
             <div className="flex items-center gap-2 mb-2">
@@ -698,6 +822,32 @@ const DashboardFinancieroIntegrado = () => {
         {pestanaActiva === 'dashboard' && (
           <>
             <ControlesPrincipales />
+            
+            {/* ✅ Mensaje de ayuda si no hay datos cargados */}
+            {saldosBancarios.length === 0 && cuentasPorCobrar.length === 0 && cuentasPorPagar.length === 0 && !loading && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-yellow-100 rounded-full">
+                    <Database className="text-yellow-600" size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-yellow-800 mb-2">
+                      🚀 ¡Bienvenido al Dashboard Financiero!
+                    </h3>
+                    <p className="text-yellow-700 mb-3">
+                      Para comenzar, haz clic en los botones de arriba para cargar los datos que necesites:
+                    </p>
+                    <ul className="text-sm text-yellow-700 space-y-1">
+                      <li>• <strong>Cuentas por Pagar:</strong> Facturas de proveedores (2025)</li>
+                      <li>• <strong>Cuentas por Cobrar:</strong> Facturas de clientes pendientes</li>
+                      <li>• <strong>Saldos Bancarios:</strong> Estado de cuentas corrientes</li>
+                      <li>• <strong>Cargar Todo:</strong> Todos los módulos de una vez</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <EstadisticasGenerales />
             <ResumenFacturas2025 />
             
