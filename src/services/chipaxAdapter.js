@@ -158,18 +158,11 @@ export const adaptarCuentasPorPagar = (compras) => {
           break;
           
         default:
-          // Para facturas realmente pagadas necesitamos fecha de pago real
-          if (fechaPagoReal) {
-            estado = 'Pagado Realmente';
-            saldoPendiente = 0;
-            descripcionEstado = 'Realmente pagado (con fecha de pago confirmada)';
-            categoria = 'pagado_realmente';
-          } else {
-            estado = 'Estado Desconocido';
-            saldoPendiente = montoTotal;
-            descripcionEstado = `Estado original: ${estadoChipax || compra.estado || 'Sin estado'}`;
-            categoria = 'desconocido';
-          }
+          // ✅ CORRECCIÓN: Estados desconocidos son pendientes de aprobación
+          estado = 'Pendiente Aprobación';
+          saldoPendiente = montoTotal;
+          descripcionEstado = `Pendiente de aprobación (estado original: ${estadoChipax || compra.estado || 'Sin estado'})`;
+          categoria = 'pendiente_aprobacion';
       }
     }
     
