@@ -1,4 +1,4 @@
-// DashboardFinancieroIntegrado.jsx - CON PAGINACIÓN COMPLETA
+// DashboardFinancieroIntegrado.jsx - VERSIÓN CORREGIDA COMPLETA
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -31,7 +31,7 @@ const DashboardFinancieroIntegrado = () => {
     folioFiltro: ''
   });
 
-  // ✅ ESTADOS PARA PAGINACIÓN
+  // Estados para paginación
   const [paginacionCompras, setPaginacionCompras] = useState({
     paginaActual: 1,
     itemsPorPagina: 50
@@ -41,6 +41,9 @@ const DashboardFinancieroIntegrado = () => {
     paginaActual: 1,
     itemsPorPagina: 50
   });
+
+  // Estado para mostrar el explorador
+  const [mostrarExplorador, setMostrarExplorador] = useState(false);
 
   // === FUNCIONES DE CARGA SECUENCIAL ===
 
@@ -61,7 +64,7 @@ const DashboardFinancieroIntegrado = () => {
       setSaldosBancarios([]);
       setErrors(prev => [...prev, `Saldos: ${error.message}`]);
     }
-  // === FUNCIÓN DE FORMATO ===
+  };
 
   const cargarCuentasPorCobrar = async () => {
     try {
@@ -100,7 +103,6 @@ const DashboardFinancieroIntegrado = () => {
         console.log(`✅ ${comprasAdaptadas.length} cuentas por pagar cargadas`);
         
         setCuentasPorPagar(comprasAdaptadas);
-        // Reset paginación al cargar nuevos datos
         setPaginacionCompras(prev => ({ ...prev, paginaActual: 1 }));
       } else {
         console.warn('⚠️ Compras no es array, usando array vacío');
@@ -113,7 +115,7 @@ const DashboardFinancieroIntegrado = () => {
     }
   };
 
-  // ✅ CARGA SECUENCIAL
+  // Carga secuencial
   const cargarTodosLosDatos = async () => {
     setLoading(true);
     setErrors([]);
@@ -200,8 +202,7 @@ const DashboardFinancieroIntegrado = () => {
     return comprasFiltradas;
   };
 
-  // ✅ FUNCIONES DE PAGINACIÓN
-
+  // Funciones de paginación
   const obtenerComprasPaginadas = () => {
     const comprasFiltradas = obtenerComprasFiltradas();
     const inicio = (paginacionCompras.paginaActual - 1) * paginacionCompras.itemsPorPagina;
@@ -224,7 +225,150 @@ const DashboardFinancieroIntegrado = () => {
     return Math.ceil(cuentasPorCobrar.length / paginacionCobrar.itemsPorPagina);
   };
 
-  // ✅ COMPONENTE DEL EXPLORADOR DE ENDPOINTS INTEGRADO
+  // === FUNCIÓN DE FORMATO ===
+  const formatCurrency = (amount) => {
+    if (typeof amount !== 'number' || isNaN(amount)) return '$0';
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  // === COMPONENTE DE FILTROS ===
+  const FiltrosCompras = () => (
+    <div className="bg-gray-50 p-4 rounded-lg mb-4">
+      <h4 className="font-medium text-gray-700 mb-3">Filtros para Compras</h4>
+      
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <label className="flex items-center">
+          <input
+            type="checkbox"
+            checked={filtroCompras.soloNoPagadas}
+            onChange={(e) => {
+              setFiltroCompras(prev => ({ ...prev, soloNoPagadas: e.target.checked }));
+              setPaginacionCompras(prev => ({ ...prev, paginaActual: 1 }));
+            }}
+            className="mr-2"
+          />
+          Solo no pagadas
+        </label>
+        
+        <input
+          type="text"
+          placeholder="Filtrar por folio"
+          value={filtroCompras.folioFiltro}
+          onChange={(e) => {
+            setFiltroCompras(prev => ({ ...prev, folioFiltro: e.target.value }));
+            setPaginacionCompras(prev => ({ ...prev, paginaActual: 1 }));
+          }}
+          className="px-3 py-2 border border-gray-300 rounded"
+        />
+        
+        <input
+          type="date"
+          value={filtroCompras.fechaInicio}
+          onChange={(e) => {
+            setFiltroCompras(prev => ({ ...prev, fechaInicio: e.target.value }));
+            setPaginacionCompras(prev => ({ ...prev, paginaActual: 1 }));
+          }}
+          className="px-3 py-2 border border-gray-300 rounded"
+        />
+        
+        <input
+          type="date"
+          value={filtroCompras.fechaFin}
+          onChange={(e) => {
+            setFiltroCompras(prev => ({ ...prev, fechaFin: e.target.value }));
+            setPaginacionCompras(prev => ({ ...prev, paginaActual: 1 }));
+          }}
+          className="px-3 py-2 border border-gray-300 rounded"
+        />
+      </div>
+      
+      <div className="mt-3 flex justify-between items-center text-sm text-gray-600">
+        <span>
+          Mostrando {obtenerComprasFiltradas().length} de {cuentasPorPagar.length} compras
+        </span>
+        <select
+          value={paginacionCompras.itemsPorPagina}
+          onChange={(e) => setPaginacionCompras(prev => ({ 
+            ...prev, 
+            itemsPorPagina: parseInt(e.target.value),
+            paginaActual: 1 
+          }))}
+          className="px-2 py-1 border border-gray-300 rounded text-sm"
+        >
+          <option value={25}>25 por página</option>
+          <option value={50}>50 por página</option>
+          <option value={100}>100 por página</option>
+        </select>
+      </div>
+    </div>
+  );
+
+  // Componente de paginación
+  const ComponentePaginacion = ({ paginacion, setPaginacion, totalPaginas, nombre }) => {
+    const paginasAMostrar = [];
+    const maxPaginas = 5;
+    
+    let inicio = Math.max(1, paginacion.paginaActual - Math.floor(maxPaginas / 2));
+    let fin = Math.min(totalPaginas, inicio + maxPaginas - 1);
+    
+    if (fin - inicio + 1 < maxPaginas) {
+      inicio = Math.max(1, fin - maxPaginas + 1);
+    }
+    
+    for (let i = inicio; i <= fin; i++) {
+      paginasAMostrar.push(i);
+    }
+
+    return (
+      <div className="flex items-center justify-between px-4 py-3 bg-white border-t">
+        <div className="text-sm text-gray-700">
+          Mostrando {((paginacion.paginaActual - 1) * paginacion.itemsPorPagina) + 1} a{' '}
+          {Math.min(paginacion.paginaActual * paginacion.itemsPorPagina, 
+                   nombre === 'compras' ? obtenerComprasFiltradas().length : cuentasPorCobrar.length)} de{' '}
+          {nombre === 'compras' ? obtenerComprasFiltradas().length : cuentasPorCobrar.length} resultados
+        </div>
+        
+        <div className="flex items-center space-x-1">
+          <button
+            onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: prev.paginaActual - 1 }))}
+            disabled={paginacion.paginaActual === 1}
+            className="p-2 rounded text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          
+          {paginasAMostrar.map(pagina => (
+            <button
+              key={pagina}
+              onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: pagina }))}
+              className={`px-3 py-1 rounded text-sm ${
+                paginacion.paginaActual === pagina
+                  ? 'bg-blue-500 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {pagina}
+            </button>
+          ))}
+          
+          <button
+            onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: prev.paginaActual + 1 }))}
+            disabled={paginacion.paginaActual === totalPaginas}
+            className="p-2 rounded text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // === COMPONENTE DEL EXPLORADOR DE ENDPOINTS INTEGRADO ===
   const ExplorerComponent = () => {
     const [exploring, setExploring] = useState(false);
     const [results, setResults] = useState([]);
@@ -591,147 +735,6 @@ const DashboardFinancieroIntegrado = () => {
               )}
             </div>
           )}
-        </div>
-      </div>
-    );
-  };
-  const formatCurrency = (amount) => {
-    if (typeof amount !== 'number' || isNaN(amount)) return '$0';
-    return new Intl.NumberFormat('es-CL', {
-      style: 'currency',
-      currency: 'CLP',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  // === COMPONENTE DE FILTROS ===
-  const FiltrosCompras = () => (
-    <div className="bg-gray-50 p-4 rounded-lg mb-4">
-      <h4 className="font-medium text-gray-700 mb-3">Filtros para Compras</h4>
-      
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            checked={filtroCompras.soloNoPagadas}
-            onChange={(e) => {
-              setFiltroCompras(prev => ({ ...prev, soloNoPagadas: e.target.checked }));
-              setPaginacionCompras(prev => ({ ...prev, paginaActual: 1 })); // Reset página
-            }}
-            className="mr-2"
-          />
-          Solo no pagadas
-        </label>
-        
-        <input
-          type="text"
-          placeholder="Filtrar por folio"
-          value={filtroCompras.folioFiltro}
-          onChange={(e) => {
-            setFiltroCompras(prev => ({ ...prev, folioFiltro: e.target.value }));
-            setPaginacionCompras(prev => ({ ...prev, paginaActual: 1 })); // Reset página
-          }}
-          className="px-3 py-2 border border-gray-300 rounded"
-        />
-        
-        <input
-          type="date"
-          value={filtroCompras.fechaInicio}
-          onChange={(e) => {
-            setFiltroCompras(prev => ({ ...prev, fechaInicio: e.target.value }));
-            setPaginacionCompras(prev => ({ ...prev, paginaActual: 1 })); // Reset página
-          }}
-          className="px-3 py-2 border border-gray-300 rounded"
-        />
-        
-        <input
-          type="date"
-          value={filtroCompras.fechaFin}
-          onChange={(e) => {
-            setFiltroCompras(prev => ({ ...prev, fechaFin: e.target.value }));
-            setPaginacionCompras(prev => ({ ...prev, paginaActual: 1 })); // Reset página
-          }}
-          className="px-3 py-2 border border-gray-300 rounded"
-        />
-      </div>
-      
-      <div className="mt-3 flex justify-between items-center text-sm text-gray-600">
-        <span>
-          Mostrando {obtenerComprasFiltradas().length} de {cuentasPorPagar.length} compras
-        </span>
-        <select
-          value={paginacionCompras.itemsPorPagina}
-          onChange={(e) => setPaginacionCompras(prev => ({ 
-            ...prev, 
-            itemsPorPagina: parseInt(e.target.value),
-            paginaActual: 1 
-          }))}
-          className="px-2 py-1 border border-gray-300 rounded text-sm"
-        >
-          <option value={25}>25 por página</option>
-          <option value={50}>50 por página</option>
-          <option value={100}>100 por página</option>
-        </select>
-      </div>
-    </div>
-  );
-
-  // ✅ COMPONENTE DE PAGINACIÓN
-  const ComponentePaginacion = ({ paginacion, setPaginacion, totalPaginas, nombre }) => {
-    const paginasAMostrar = [];
-    const maxPaginas = 5;
-    
-    let inicio = Math.max(1, paginacion.paginaActual - Math.floor(maxPaginas / 2));
-    let fin = Math.min(totalPaginas, inicio + maxPaginas - 1);
-    
-    if (fin - inicio + 1 < maxPaginas) {
-      inicio = Math.max(1, fin - maxPaginas + 1);
-    }
-    
-    for (let i = inicio; i <= fin; i++) {
-      paginasAMostrar.push(i);
-    }
-
-    return (
-      <div className="flex items-center justify-between px-4 py-3 bg-white border-t">
-        <div className="text-sm text-gray-700">
-          Mostrando {((paginacion.paginaActual - 1) * paginacion.itemsPorPagina) + 1} a{' '}
-          {Math.min(paginacion.paginaActual * paginacion.itemsPorPagina, 
-                   nombre === 'compras' ? obtenerComprasFiltradas().length : cuentasPorCobrar.length)} de{' '}
-          {nombre === 'compras' ? obtenerComprasFiltradas().length : cuentasPorCobrar.length} resultados
-        </div>
-        
-        <div className="flex items-center space-x-1">
-          <button
-            onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: prev.paginaActual - 1 }))}
-            disabled={paginacion.paginaActual === 1}
-            className="p-2 rounded text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          
-          {paginasAMostrar.map(pagina => (
-            <button
-              key={pagina}
-              onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: pagina }))}
-              className={`px-3 py-1 rounded text-sm ${
-                paginacion.paginaActual === pagina
-                  ? 'bg-blue-500 text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              {pagina}
-            </button>
-          ))}
-          
-          <button
-            onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: prev.paginaActual + 1 }))}
-            disabled={paginacion.paginaActual === totalPaginas}
-            className="p-2 rounded text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <ChevronRight size={18} />
-          </button>
         </div>
       </div>
     );
