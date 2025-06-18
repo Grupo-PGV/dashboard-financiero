@@ -1,3 +1,4 @@
+// ChipaxComprasDebugger.jsx - Componente para explorar endpoints de Chipax
 import React, { useState } from 'react';
 import { Play, Search, CheckCircle, AlertCircle, FileText, Calendar, Filter, Database } from 'lucide-react';
 
