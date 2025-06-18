@@ -1,4 +1,4 @@
-// chipaxService.js - VERSIÓN CORREGIDA CON MANEJO ROBUSTO DE TOKENS
+// chipaxService.js - CORREGIDO: Ordenamiento local forzado para obtener datos recientes
 
 const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
 const APP_ID = process.env.REACT_APP_CHIPAX_APP_ID;
@@ -16,13 +16,11 @@ let tokenCache = {
  * ✅ FUNCIÓN MEJORADA: Obtener token con manejo de concurrencia
  */
 const getChipaxToken = async () => {
-  // Si ya hay un proceso de refresh en curso, esperar a que termine
   if (tokenCache.isRefreshing && tokenCache.refreshPromise) {
     console.log('🔄 Esperando refresh de token en curso...');
     return await tokenCache.refreshPromise;
   }
 
-  // Verificar si el token existe y no ha expirado (con margen de 5 minutos)
   const now = Date.now();
   const tokenMargin = 5 * 60 * 1000; // 5 minutos de margen
   
@@ -31,17 +29,13 @@ const getChipaxToken = async () => {
     return tokenCache.token;
   }
 
-  // Marcar que se está refrescando el token
   tokenCache.isRefreshing = true;
-  
-  // Crear promesa de refresh para que otros requests esperen
   tokenCache.refreshPromise = refreshToken();
   
   try {
     const newToken = await tokenCache.refreshPromise;
     return newToken;
   } finally {
-    // Limpiar el estado de refresh
     tokenCache.isRefreshing = false;
     tokenCache.refreshPromise = null;
   }
@@ -74,25 +68,15 @@ const refreshToken = async () => {
     }
 
     const data = await response.json();
-    console.log('✅ Respuesta exitosa:', typeof data);
-
-    // ✅ VALIDACIÓN MEJORADA DE LA RESPUESTA
-    if (!data || typeof data !== 'object') {
-      throw new Error('Respuesta inválida del servidor');
-    }
-
-    // Buscar el token en diferentes campos posibles
     const token = data.access_token || data.token || data.jwt || data.accessToken;
     
     if (!token) {
       console.error('🔍 DEBUG - Estructura de respuesta:', Object.keys(data));
-      console.error('🔍 DEBUG - Respuesta completa:', data);
       throw new Error('No se encontró access_token en la respuesta');
     }
 
-    // Actualizar cache con nuevo token
     tokenCache.token = token;
-    tokenCache.expiry = Date.now() + (50 * 60 * 1000); // 50 minutos
+    tokenCache.expiry = Date.now() + (50 * 60 * 1000);
     
     console.log('🔐 Token guardado exitosamente');
     console.log('🔐 Token longitud:', token.length, 'caracteres');
@@ -101,11 +85,8 @@ const refreshToken = async () => {
 
   } catch (error) {
     console.error('❌ Error obteniendo token:', error);
-    
-    // Limpiar cache en caso de error
     tokenCache.token = null;
     tokenCache.expiry = null;
-    
     throw new Error(`Error de autenticación: ${error.message}`);
   }
 };
@@ -134,7 +115,6 @@ const fetchFromChipax = async (endpoint, options = {}) => {
       console.log(`📡 Status de ${endpoint}: ${response.status}`);
 
       if (response.status === 401) {
-        // Token expirado, limpiar cache y reintentar
         console.log('🔄 Token expirado, limpiando cache...');
         tokenCache.token = null;
         tokenCache.expiry = null;
@@ -168,140 +148,104 @@ const fetchFromChipax = async (endpoint, options = {}) => {
 };
 
 /**
- * ✅ FUNCIÓN MEJORADA: Obtener datos paginados de forma secuencial
- */
-const fetchPaginatedDataWithDateFilter = async (endpoint, options = {}) => {
-  const {
-    limit = 50,
-    maxPages = 4,
-    sortBy = 'fechaEmision',
-    sortOrder = 'desc',
-    startDate = null,
-    endDate = null,
-    maxItems = 200
-  } = options;
-
-  console.log(`📄 Obteniendo datos paginados de ${endpoint}...`);
-  console.log(`⚙️ Configuración: límite=${limit}, máx páginas=${maxPages}, máx items=${maxItems}`);
-
-  let allData = [];
-  let currentPage = 1;
-  let hasMoreData = true;
-
-  // ✅ PROCESAR PÁGINAS DE FORMA SECUENCIAL (no paralela)
-  while (hasMoreData && currentPage <= maxPages && allData.length < maxItems) {
-    try {
-      console.log(`📄 Cargando página ${currentPage}...`);
-      
-      // Construir URL con parámetros
-      let url = `${endpoint}${endpoint.includes('?') ? '&' : '?'}limit=${limit}&page=${currentPage}`;
-      
-      // Agregar filtros de fecha si se proporcionan
-      if (startDate) {
-        url += `&fechaInicio=${startDate}`;
-      }
-      if (endDate) {
-        url += `&fechaFin=${endDate}`;
-      }
-      
-      // Agregar ordenamiento
-      if (sortBy) {
-        url += `&sortBy=${sortBy}&sortOrder=${sortOrder}`;
-      }
-
-      // ✅ USAR FETCH CON RETRY
-      const data = await fetchFromChipax(url, { maxRetries: 1, retryDelay: 500 });
-      
-      // Manejar diferentes estructuras de respuesta
-      let pageItems = [];
-      if (Array.isArray(data)) {
-        pageItems = data;
-      } else if (data.items && Array.isArray(data.items)) {
-        pageItems = data.items;
-      } else if (data.data && Array.isArray(data.data)) {
-        pageItems = data.data;
-      }
-
-      if (pageItems.length > 0) {
-        allData.push(...pageItems);
-        console.log(`✅ Página ${currentPage}: ${pageItems.length} items (total: ${allData.length})`);
-        
-        // Si recibimos menos items que el límite, es la última página
-        if (pageItems.length < limit) {
-          hasMoreData = false;
-        } else {
-          currentPage++;
-        }
-        
-        // Si alcanzamos el límite máximo de items, parar
-        if (allData.length >= maxItems) {
-          allData = allData.slice(0, maxItems);
-          hasMoreData = false;
-        }
-      } else {
-        hasMoreData = false;
-      }
-
-      // ✅ PAUSA AUMENTADA entre requests para evitar rate limiting
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-    } catch (error) {
-      console.error(`❌ Error en página ${currentPage}:`, error);
-      hasMoreData = false;
-    }
-  }
-
-  console.log(`📊 ${endpoint}: ${allData.length} items obtenidos`);
-  return allData;
-};
-
-/**
- * ✅ FUNCIÓN MEJORADA: Obtener compras con manejo de errores
+ * ✅ FUNCIÓN CORREGIDA: Obtener TODAS las compras y ordenar localmente
  */
 const obtenerCuentasPorPagar = async () => {
-  console.log('💸 Obteniendo compras (200 más recientes desde 2025)...');
+  console.log('💸 Obteniendo TODAS las compras para ordenar por fecha...');
 
   try {
-    // ✅ USAR ENDPOINT SIMPLE SIN FILTROS COMPLEJOS PRIMERO
-    const compras = await fetchPaginatedDataWithDateFilter('/compras', {
-      limit: 50,
-      maxPages: 4,
-      maxItems: 200,
-      sortBy: 'fechaEmision',
-      sortOrder: 'desc'
-      // Quitar filtros de fecha inicialmente para asegurar que funcione
-    });
+    let allCompras = [];
+    let currentPage = 1;
+    let hasMoreData = true;
+    const limit = 50;
+    const maxPages = 20; // Aumentar para obtener más datos históricos
 
-    if (!Array.isArray(compras)) {
-      console.warn('⚠️ Compras: Respuesta no es array:', typeof compras);
+    // ✅ ESTRATEGIA: Obtener MUCHAS páginas sin filtros de ordenamiento
+    while (hasMoreData && currentPage <= maxPages) {
+      try {
+        console.log(`📄 Cargando página ${currentPage}...`);
+        
+        // URL simple sin parámetros de ordenamiento (que no funcionan bien)
+        const url = `/compras?limit=${limit}&page=${currentPage}`;
+        const data = await fetchFromChipax(url, { maxRetries: 1, retryDelay: 300 });
+        
+        let pageItems = [];
+        if (Array.isArray(data)) {
+          pageItems = data;
+        } else if (data.items && Array.isArray(data.items)) {
+          pageItems = data.items;
+        } else if (data.data && Array.isArray(data.data)) {
+          pageItems = data.data;
+        }
+
+        if (pageItems.length > 0) {
+          allCompras.push(...pageItems);
+          console.log(`✅ Página ${currentPage}: ${pageItems.length} items (total: ${allCompras.length})`);
+          
+          if (pageItems.length < limit) {
+            hasMoreData = false;
+          } else {
+            currentPage++;
+          }
+        } else {
+          hasMoreData = false;
+        }
+
+        // Pausa entre requests
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+      } catch (error) {
+        console.error(`❌ Error en página ${currentPage}:`, error);
+        hasMoreData = false;
+      }
+    }
+
+    console.log(`📊 Total compras obtenidas: ${allCompras.length}`);
+
+    if (allCompras.length === 0) {
       return [];
     }
 
-    if (compras.length > 0) {
-      console.log('🔍 DEBUG: Primera compra (estructura):');
-      const primeraCompra = compras[0];
+    // ✅ ORDENAMIENTO LOCAL FORZADO por fecha descendente
+    console.log('🔄 Ordenando compras por fecha (más recientes primero)...');
+    
+    allCompras.sort((a, b) => {
+      const fechaA = new Date(a.fechaEmision || a.fecha_emision || a.fecha || '1900-01-01');
+      const fechaB = new Date(b.fechaEmision || b.fecha_emision || b.fecha || '1900-01-01');
+      return fechaB - fechaA; // Descendente (más recientes primero)
+    });
+
+    // ✅ TOMAR SOLO LAS 300 MÁS RECIENTES
+    const comprasRecientes = allCompras.slice(0, 300);
+
+    // Debug: verificar el rango de fechas
+    if (comprasRecientes.length > 0) {
+      const fechaMasReciente = comprasRecientes[0].fechaEmision || comprasRecientes[0].fecha;
+      const fechaMasAntigua = comprasRecientes[comprasRecientes.length - 1].fechaEmision || comprasRecientes[comprasRecientes.length - 1].fecha;
+      
+      console.log('🔍 DEBUG: Primera compra (más reciente):');
       console.log({
-        id: primeraCompra.id,
-        folio: primeraCompra.folio,
-        razonSocial: primeraCompra.razonSocial,
-        fechaEmision: primeraCompra.fechaEmision,
-        montoTotal: primeraCompra.montoTotal
+        id: comprasRecientes[0].id,
+        folio: comprasRecientes[0].folio,
+        razonSocial: comprasRecientes[0].razonSocial,
+        fechaEmision: fechaMasReciente,
+        montoTotal: comprasRecientes[0].montoTotal
       });
 
-      // Ordenar por fecha localmente
-      compras.sort((a, b) => {
-        const fechaA = new Date(a.fechaEmision || a.fecha || '1900-01-01');
-        const fechaB = new Date(b.fechaEmision || b.fecha || '1900-01-01');
-        return fechaB - fechaA;
-      });
+      console.log(`✅ ${comprasRecientes.length} compras más recientes seleccionadas`);
+      console.log(`📅 Rango: ${fechaMasAntigua} → ${fechaMasReciente}`);
 
-      console.log(`✅ ${compras.length} compras obtenidas y ordenadas`);
-      if (compras.length > 0) {
-        console.log(`📅 Rango: ${compras[compras.length-1].fechaEmision} → ${compras[0].fechaEmision}`);
+      // Verificar si tenemos datos recientes
+      const fechaReciente = new Date(fechaMasReciente);
+      const hoy = new Date();
+      const diffAnios = hoy.getFullYear() - fechaReciente.getFullYear();
+      
+      if (diffAnios > 2) {
+        console.warn(`⚠️ ADVERTENCIA: Los datos más recientes son de ${fechaReciente.getFullYear()}. Puede que falten datos recientes.`);
       }
     }
 
-    return compras;
+    return comprasRecientes;
 
   } catch (error) {
     console.error('❌ Error obteniendo compras:', error);
@@ -310,7 +254,7 @@ const obtenerCuentasPorPagar = async () => {
 };
 
 /**
- * ✅ FUNCIÓN MEJORADA: Obtener DTEs por cobrar con mejor manejo
+ * ✅ FUNCIÓN MEJORADA: Obtener DTEs por cobrar (mantener como está)
  */
 const obtenerCuentasPorCobrar = async () => {
   console.log('📋 Obteniendo DTEs por cobrar...');
@@ -321,7 +265,6 @@ const obtenerCuentasPorCobrar = async () => {
     console.log('🔍 DEBUG DTEs - Estructura de respuesta:');
     console.log('- Tipo de respuesta:', typeof data);
     console.log('- Es array:', Array.isArray(data));
-    console.log('- Llaves del objeto:', Object.keys(data || {}));
 
     let dtes = [];
 
@@ -350,7 +293,7 @@ const obtenerCuentasPorCobrar = async () => {
 };
 
 /**
- * ✅ FUNCIÓN MEJORADA: Obtener saldos bancarios con mejor manejo
+ * ✅ FUNCIÓN MEJORADA: Obtener saldos bancarios (mantener como está)
  */
 const obtenerSaldosBancarios = async () => {
   console.log('🏦 Obteniendo saldos bancarios...');
@@ -425,7 +368,6 @@ const obtenerSaldosBancarios = async () => {
 const chipaxService = {
   getChipaxToken,
   fetchFromChipax,
-  fetchPaginatedDataWithDateFilter,
   obtenerSaldosBancarios,
   obtenerCuentasPorCobrar,
   obtenerCuentasPorPagar,
@@ -436,7 +378,6 @@ export default chipaxService;
 export {
   getChipaxToken,
   fetchFromChipax,
-  fetchPaginatedDataWithDateFilter,
   obtenerSaldosBancarios,
   obtenerCuentasPorCobrar,
   obtenerCuentasPorPagar,
