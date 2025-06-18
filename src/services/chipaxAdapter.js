@@ -59,14 +59,16 @@ export const adaptarCuentasPorCobrar = (dtes) => {
       rutCliente: dte.rutReceptor || dte.rut_receptor || dte.rut || 'Sin RUT',
       cliente: dte.razonSocial || dte.razon_social || dte.cliente || 'Cliente no especificado',
       
-      // Campos principales
-      monto: saldoPendiente,
+      // ✅ CAMPOS PRINCIPALES - saldo es lo más importante para el resumen
+      monto: saldoPendiente, // Este se usa en el resumen
+      saldo: saldoPendiente, // Para compatibilidad
       montoTotal: montoOriginal,
       montoPagado: montoPagado,
       saldoPendiente: saldoPendiente,
       
       // Fechas
       fecha: dte.fechaEmision || dte.fecha_emision || dte.fecha || new Date().toISOString().split('T')[0],
+      fechaEmision: dte.fechaEmision || dte.fecha_emision || dte.fecha || new Date().toISOString().split('T')[0],
       fechaVencimiento: dte.fechaVencimiento || dte.fecha_vencimiento || null,
       
       // Estados
