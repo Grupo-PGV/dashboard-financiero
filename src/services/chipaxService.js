@@ -365,8 +365,8 @@ const obtenerSaldosBancarios = async () => {
         conteoCartolas: 0
       };
 
-      // CALCULAR SALDO FINAL: Saldo inicial + movimientos netos
-      const saldoFinal = saldoInicial + movimientos.netMovimientos;
+      // CALCULAR SALDO FINAL: Solo usar los movimientos netos (las cartolas ya contienen el saldo completo)
+      const saldoFinal = movimientos.netMovimientos;
 
       return {
         id: cuenta.id,
@@ -384,14 +384,14 @@ const obtenerSaldosBancarios = async () => {
           egresos2025: movimientos.egresos,
           netMovimientos2025: movimientos.netMovimientos,
           saldoFinal,
-          metodoCalculo: 'saldo_inicial_mas_movimientos_2025',
+          metodoCalculo: 'solo_movimientos_netos_2025',
           ultimaFecha: movimientos.ultimaFecha?.toISOString() || null,
           cartolasProce25: movimientos.conteoCartolas,
           claveBancoUsada: claveBanco
         },
         
         ultimaActualizacion: movimientos.ultimaFecha?.toISOString() || new Date().toISOString(),
-        origenSaldo: 'saldo_inicial_mas_movimientos_2025'
+        origenSaldo: 'solo_movimientos_netos_2025'
       };
     });
 
@@ -400,7 +400,7 @@ const obtenerSaldosBancarios = async () => {
     
     console.log('\n💰 RESUMEN DE SALDOS BANCARIOS:');
     console.log('================================');
-    console.log(`🔧 Método: Saldo inicial (31-12-2024) + Movimientos 2025`);
+    console.log(`🔧 Método: Solo movimientos netos de cartolas 2025 (sin saldo inicial)`);
     console.log(`📊 Cartolas 2025 procesadas: ${cartolas2025.length}`);
     console.log(`🏦 Cuentas con movimientos: ${Object.keys(movimientosPorCuenta).length}`);
     console.log('--------------------------------');
