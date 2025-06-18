@@ -117,6 +117,9 @@ export const adaptarCuentasPorPagar = (compras) => {
                          compra.fecha_pago || 
                          (compra.fechaPagoInterna && compra.eventoReceptor === 'D' ? compra.fechaPagoInterna : null);
     
+    // ✅ NORMALIZAR ESTADO CHIPAX
+    const estadoChipax = (compra.estado || '').toLowerCase().trim();
+    
     // ✅ LÓGICA DE ESTADOS CORREGIDA según descubrimiento
     let estado, saldoPendiente, descripcionEstado, categoria;
     
@@ -126,8 +129,6 @@ export const adaptarCuentasPorPagar = (compras) => {
       descripcionEstado = 'Factura anulada o rechazada';
       categoria = 'anulado';
     } else {
-      const estadoChipax = (compra.estado || '').toLowerCase().trim();
-      
       // 🎯 MAPEO CORREGIDO basado en descubrimiento real
       switch (estadoChipax) {
         case 'pagado':
@@ -166,7 +167,7 @@ export const adaptarCuentasPorPagar = (compras) => {
           } else {
             estado = 'Estado Desconocido';
             saldoPendiente = montoTotal;
-            descripcionEstado = `Estado original: ${compra.estado || 'Sin estado'}`;
+            descripcionEstado = `Estado original: ${estadoChipax || compra.estado || 'Sin estado'}`;
             categoria = 'desconocido';
           }
       }
@@ -219,11 +220,12 @@ export const adaptarCuentasPorPagar = (compras) => {
       // ✅ DEBUG MEJORADO
       debug: {
         estadoOriginalChipax: compra.estado,
+        estadoChipaxNormalizado: estadoChipax,
         estadoCorregido: estado,
         fechaPagoReal: fechaPagoReal,
         fechaPagoInterna: compra.fechaPagoInterna,
         motivoMapeo: descripcionEstado,
-        cambioRealizado: compra.estado === 'pagado' ? 'RECLASIFICADO de Pagado a Pendiente Aprobación' : 'Sin cambio'
+        cambioRealizado: estadoChipax === 'pagado' ? 'RECLASIFICADO de Pagado a Pendiente Aprobación' : 'Sin cambio'
       },
       
       origenDatos: 'compras_estados_corregidos_v2',
@@ -248,7 +250,9 @@ export const adaptarCuentasPorPagar = (compras) => {
     
     // Años encontrados
     const año = new Date(compra.fecha).getFullYear();
-    estadisticas.añosEncontrados[año] = (estadisticas.añosEncontrados[año] || 0) + 1;
+    if (!isNaN(año) && año >= 2020 && año <= 2030) {
+      estadisticas.añosEncontrados[año] = (estadisticas.añosEncontrados[año] || 0) + 1;
+    }
   });
   
   console.log('🔍 ESTADÍSTICAS DE ESTADOS CORREGIDOS:');
