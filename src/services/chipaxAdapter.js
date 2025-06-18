@@ -1,189 +1,64 @@
-// chipaxAdapter.js - ADAPTADORES MEJORADOS CON DEBUGGING
-
 /**
- * ✅ ADAPTADOR MEJORADO: DTEs (Cuentas por Cobrar)
- * MEJORAS: Mejor manejo de saldos, debugging detallado
- */
-export const adaptarCuentasPorCobrar = (dtes) => {
-  console.log('📊 Adaptando DTEs de venta (cuentas por cobrar)...');
-  console.log('🔍 INPUT DEBUG:', {
-    tipo: typeof dtes,
-    esArray: Array.isArray(dtes),
-    longitud: dtes?.length || 0,
-    primerElemento: dtes?.[0] ? Object.keys(dtes[0]) : null
-  });
-  
-  if (!Array.isArray(dtes)) {
-    console.warn('⚠️ adaptarCuentasPorCobrar: datos no son array:', typeof dtes);
-    return [];
-  }
-
-  if (dtes.length === 0) {
-    console.warn('⚠️ adaptarCuentasPorCobrar: array vacío');
-    return [];
-  }
-  
-  const resultado = dtes.map((dte, index) => {
-    // ✅ MÚLTIPLES ESTRATEGIAS para calcular saldo pendiente
-    let saldoPendiente = 0;
-    let montoOriginal = 0;
-    let montoPagado = 0;
-    
-    // 1. Obtener monto original de la factura
-    montoOriginal = parseFloat(dte.montoTotal || dte.monto_total || dte.total || 0);
-    
-    // 2. Verificar saldo en objeto Saldo (más confiable)
-    if (dte.Saldo && typeof dte.Saldo === 'object') {
-      const saldoDeudor = parseFloat(dte.Saldo.saldoDeudor || dte.Saldo.saldo_deudor || 0);
-      const saldoAcreedor = parseFloat(dte.Saldo.saldoAcreedor || dte.Saldo.saldo_acreedor || 0);
-      
-      if (saldoDeudor > 0) {
-        saldoPendiente = saldoDeudor;
-      } else if (saldoAcreedor > 0) {
-        saldoPendiente = 0; // Pagado de más
-      } else {
-        saldoPendiente = montoOriginal; // Usar monto original si no hay saldo definido
-      }
-    } else {
-      // 3. Fallback: calcular basado en cartolas (pagos)
-      if (dte.Cartolas && Array.isArray(dte.Cartolas)) {
-        montoPagado = dte.Cartolas.reduce((total, cartola) => {
-          return total + (parseFloat(cartola.abono || cartola.monto || 0));
-        }, 0);
-        saldoPendiente = Math.max(0, montoOriginal - montoPagado);
-      } else {
-        // 4. Usar monto original como pendiente
-        saldoPendiente = montoOriginal;
-      }
-    }
-
-    // Validar que no sea una factura anulada
-    const estaAnulado = dte.anulado === 'S' || dte.anulado === true || dte.estado === 'anulado';
-    
-    if (estaAnulado) {
-      saldoPendiente = 0;
-    }
-
-    return {
-      id: dte.id || index,
-      folio: dte.folio || dte.numero || 'S/N',
-      razonSocial: dte.razonSocial || dte.razon_social || dte.cliente || 'Cliente no especificado',
-      rutCliente: dte.rut || dte.rut_cliente || 'Sin RUT',
-      
-      // ✅ CAMPOS PRINCIPALES MEJORADOS
-      monto: saldoPendiente,                                            // Saldo realmente pendiente
-      montoTotal: montoOriginal,                                        // Monto original de la factura
-      montoPagado: montoPagado,                                         // Lo que ya se ha pagado
-      montoNeto: parseFloat(dte.montoNeto || dte.monto_neto || 0),
-      iva: parseFloat(dte.iva || 0),
-      
-      // Fechas normalizadas
-      fecha: dte.fechaEmision || dte.fecha_emision || dte.fecha || new Date().toISOString().split('T')[0],
-      fechaVencimiento: dte.fechaVencimiento || dte.fecha_vencimiento || null,
-      fechaEnvio: dte.fechaEnvio || dte.fecha_envio || null,
-      
-      // Estado calculado de manera más robusta
-      estado: estaAnulado ? 'Anulado' : 
-              (saldoPendiente <= 0 ? 'Pagado' : 'Pendiente'),
-      
-      tipo: dte.tipo || dte.tipo_documento || 33,
-      moneda: dte.tipoMonedaMonto || dte.moneda || 'CLP',
-      
-      // Información adicional para debugging
-      saldoInfo: dte.Saldo || null,
-      cartolasInfo: dte.Cartolas || null,
-      descuento: parseFloat(dte.descuento || 0),
-      referencias: dte.referencias || null,
-      anulado: estaAnulado,
-      
-      // Metadatos
-      origenDatos: 'dtes_venta',
-      fechaProcesamiento: new Date().toISOString()
-    };
-  });
-  
-  // 🔍 DEBUG DETALLADO: Verificar resultados
-  const itemsConSaldo = resultado.filter(item => item.monto > 0);
-  const itemsPendientes = resultado.filter(item => item.estado === 'Pendiente');
-  const totalPendiente = itemsConSaldo.reduce((sum, item) => sum + item.monto, 0);
-  
-  console.log('🔍 DEBUG ADAPTADOR DTEs - RESULTADOS:');
-  console.log(`  📋 Total items procesados: ${resultado.length}`);
-  console.log(`  💰 Items con saldo > 0: ${itemsConSaldo.length}`);
-  console.log(`  ⏳ Items con estado 'Pendiente': ${itemsPendientes.length}`);
-  console.log(`  💵 Total monto pendiente: ${totalPendiente.toLocaleString('es-CL')}`);
-  
-  if (itemsConSaldo.length > 0) {
-    console.log('  🔍 Primeros 3 con saldo:');
-    itemsConSaldo.slice(0, 3).forEach((item, i) => {
-      console.log(`    ${i + 1}. Folio ${item.folio}: ${item.monto.toLocaleString('es-CL')} (${item.estado})`);
-    });
-  }
-
-  if (itemsConSaldo.length === 0) {
-    console.warn('⚠️ ADVERTENCIA: No se encontraron DTEs con saldo pendiente');
-    console.log('🔍 Analizar campos de saldo en datos originales:');
-    if (dtes.length > 0) {
-      const ejemploDTE = dtes[0];
-      console.log('  - Estructura del primer DTE:', {
-        tieneMontoTotal: !!ejemploDTE.montoTotal,
-        tieneSaldo: !!ejemploDTE.Saldo,
-        tieneCartolas: !!ejemploDTE.Cartolas,
-        anulado: ejemploDTE.anulado,
-        camposDisponibles: Object.keys(ejemploDTE)
-      });
-    }
-  }
-  
-  return resultado;
-};
-
-/**
- * ✅ ADAPTADOR MEJORADO: Compras (Cuentas por Pagar)
- * MEJORAS: Mejor manejo de fechas, filtrado inteligente
+ * ✅ ADAPTADOR CORREGIDO: Sin filtro de "pagadas" 
+ * CAMBIO: Mostrar todas las facturas independientemente del estado de pago
  */
 export const adaptarCuentasPorPagar = (compras) => {
-  console.log('💸 Adaptando compras (cuentas por pagar)...');
-  console.log('🔍 INPUT DEBUG:', {
-    tipo: typeof compras,
-    esArray: Array.isArray(compras),
-    longitud: compras?.length || 0
-  });
-  
   if (!Array.isArray(compras)) {
-    console.warn('⚠️ adaptarCuentasPorPagar: datos no son array');
+    console.warn('⚠️ adaptarCuentasPorPagar: entrada no es array');
     return [];
   }
 
-  if (compras.length === 0) {
-    console.warn('⚠️ adaptarCuentasPorPagar: array vacío');
-    return [];
-  }
-  
+  console.log('💸 Adaptando compras (SIN FILTRO de pagadas - mostrando todas)...');
+  console.log(`🔍 INPUT DEBUG: {tipo: '${typeof compras}', esArray: ${Array.isArray(compras)}, longitud: ${compras.length}}`);
+
   const resultado = compras.map((compra, index) => {
-    // ✅ LÓGICA MEJORADA para determinar estado
-    const montoTotal = parseFloat(compra.montoTotal || compra.monto_total || compra.total || 0);
-    const estaAnulado = compra.anulado === 'S' || compra.anulado === true;
+    // Calcular montos
+    const montoTotal = parseFloat(compra.montoTotal || compra.monto_total || compra.monto || 0);
+    const montoNeto = parseFloat(compra.montoNeto || compra.monto_neto || 0);
+    const iva = parseFloat(compra.iva || 0);
     
-    // Verificar múltiples campos para fecha de pago
-    const fechaPago = compra.fechaPagoInterna || 
-                     compra.fecha_pago_interna || 
-                     compra.fechaPago || 
-                     compra.fecha_pago || 
-                     null;
+    // Verificar si está anulado
+    const estaAnulado = compra.anulado === 'S' || 
+                       compra.anulado === true || 
+                       compra.estado === 'anulado' ||
+                       compra.estado === 'rechazado';
     
-    const tieneFechaPago = fechaPago !== null && fechaPago !== undefined && fechaPago !== '';
-    
-    // Estado más preciso
+    // ✅ CAMBIO PRINCIPAL: NO FILTRAR POR ESTADO DE PAGO
+    // Determinar estado sin filtrar pagadas
     let estado = 'Pendiente';
-    let montoPendiente = montoTotal;
+    let saldoPendiente = montoTotal;
     
     if (estaAnulado) {
       estado = 'Anulado';
-      montoPendiente = 0;
-    } else if (tieneFechaPago) {
-      estado = 'Pagado';
-      montoPendiente = 0; // Para cálculos, las pagadas no cuentan como pendientes
+      saldoPendiente = 0;
+    } else {
+      // ✅ NUEVO: Determinar estado basado en información disponible
+      const fechaPago = compra.fechaPagoInterna || 
+                       compra.fecha_pago_interna || 
+                       compra.fechaPago || 
+                       compra.fecha_pago;
+      
+      const estadoChipax = compra.estado;
+      
+      // Mapear estados de Chipax
+      if (estadoChipax === 'pagado' || estadoChipax === 'paid') {
+        estado = 'Pagado';
+        saldoPendiente = 0;
+      } else if (estadoChipax === 'aceptado' || estadoChipax === 'accepted') {
+        estado = 'Aceptado';
+        // ✅ MANTENER MONTO: Aceptado pero no necesariamente pagado
+        saldoPendiente = montoTotal;
+      } else if (estadoChipax === 'pendiente' || estadoChipax === 'pending') {
+        estado = 'Pendiente';
+        saldoPendiente = montoTotal;
+      } else if (fechaPago) {
+        estado = 'Pagado';
+        saldoPendiente = 0;
+      } else {
+        // ✅ DEFAULT: Si no sabemos, asumir pendiente
+        estado = 'Pendiente';
+        saldoPendiente = montoTotal;
+      }
     }
     
     return {
@@ -193,21 +68,22 @@ export const adaptarCuentasPorPagar = (compras) => {
       rutProveedor: compra.rutEmisor || compra.rut_emisor || compra.rut || 'Sin RUT',
       proveedor: compra.razonSocial || compra.razon_social || compra.proveedor || 'Proveedor no especificado',
       
-      // ✅ CAMPOS PRINCIPALES
-      monto: montoPendiente,                                            // Solo pendientes para cálculos
-      montoTotal: montoTotal,                                           // Monto original (para referencia)
-      montoNeto: parseFloat(compra.montoNeto || compra.monto_neto || 0),
-      iva: parseFloat(compra.iva || 0),
+      // ✅ CAMPOS PRINCIPALES (sin filtrar por pago)
+      monto: saldoPendiente,                // Monto según estado
+      montoTotal: montoTotal,               // Monto original siempre
+      montoNeto: montoNeto,
+      iva: iva,
       
       // ✅ FECHAS NORMALIZADAS
       fecha: compra.fechaEmision || compra.fecha_emision || compra.fecha || new Date().toISOString().split('T')[0],
       fechaVencimiento: compra.fechaVencimiento || compra.fecha_vencimiento || null,
-      fechaPago: fechaPago,
+      fechaPago: compra.fechaPago || compra.fecha_pago || null,
       fechaRecepcion: compra.fechaRecepcion || compra.fecha_recepcion || null,
       
-      // ✅ ESTADO Y BANDERAS
+      // ✅ ESTADO Y METADATOS
       estado: estado,
-      estaPagado: tieneFechaPago,
+      estadoOriginal: compra.estado,        // Guardar estado original de Chipax
+      estaPagado: estado === 'Pagado',
       estaAnulado: estaAnulado,
       
       // Información adicional
@@ -222,29 +98,31 @@ export const adaptarCuentasPorPagar = (compras) => {
       eventoReceptor: compra.eventoReceptor || compra.evento_receptor || null,
       
       // Para debugging
-      origenDatos: 'compras',
+      origenDatos: 'compras_sin_filtro_pago',
       fechaProcesamiento: new Date().toISOString()
     };
   });
   
-  // 🔍 DEBUG: Estadísticas detalladas
+  // 🔍 DEBUG: Estadísticas detalladas SIN filtrar
   const estadisticas = {
     total: resultado.length,
     pendientes: resultado.filter(c => c.estado === 'Pendiente').length,
+    aceptadas: resultado.filter(c => c.estado === 'Aceptado').length,
     pagadas: resultado.filter(c => c.estado === 'Pagado').length,
     anuladas: resultado.filter(c => c.estado === 'Anulado').length,
     montoTotalPendiente: resultado
-      .filter(c => c.estado === 'Pendiente')
+      .filter(c => c.estado === 'Pendiente' || c.estado === 'Aceptado')
       .reduce((sum, c) => sum + c.monto, 0),
     montoTotalGeneral: resultado.reduce((sum, c) => sum + c.montoTotal, 0)
   };
   
-  console.log('🔍 DEBUG ADAPTADOR COMPRAS - RESULTADOS:');
+  console.log('🔍 DEBUG ADAPTADOR COMPRAS - TODAS LAS FACTURAS:');
   console.log(`  📋 Total compras: ${estadisticas.total}`);
   console.log(`  ⏳ Pendientes: ${estadisticas.pendientes}`);
-  console.log(`  ✅ Pagadas: ${estadisticas.pagadas}`);
+  console.log(`  ✅ Aceptadas: ${estadisticas.aceptadas}`);
+  console.log(`  💳 Pagadas: ${estadisticas.pagadas}`);
   console.log(`  ❌ Anuladas: ${estadisticas.anuladas}`);
-  console.log(`  💵 Monto pendiente: ${estadisticas.montoTotalPendiente.toLocaleString('es-CL')}`);
+  console.log(`  💵 Monto pendiente+aceptado: ${estadisticas.montoTotalPendiente.toLocaleString('es-CL')}`);
   console.log(`  💰 Monto total: ${estadisticas.montoTotalGeneral.toLocaleString('es-CL')}`);
   
   if (resultado.length > 0) {
@@ -257,54 +135,163 @@ export const adaptarCuentasPorPagar = (compras) => {
 };
 
 /**
- * ✅ FUNCIÓN AUXILIAR: Filtrar compras pendientes
+ * ✅ FUNCIÓN OPTIMIZADA: Solo para facturas de 2025 (súper rápida)
  */
-export const filtrarComprasPendientes = (compras) => {
-  if (!Array.isArray(compras)) return [];
-  
-  return compras.filter(compra => 
-    compra.estado === 'Pendiente' && 
-    !compra.estaAnulado &&
-    compra.monto > 0
-  );
-};
+export const obtenerCompras2025Rapido = async () => {
+  console.log('🚀 Obteniendo SOLO facturas de 2025 (SÚPER RÁPIDO)...');
 
-/**
- * ✅ FUNCIÓN AUXILIAR: Filtrar por rango de fechas
- */
-export const filtrarComprasPorFecha = (compras, fechaInicio, fechaFin) => {
-  if (!Array.isArray(compras)) return [];
-  
-  return compras.filter(compra => {
-    const fechaCompra = new Date(compra.fecha);
-    const inicio = new Date(fechaInicio);
-    const fin = new Date(fechaFin);
+  try {
+    let allCompras2025 = [];
+    let currentPage = 1;
+    let hasMoreData = true;
+    const limit = 100; // Límite más alto para ir más rápido
     
-    return fechaCompra >= inicio && fechaCompra <= fin;
-  });
-};
+    // ✅ OPTIMIZACIÓN: Solo necesitamos pocas páginas para 2025
+    const maxPages = 20; // Solo 20 páginas deberían ser suficientes para 2025
+    
+    console.log(`⚡ Búsqueda optimizada para 2025: máximo ${maxPages} páginas`);
 
-/**
- * ✅ ADAPTADOR: Saldos bancarios (mantener compatible)
- */
-export const adaptarSaldosBancarios = (cuentas) => {
-  if (!Array.isArray(cuentas)) {
-    console.warn('⚠️ adaptarSaldosBancarios: datos no son array');
-    return [];
+    while (hasMoreData && currentPage <= maxPages) {
+      try {
+        console.log(`📄 Página ${currentPage}/${maxPages} (buscando 2025)...`);
+        
+        // ✅ INTENTAR PARÁMETROS DE FECHA PRIMERO
+        let url = `/compras?limit=${limit}&page=${currentPage}`;
+        
+        // En la primera iteración, intentar filtrar por año
+        if (currentPage === 1) {
+          try {
+            console.log('🎯 Intentando filtro directo por año 2025...');
+            const testResponse = await fetchFromChipax('/compras?year=2025&limit=100');
+            
+            if (testResponse && (Array.isArray(testResponse) || testResponse.items || testResponse.data)) {
+              let items2025 = [];
+              if (Array.isArray(testResponse)) {
+                items2025 = testResponse;
+              } else if (testResponse.items) {
+                items2025 = testResponse.items;
+              } else if (testResponse.data) {
+                items2025 = testResponse.data;
+              }
+              
+              if (items2025.length > 0) {
+                console.log(`🎉 ¡Filtro por año funciona! ${items2025.length} facturas de 2025 encontradas directamente`);
+                return {
+                  data: items2025,
+                  metodo: 'filtro_directo_2025',
+                  pagination: { totalItems: items2025.length, completenessPercent: 100 }
+                };
+              }
+            }
+          } catch (error) {
+            console.log('⚠️ Filtro por año no disponible, usando método tradicional...');
+          }
+        }
+        
+        const data = await fetchFromChipax(url, { maxRetries: 2, retryDelay: 500 });
+        
+        let pageItems = [];
+        if (Array.isArray(data)) {
+          pageItems = data;
+        } else if (data.items && Array.isArray(data.items)) {
+          pageItems = data.items;
+        } else if (data.data && Array.isArray(data.data)) {
+          pageItems = data.data;
+        }
+
+        if (pageItems.length > 0) {
+          // ✅ FILTRAR SOLO 2025 en tiempo real
+          const items2025 = pageItems.filter(item => {
+            const fechaEmision = item.fechaEmision || item.fecha_emision || item.fecha || '';
+            const fechaRecepcion = item.fechaRecepcion || item.fecha_recepcion || '';
+            const created = item.created || '';
+            
+            return fechaEmision.includes('2025') || 
+                   fechaRecepcion.includes('2025') || 
+                   created.includes('2025');
+          });
+          
+          if (items2025.length > 0) {
+            allCompras2025.push(...items2025);
+            console.log(`✅ Página ${currentPage}: ${items2025.length} facturas de 2025 (de ${pageItems.length} total)`);
+          } else {
+            console.log(`📄 Página ${currentPage}: Sin facturas de 2025 (${pageItems.length} facturas de otros años)`);
+          }
+          
+          // ✅ Si no encontramos facturas de 2025 en varias páginas consecutivas, parar
+          if (items2025.length === 0 && currentPage > 10) {
+            console.log('⚠️ Sin facturas de 2025 en últimas páginas, probablemente no hay más...');
+            hasMoreData = false;
+          }
+          
+          if (pageItems.length < limit) {
+            hasMoreData = false;
+          } else {
+            currentPage++;
+          }
+        } else {
+          hasMoreData = false;
+        }
+
+        // ✅ PAUSA MÁS CORTA para ir más rápido
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+      } catch (error) {
+        console.error(`❌ Error en página ${currentPage}:`, error);
+        hasMoreData = false;
+      }
+    }
+
+    console.log(`🎯 Total facturas de 2025 encontradas: ${allCompras2025.length}`);
+
+    if (allCompras2025.length === 0) {
+      console.warn('⚠️ No se encontraron facturas de 2025');
+      return { data: [], metodo: 'busqueda_tradicional', pagination: { totalItems: 0 } };
+    }
+
+    // ✅ ORDENAR SOLO LAS DE 2025 (mucho más rápido)
+    console.log('🔄 Ordenando facturas de 2025 por fecha de recepción...');
+    
+    allCompras2025.sort((a, b) => {
+      const fechaA = new Date(
+        a.fechaRecepcion || a.fecha_recepcion || a.created || 
+        a.fechaEmision || a.fecha_emision || a.fecha || '2025-01-01'
+      );
+      const fechaB = new Date(
+        b.fechaRecepcion || b.fecha_recepcion || b.created || 
+        b.fechaEmision || b.fecha_emision || b.fecha || '2025-01-01'
+      );
+      return fechaB - fechaA; // Más recientes primero
+    });
+
+    // ✅ RESULTADO FINAL
+    const facturasMasReciente = allCompras2025[0];
+    const fechaReciente = new Date(
+      facturasMasReciente.fechaRecepcion || 
+      facturasMasReciente.fecha_recepcion || 
+      facturasMasReciente.created || 
+      facturasMasReciente.fechaEmision
+    );
+    const hoy = new Date();
+    const diasDesdeMasReciente = Math.floor((hoy - fechaReciente) / (1000 * 60 * 60 * 24));
+
+    console.log('\n🎯 RESULTADO FACTURAS 2025:');
+    console.log(`📅 Factura más reciente: ${fechaReciente.toISOString().split('T')[0]} (hace ${diasDesdeMasReciente} días)`);
+    console.log(`📋 Total facturas 2025: ${allCompras2025.length}`);
+    console.log(`📄 Páginas procesadas: ${currentPage - 1}/${maxPages}`);
+
+    return {
+      data: allCompras2025,
+      metodo: 'busqueda_tradicional_filtrada',
+      pagination: {
+        totalItems: allCompras2025.length,
+        completenessPercent: 100,
+        paginasProc: currentPage - 1
+      }
+    };
+
+  } catch (error) {
+    console.error('❌ Error obteniendo facturas 2025:', error);
+    return { data: [], error: error.message };
   }
-
-  return cuentas.map((cuenta, index) => ({
-    id: cuenta.id || index,
-    nombre: cuenta.nombre || cuenta.nombreCuenta || cuenta.alias || `Cuenta ${index + 1}`,
-    banco: cuenta.banco || cuenta.nombreBanco || 'Banco no especificado',
-    saldo: cuenta.saldoCalculado || cuenta.saldo || cuenta.balance || 0,
-    moneda: cuenta.moneda || 'CLP',
-    tipo: cuenta.tipo || cuenta.tipoCuenta || 'Corriente',
-    ultimaActualizacion: cuenta.ultimaActualizacion || null
-  }));
 };
-
-// === EXPORTACIONES PARA COMPATIBILIDAD ===
-export const adaptarDTEs = adaptarCuentasPorCobrar;
-export const adaptarCompras = adaptarCuentasPorPagar;
-export const adaptarCuentasCorrientes = adaptarSaldosBancarios;
