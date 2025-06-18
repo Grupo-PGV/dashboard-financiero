@@ -89,9 +89,15 @@ const DashboardFinancieroIntegrado = () => {
       const compras = await chipaxService.obtenerCuentasPorPagar();
       
       if (Array.isArray(compras)) {
-        const cuentasAdaptadas = adaptarCuentasPorPagar(compras);
+        // ✅ FILTRAR SOLO 2025 por defecto
+        const compras2025 = compras.filter(compra => {
+          const fecha = compra.fechaEmision || compra.fecha_emision || compra.fecha || '';
+          return fecha.includes('2025');
+        });
+        
+        const cuentasAdaptadas = adaptarCuentasPorPagar(compras2025);
         setCuentasPorPagar(cuentasAdaptadas);
-        console.log(`✅ ${cuentasAdaptadas.length} cuentas por pagar cargadas`);
+        console.log(`✅ ${cuentasAdaptadas.length} facturas de 2025 cargadas por defecto`);
       } else {
         console.warn('⚠️ Compras no es array');
         setCuentasPorPagar([]);
@@ -151,9 +157,9 @@ const DashboardFinancieroIntegrado = () => {
     }
   };
 
-  // Carga inicial
+  // Carga inicial - SOLO 2025 por defecto
   useEffect(() => {
-    cargarTodosDatos();
+    cargarSolo2025(); // ✅ Cambio: usar cargarSolo2025 en lugar de cargarTodosDatos
   }, []);
 
   // === FUNCIONES DE FILTRADO Y PAGINACIÓN ===
@@ -272,21 +278,21 @@ const DashboardFinancieroIntegrado = () => {
   const ControlesPrincipales = () => (
     <div className="mb-6 flex flex-wrap gap-4">
       <button
-        onClick={cargarTodosDatos}
-        disabled={loading}
-        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-      >
-        <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-        {loading ? 'Cargando...' : 'Actualizar Todo'}
-      </button>
-
-      <button
         onClick={cargarSolo2025}
         disabled={loading}
         className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
       >
         <Calendar size={16} />
-        Solo 2025 (Rápido)
+        {loading ? 'Cargando...' : 'Solo 2025 (Actual)'}
+      </button>
+
+      <button
+        onClick={cargarTodosDatos}
+        disabled={loading}
+        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+      >
+        <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+        Cargar Todas (Lento)
       </button>
 
       {errors.length > 0 && (
@@ -301,42 +307,70 @@ const DashboardFinancieroIntegrado = () => {
   const EstadisticasGenerales = () => {
     const totalSaldos = saldosBancarios.reduce((sum, cuenta) => sum + (cuenta.saldoCalculado || 0), 0);
     const totalPorCobrar = cuentasPorCobrar.reduce((sum, cuenta) => sum + (cuenta.saldo || 0), 0);
+    
+    // ✅ SOLO mostrar el total de las facturas cargadas (659 de 2025)
     const totalPorPagar = cuentasPorPagar.reduce((sum, cuenta) => sum + (cuenta.monto || 0), 0);
+    
+    // ✅ Información adicional sobre el filtro activo
+    const facturas2025 = cuentasPorPagar.filter(c => new Date(c.fecha).getFullYear() === 2025);
+    const añoMostrado = facturas2025.length === cuentasPorPagar.length ? '2025' : 'Múltiples años';
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center">
-            <div className="p-3 bg-blue-100 rounded-full">
-              <Wallet className="text-blue-600" size={24} />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Saldos Bancarios</p>
-              <p className="text-2xl font-semibold text-gray-900">{formatCurrency(totalSaldos)}</p>
-            </div>
+      <div className="space-y-4">
+        {/* Indicador del filtro activo */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <Calendar className="text-blue-600" size={16} />
+            <span className="text-sm font-medium text-blue-800">
+              Mostrando facturas de: {añoMostrado} ({cuentasPorPagar.length} facturas)
+            </span>
+            {facturas2025.length === cuentasPorPagar.length && (
+              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                SOLO 2025
+              </span>
+            )}
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center">
-            <div className="p-3 bg-green-100 rounded-full">
-              <TrendingUp className="text-green-600" size={24} />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Por Cobrar</p>
-              <p className="text-2xl font-semibold text-gray-900">{formatCurrency(totalPorCobrar)}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="flex items-center">
+              <div className="p-3 bg-blue-100 rounded-full">
+                <Wallet className="text-blue-600" size={24} />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Saldos Bancarios</p>
+                <p className="text-2xl font-semibold text-gray-900">{formatCurrency(totalSaldos)}</p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center">
-            <div className="p-3 bg-red-100 rounded-full">
-              <AlertCircle className="text-red-600" size={24} />
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="flex items-center">
+              <div className="p-3 bg-green-100 rounded-full">
+                <TrendingUp className="text-green-600" size={24} />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Por Cobrar</p>
+                <p className="text-2xl font-semibold text-gray-900">{formatCurrency(totalPorCobrar)}</p>
+              </div>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Por Pagar</p>
-              <p className="text-2xl font-semibold text-gray-900">{formatCurrency(totalPorPagar)}</p>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="flex items-center">
+              <div className="p-3 bg-red-100 rounded-full">
+                <AlertCircle className="text-red-600" size={24} />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">
+                  Por Pagar {añoMostrado === '2025' ? '(2025)' : ''}
+                </p>
+                <p className="text-2xl font-semibold text-gray-900">{formatCurrency(totalPorPagar)}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {cuentasPorPagar.length} facturas
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -344,7 +378,62 @@ const DashboardFinancieroIntegrado = () => {
     );
   };
 
-  const TablaCompras = () => (
+  const ResumenFacturas2025 = () => {
+    const facturas2025 = cuentasPorPagar.filter(c => new Date(c.fecha).getFullYear() === 2025);
+    
+    if (facturas2025.length === 0) {
+      return null;
+    }
+
+    const estadisticas = {
+      total: facturas2025.length,
+      pendientesAprobacion: facturas2025.filter(f => f.estado === 'Pendiente Aprobación').length,
+      aceptadas: facturas2025.filter(f => f.estado === 'Aceptado').length,
+      pagadasRealmente: facturas2025.filter(f => f.estado === 'Pagado Realmente').length,
+      estadoDesconocido: facturas2025.filter(f => f.estado === 'Estado Desconocido').length,
+      montoTotal: facturas2025.reduce((sum, f) => sum + (f.montoTotal || 0), 0)
+    };
+
+    return (
+      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <PieChart className="text-blue-500" size={20} />
+          <h3 className="text-lg font-semibold">Resumen Facturas 2025</h3>
+          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+            {estadisticas.total} facturas
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+          <div className="text-center p-3 bg-blue-50 rounded-lg">
+            <div className="text-2xl font-bold text-blue-900">{estadisticas.total}</div>
+            <div className="text-sm text-blue-700">Total 2025</div>
+          </div>
+          <div className="text-center p-3 bg-orange-50 rounded-lg">
+            <div className="text-2xl font-bold text-orange-900">{estadisticas.pendientesAprobacion}</div>
+            <div className="text-sm text-orange-700">Pend. Aprobación</div>
+          </div>
+          <div className="text-center p-3 bg-blue-50 rounded-lg">
+            <div className="text-2xl font-bold text-blue-900">{estadisticas.aceptadas}</div>
+            <div className="text-sm text-blue-700">Aceptadas</div>
+          </div>
+          <div className="text-center p-3 bg-green-50 rounded-lg">
+            <div className="text-2xl font-bold text-green-900">{estadisticas.pagadasRealmente}</div>
+            <div className="text-sm text-green-700">Pagadas</div>
+          </div>
+        </div>
+
+        <div className="text-center p-4 bg-gray-50 rounded-lg">
+          <div className="text-xl font-bold text-gray-900">
+            {formatCurrency(estadisticas.montoTotal)}
+          </div>
+          <div className="text-sm text-gray-600">
+            Monto total facturas 2025
+          </div>
+        </div>
+      </div>
+    );
+  };
     <div className="bg-white rounded-lg shadow-md">
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex justify-between items-center">
@@ -547,6 +636,7 @@ const DashboardFinancieroIntegrado = () => {
           <>
             <ControlesPrincipales />
             <EstadisticasGenerales />
+            <ResumenFacturas2025 />
             
             <div className="space-y-8">
               <TablaCompras />
