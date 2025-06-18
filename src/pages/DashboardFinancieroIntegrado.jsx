@@ -112,8 +112,10 @@ const DashboardFinancieroIntegrado = () => {
   const cargarSolo2025 = async () => {
     try {
       setLoading(true);
+      setErrors([]); // Limpiar errores previos
       console.log('🚀 Cargando SOLO facturas de 2025...');
       
+      // Cargar compras de 2025
       const compras = await chipaxService.obtenerCuentasPorPagar();
       
       if (Array.isArray(compras)) {
@@ -127,9 +129,32 @@ const DashboardFinancieroIntegrado = () => {
         setCuentasPorPagar(cuentasAdaptadas);
         console.log(`✅ ${cuentasAdaptadas.length} facturas de 2025 cargadas`);
       }
+
+      // ✅ TAMBIÉN cargar cuentas por cobrar
+      try {
+        await cargarCuentasPorCobrar();
+      } catch (cobrarError) {
+        console.warn('⚠️ Error cargando cuentas por cobrar:', cobrarError.message);
+        // No detener el proceso si las cuentas por cobrar fallan
+      }
+
+      // ✅ TAMBIÉN cargar saldos bancarios
+      try {
+        await cargarSaldosBancarios();
+      } catch (saldosError) {
+        console.warn('⚠️ Error cargando saldos bancarios:', saldosError.message);
+        // No detener el proceso si los saldos fallan
+      }
+
     } catch (error) {
       console.error('❌ Error cargando 2025:', error);
-      setErrors(prev => [...prev, `2025: ${error.message}`]);
+      
+      // Manejo específico de errores CORS
+      if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
+        setErrors(prev => [...prev, 'Error de CORS: Verifica la configuración de la API']);
+      } else {
+        setErrors(prev => [...prev, `2025: ${error.message}`]);
+      }
     } finally {
       setLoading(false);
     }
@@ -387,10 +412,12 @@ const DashboardFinancieroIntegrado = () => {
 
     const estadisticas = {
       total: facturas2025.length,
-      pendientesAprobacion: facturas2025.filter(f => f.estado === 'Pendiente Aprobación').length,
+      // ✅ CORRECCIÓN: Estados desconocidos son pendientes de aprobación
+      pendientesAprobacion: facturas2025.filter(f => 
+        f.estado === 'Pendiente Aprobación' || f.estado === 'Estado Desconocido'
+      ).length,
       aceptadas: facturas2025.filter(f => f.estado === 'Aceptado').length,
       pagadasRealmente: facturas2025.filter(f => f.estado === 'Pagado Realmente').length,
-      estadoDesconocido: facturas2025.filter(f => f.estado === 'Estado Desconocido').length,
       montoTotal: facturas2025.reduce((sum, f) => sum + (f.montoTotal || 0), 0)
     };
 
@@ -429,6 +456,22 @@ const DashboardFinancieroIntegrado = () => {
           </div>
           <div className="text-sm text-gray-600">
             Monto total facturas 2025
+          </div>
+        </div>
+
+        {/* ✅ NOTA EXPLICATIVA sobre la corrección */}
+        <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="text-orange-600 mt-0.5" size={16} />
+            <div className="text-sm">
+              <p className="font-semibold text-orange-800 mb-1">
+                Estados Corregidos
+              </p>
+              <p className="text-orange-700">
+                Las facturas que aparecían como "Estado Desconocido" han sido reclasificadas 
+                como "Pendientes de Aprobación" según tu indicación.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -489,11 +532,13 @@ const DashboardFinancieroIntegrado = () => {
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                           compra.estado === 'Pagado Realmente' ? 'bg-green-100 text-green-800' :
                           compra.estado === 'Pendiente Aprobación' ? 'bg-orange-100 text-orange-800' :
+                          compra.estado === 'Estado Desconocido' ? 'bg-orange-100 text-orange-800' : // ✅ También naranja
                           compra.estado === 'Aceptado' ? 'bg-blue-100 text-blue-800' :
                           compra.estado === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
+                          'bg-gray-100 text-gray-800'
                         }`}>
-                          {compra.estado}
+                          {/* ✅ CORRECCIÓN: Mostrar "Pendiente Aprobación" para estados desconocidos */}
+                          {compra.estado === 'Estado Desconocido' ? 'Pendiente Aprobación' : compra.estado}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -630,6 +675,22 @@ const DashboardFinancieroIntegrado = () => {
                 <li key={index}>• {error}</li>
               ))}
             </ul>
+            
+            {/* ✅ Ayuda específica para errores CORS */}
+            {errors.some(error => error.includes('CORS')) && (
+              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                <div className="text-sm">
+                  <p className="font-semibold text-yellow-800 mb-1">
+                    💡 Solución para Error CORS:
+                  </p>
+                  <p className="text-yellow-700">
+                    Este error puede ocurrir desde el navegador. Considera usar un proxy 
+                    o configurar CORS en el servidor de Chipax. El dashboard funciona 
+                    correctamente desde localhost.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
