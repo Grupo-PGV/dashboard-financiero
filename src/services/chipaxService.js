@@ -1,4 +1,4 @@
-// chipaxService.js - SOLO CORREGIDO: obtenerCuentasPorPagar
+// chipaxService.js - VERSIÓN COMPLETA CORREGIDA para obtener facturas recientes
 
 const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
 const APP_ID = process.env.REACT_APP_CHIPAX_APP_ID;
@@ -140,23 +140,25 @@ const fetchFromChipax = async (endpoint, options = {}) => {
 };
 
 /**
- * ✅ FUNCIÓN SOLO CORREGIDA: Obtener compras más recientes por fecha de RECEPCIÓN
- * ÚNICO CAMBIO: maxPages de 10 a 50
+ * ✅ FUNCIÓN CORREGIDA: Obtener TODAS las 6,400 compras para llegar a las recientes
  */
 const obtenerCuentasPorPagar = async () => {
-  console.log('💸 Obteniendo compras (ordenadas por fecha de recepción)...');
+  console.log('💸 Obteniendo compras (PROCESANDO todas las 6,400 facturas disponibles)...');
 
   try {
     let allCompras = [];
     let currentPage = 1;
     let hasMoreData = true;
     const limit = 50;
-    const maxPages = 50; // ✅ ÚNICO CAMBIO: Aumentado de 10 a 50
+    
+    // ✅ AJUSTE MODERADO: Para aprovechar las 6,400 facturas disponibles
+    const maxPages = 128; // 128 páginas × 50 = 6,400 facturas (todas las disponibles)
+    
+    console.log(`🔍 Buscando facturas recientes en las ${maxPages} páginas disponibles (todas las 6,400 facturas)...`);
 
-    // Estrategia: Obtener páginas y ordenar por fecha de recepción
     while (hasMoreData && currentPage <= maxPages) {
       try {
-        console.log(`📄 Cargando página ${currentPage}...`);
+        console.log(`📄 Cargando página ${currentPage}/${maxPages}...`);
         
         const url = `/compras?limit=${limit}&page=${currentPage}`;
         const data = await fetchFromChipax(url, { maxRetries: 1, retryDelay: 300 });
@@ -174,6 +176,28 @@ const obtenerCuentasPorPagar = async () => {
           allCompras.push(...pageItems);
           console.log(`✅ Página ${currentPage}: ${pageItems.length} items (total: ${allCompras.length})`);
           
+          // ✅ MEJORA: Verificar progreso cada 25 páginas
+          if (currentPage % 25 === 0) {
+            const fechasRecepcion = pageItems
+              .map(item => item.fechaRecepcion || item.fecha_recepcion || item.created)
+              .filter(fecha => fecha)
+              .map(fecha => new Date(fecha));
+            
+            if (fechasRecepcion.length > 0) {
+              const fechaMasReciente = new Date(Math.max(...fechasRecepcion));
+              const hoy = new Date();
+              const diasDesdeMasReciente = Math.floor((hoy - fechaMasReciente) / (1000 * 60 * 60 * 24));
+              
+              console.log(`📊 Progreso página ${currentPage}: factura más reciente hace ${diasDesdeMasReciente} días (${fechaMasReciente.toISOString().split('T')[0]})`);
+              
+              // Si encontramos facturas muy recientes (menos de 90 días), podemos considerar parar
+              if (diasDesdeMasReciente <= 90 && allCompras.length >= 2000) {
+                console.log(`🎯 Encontradas facturas relativamente recientes (${diasDesdeMasReciente} días), tenemos ${allCompras.length} facturas`);
+                // Continuar pero podríamos parar si llegamos a algo muy reciente
+              }
+            }
+          }
+          
           if (pageItems.length < limit) {
             hasMoreData = false;
           } else {
@@ -183,7 +207,8 @@ const obtenerCuentasPorPagar = async () => {
           hasMoreData = false;
         }
 
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Pausa más corta para procesar más rápido
+        await new Promise(resolve => setTimeout(resolve, 50));
 
       } catch (error) {
         console.error(`❌ Error en página ${currentPage}:`, error);
@@ -194,14 +219,14 @@ const obtenerCuentasPorPagar = async () => {
     console.log(`📊 Total compras obtenidas: ${allCompras.length}`);
 
     if (allCompras.length === 0) {
+      console.warn('⚠️ No se obtuvieron compras de la API');
       return [];
     }
 
-    // ORDENAMIENTO CORREGIDO: Por fecha de RECEPCIÓN, no emisión
+    // ORDENAMIENTO por fecha de RECEPCIÓN (mismo que antes)
     console.log('🔄 Ordenando compras por fecha de RECEPCIÓN (más recientes primero)...');
     
     allCompras.sort((a, b) => {
-      // USAR FECHA DE RECEPCIÓN como prioridad
       const fechaA = new Date(
         a.fechaRecepcion || 
         a.fecha_recepcion || 
@@ -225,8 +250,8 @@ const obtenerCuentasPorPagar = async () => {
       return fechaB - fechaA; // Descendente (más recientes primero)
     });
 
-    // TOMAR LAS 300 MÁS RECIENTES POR RECEPCIÓN
-    const comprasRecientes = allCompras.slice(0, 300);
+    // ✅ AJUSTE: Para aprovechar todas las 6,400 facturas y mostrar más
+    const comprasRecientes = allCompras.slice(0, 800); // Mostrar las 800 más recientes de las 6,400
 
     // Debug: verificar el rango de fechas de RECEPCIÓN
     if (comprasRecientes.length > 0) {
@@ -264,9 +289,45 @@ const obtenerCuentasPorPagar = async () => {
       
       if (diffDias > 30) {
         console.warn(`⚠️ ADVERTENCIA: La factura más reciente fue recibida hace ${diffDias} días (${fechaReciente.toISOString().split('T')[0]})`);
+        
+        if (diffDias > 365) {
+          console.warn(`⚠️ Las facturas son de más de 1 año. Considera verificar si tu sistema Chipax tiene facturas más recientes.`);
+        } else if (diffDias > 180) {
+          console.warn(`⚠️ Las facturas son de más de 6 meses. Podrías necesitar aún más páginas o un endpoint diferente.`);
+        } else {
+          console.warn(`⚠️ Las facturas son de hace ${Math.floor(diffDias/30)} meses. Están mejorando, prueba aumentar maxPages aún más.`);
+        }
+        
+        console.warn(`📊 Total facturas procesadas: ${allCompras.length} | Páginas procesadas: ${currentPage - 1}/${maxPages}`);
       } else {
-        console.log(`✅ Datos recientes: última factura recibida hace ${diffDias} días`);
+        console.log(`✅ ¡ÉXITO! Datos recientes: última factura recibida hace ${diffDias} días`);
       }
+
+      // Análisis de progreso de fechas en grupos
+      console.log('📊 ANÁLISIS DE FECHAS POR GRUPOS:');
+      const grupos = [
+        { nombre: 'Primeras 100', facturas: comprasRecientes.slice(0, 100) },
+        { nombre: 'Del 100 al 300', facturas: comprasRecientes.slice(100, 300) },
+        { nombre: 'Del 300 al 500', facturas: comprasRecientes.slice(300, 500) },
+        { nombre: 'Del 500 al 800', facturas: comprasRecientes.slice(500, 800) }
+      ];
+      
+      grupos.forEach(grupo => {
+        if (grupo.facturas.length > 0) {
+          const fechasPrimeras = grupo.facturas
+            .map(f => new Date(f.fechaRecepcion || f.fecha_recepcion || f.created || f.fechaEmision))
+            .filter(f => !isNaN(f.getTime()));
+          
+          if (fechasPrimeras.length > 0) {
+            const fechaMasReciente = new Date(Math.max(...fechasPrimeras));
+            const fechaMasAntigua = new Date(Math.min(...fechasPrimeras));
+            const diasReciente = Math.floor((hoy - fechaMasReciente) / (1000 * 60 * 60 * 24));
+            const diasAntigua = Math.floor((hoy - fechaMasAntigua) / (1000 * 60 * 60 * 24));
+            
+            console.log(`  ${grupo.nombre}: ${fechaMasReciente.toISOString().split('T')[0]} → ${fechaMasAntigua.toISOString().split('T')[0]} (hace ${diasReciente}-${diasAntigua} días)`);
+          }
+        }
+      });
 
       // MOSTRAR MUESTRA DE FECHAS DE RECEPCIÓN vs EMISIÓN
       console.log('🔍 DEBUG: Primeras 5 compras (recepción vs emisión):');
