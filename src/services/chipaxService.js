@@ -332,7 +332,7 @@ const obtenerSaldosBancarios = async () => {
     // Calcular movimientos netos
     Object.keys(movimientosPorCuenta).forEach(cuentaId => {
       const cuenta = movimientosPorCuenta[cuentaId];
-      cuenta.netMovimientos = cuenta.haber - cuenta.debe;
+      cuenta.netMovimientos = cuenta.ingresos - cuenta.egresos;
     });
 
     console.log(`📊 Movimientos calculados para ${Object.keys(movimientosPorCuenta).length} cuentas`);
