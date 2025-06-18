@@ -1,10 +1,10 @@
-// chipaxService.js - CORREGIDO: Ordenamiento local forzado para obtener datos recientes
+// chipaxService.js - CORREGIDO: Ordenar por fecha de recepción, no emisión
 
 const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
 const APP_ID = process.env.REACT_APP_CHIPAX_APP_ID;
 const SECRET_KEY = process.env.REACT_APP_CHIPAX_SECRET_KEY;
 
-// Cache mejorado para el token
+// Cache mejorado para el token (mantener igual)
 let tokenCache = {
   token: null,
   expiry: null,
@@ -12,9 +12,6 @@ let tokenCache = {
   refreshPromise: null
 };
 
-/**
- * ✅ FUNCIÓN MEJORADA: Obtener token con manejo de concurrencia
- */
 const getChipaxToken = async () => {
   if (tokenCache.isRefreshing && tokenCache.refreshPromise) {
     console.log('🔄 Esperando refresh de token en curso...');
@@ -22,7 +19,7 @@ const getChipaxToken = async () => {
   }
 
   const now = Date.now();
-  const tokenMargin = 5 * 60 * 1000; // 5 minutos de margen
+  const tokenMargin = 5 * 60 * 1000;
   
   if (tokenCache.token && tokenCache.expiry && now < (tokenCache.expiry - tokenMargin)) {
     console.log('🔑 Usando token válido en cache');
@@ -41,9 +38,6 @@ const getChipaxToken = async () => {
   }
 };
 
-/**
- * ✅ FUNCIÓN INTERNA: Refrescar token
- */
 const refreshToken = async () => {
   console.log('🔐 Obteniendo nuevo token de Chipax...');
   console.log('🔑 APP_ID:', APP_ID ? `${APP_ID.substring(0, 10)}...` : 'NO CONFIGURADO');
@@ -91,9 +85,6 @@ const refreshToken = async () => {
   }
 };
 
-/**
- * ✅ FUNCIÓN MEJORADA: Hacer request a Chipax con retry
- */
 const fetchFromChipax = async (endpoint, options = {}) => {
   const { maxRetries = 2, retryDelay = 1000 } = options;
   
@@ -148,24 +139,23 @@ const fetchFromChipax = async (endpoint, options = {}) => {
 };
 
 /**
- * ✅ FUNCIÓN CORREGIDA: Obtener TODAS las compras y ordenar localmente
+ * ✅ FUNCIÓN CORREGIDA: Obtener compras ordenadas por fecha de RECEPCIÓN
  */
 const obtenerCuentasPorPagar = async () => {
-  console.log('💸 Obteniendo TODAS las compras para ordenar por fecha...');
+  console.log('💸 Obteniendo compras (ordenadas por fecha de recepción)...');
 
   try {
     let allCompras = [];
     let currentPage = 1;
     let hasMoreData = true;
     const limit = 50;
-    const maxPages = 20; // Aumentar para obtener más datos históricos
+    const maxPages = 10; // Reducir para obtener solo las más recientes
 
-    // ✅ ESTRATEGIA: Obtener MUCHAS páginas sin filtros de ordenamiento
+    // ✅ ESTRATEGIA CORREGIDA: Obtener páginas y ordenar por fecha de recepción
     while (hasMoreData && currentPage <= maxPages) {
       try {
         console.log(`📄 Cargando página ${currentPage}...`);
         
-        // URL simple sin parámetros de ordenamiento (que no funcionan bien)
         const url = `/compras?limit=${limit}&page=${currentPage}`;
         const data = await fetchFromChipax(url, { maxRetries: 1, retryDelay: 300 });
         
@@ -191,7 +181,6 @@ const obtenerCuentasPorPagar = async () => {
           hasMoreData = false;
         }
 
-        // Pausa entre requests
         await new Promise(resolve => setTimeout(resolve, 200));
 
       } catch (error) {
@@ -206,43 +195,85 @@ const obtenerCuentasPorPagar = async () => {
       return [];
     }
 
-    // ✅ ORDENAMIENTO LOCAL FORZADO por fecha descendente
-    console.log('🔄 Ordenando compras por fecha (más recientes primero)...');
+    // ✅ ORDENAMIENTO CORREGIDO: Por fecha de RECEPCIÓN, no emisión
+    console.log('🔄 Ordenando compras por fecha de RECEPCIÓN (más recientes primero)...');
     
     allCompras.sort((a, b) => {
-      const fechaA = new Date(a.fechaEmision || a.fecha_emision || a.fecha || '1900-01-01');
-      const fechaB = new Date(b.fechaEmision || b.fecha_emision || b.fecha || '1900-01-01');
+      // ✅ USAR FECHA DE RECEPCIÓN como prioridad
+      const fechaA = new Date(
+        a.fechaRecepcion || 
+        a.fecha_recepcion || 
+        a.created || 
+        a.fechaEmision || 
+        a.fecha_emision || 
+        a.fecha || 
+        '1900-01-01'
+      );
+      
+      const fechaB = new Date(
+        b.fechaRecepcion || 
+        b.fecha_recepcion || 
+        b.created || 
+        b.fechaEmision || 
+        b.fecha_emision || 
+        b.fecha || 
+        '1900-01-01'
+      );
+      
       return fechaB - fechaA; // Descendente (más recientes primero)
     });
 
-    // ✅ TOMAR SOLO LAS 300 MÁS RECIENTES
+    // ✅ TOMAR LAS 300 MÁS RECIENTES POR RECEPCIÓN
     const comprasRecientes = allCompras.slice(0, 300);
 
-    // Debug: verificar el rango de fechas
+    // Debug: verificar el rango de fechas de RECEPCIÓN
     if (comprasRecientes.length > 0) {
-      const fechaMasReciente = comprasRecientes[0].fechaEmision || comprasRecientes[0].fecha;
-      const fechaMasAntigua = comprasRecientes[comprasRecientes.length - 1].fechaEmision || comprasRecientes[comprasRecientes.length - 1].fecha;
+      const primeraCompra = comprasRecientes[0];
+      const ultimaCompra = comprasRecientes[comprasRecientes.length - 1];
       
-      console.log('🔍 DEBUG: Primera compra (más reciente):');
+      const fechaRecepcionReciente = primeraCompra.fechaRecepcion || 
+                                   primeraCompra.fecha_recepcion || 
+                                   primeraCompra.created ||
+                                   primeraCompra.fechaEmision;
+                                   
+      const fechaRecepcionAntigua = ultimaCompra.fechaRecepcion || 
+                                   ultimaCompra.fecha_recepcion || 
+                                   ultimaCompra.created ||
+                                   ultimaCompra.fechaEmision;
+      
+      console.log('🔍 DEBUG: Primera compra (más reciente por recepción):');
       console.log({
-        id: comprasRecientes[0].id,
-        folio: comprasRecientes[0].folio,
-        razonSocial: comprasRecientes[0].razonSocial,
-        fechaEmision: fechaMasReciente,
-        montoTotal: comprasRecientes[0].montoTotal
+        id: primeraCompra.id,
+        folio: primeraCompra.folio,
+        razonSocial: primeraCompra.razonSocial,
+        fechaEmision: primeraCompra.fechaEmision,
+        fechaRecepcion: primeraCompra.fechaRecepcion || primeraCompra.fecha_recepcion,
+        created: primeraCompra.created,
+        montoTotal: primeraCompra.montoTotal
       });
 
       console.log(`✅ ${comprasRecientes.length} compras más recientes seleccionadas`);
-      console.log(`📅 Rango: ${fechaMasAntigua} → ${fechaMasReciente}`);
+      console.log(`📅 Rango de RECEPCIÓN: ${fechaRecepcionAntigua} → ${fechaRecepcionReciente}`);
 
-      // Verificar si tenemos datos recientes
-      const fechaReciente = new Date(fechaMasReciente);
+      // Verificar si tenemos datos recientes POR RECEPCIÓN
+      const fechaReciente = new Date(fechaRecepcionReciente);
       const hoy = new Date();
-      const diffAnios = hoy.getFullYear() - fechaReciente.getFullYear();
+      const diffDias = Math.floor((hoy - fechaReciente) / (1000 * 60 * 60 * 24));
       
-      if (diffAnios > 2) {
-        console.warn(`⚠️ ADVERTENCIA: Los datos más recientes son de ${fechaReciente.getFullYear()}. Puede que falten datos recientes.`);
+      if (diffDias > 30) {
+        console.warn(`⚠️ ADVERTENCIA: La factura más reciente fue recibida hace ${diffDias} días (${fechaReciente.toISOString().split('T')[0]})`);
+      } else {
+        console.log(`✅ Datos recientes: última factura recibida hace ${diffDias} días`);
       }
+
+      // ✅ MOSTRAR MUESTRA DE FECHAS DE RECEPCIÓN vs EMISIÓN
+      console.log('🔍 DEBUG: Primeras 5 compras (recepción vs emisión):');
+      comprasRecientes.slice(0, 5).forEach((compra, i) => {
+        console.log(`${i + 1}. Folio ${compra.folio}:`);
+        console.log(`   Emisión: ${compra.fechaEmision}`);
+        console.log(`   Recepción: ${compra.fechaRecepcion || compra.fecha_recepcion || 'N/A'}`);
+        console.log(`   Created: ${compra.created || 'N/A'}`);
+      });
     }
 
     return comprasRecientes;
