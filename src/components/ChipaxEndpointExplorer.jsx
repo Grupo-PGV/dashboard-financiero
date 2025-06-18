@@ -1,6 +1,105 @@
 import React, { useState } from 'react';
-import { Search, CheckCircle, XCircle, Loader } from 'lucide-react';
-import chipaxService from '../services/chipaxService';
+import { Search, CheckCircle, AlertCircle, Loader, Database, Eye, FileText } from 'lucide-react';
+
+// ✅ ChipaxService integrado directamente
+const chipaxService = {
+  tokenCache: {
+    token: null,
+    expiry: null,
+    isRefreshing: false,
+    refreshPromise: null
+  },
+
+  async getChipaxToken() {
+    const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
+    const APP_ID = process.env.REACT_APP_CHIPAX_APP_ID;
+    const SECRET_KEY = process.env.REACT_APP_CHIPAX_SECRET_KEY;
+
+    if (this.tokenCache.isRefreshing && this.tokenCache.refreshPromise) {
+      return await this.tokenCache.refreshPromise;
+    }
+
+    const now = Date.now();
+    const tokenMargin = 5 * 60 * 1000;
+    
+    if (this.tokenCache.token && this.tokenCache.expiry && now < (this.tokenCache.expiry - tokenMargin)) {
+      return this.tokenCache.token;
+    }
+
+    this.tokenCache.isRefreshing = true;
+    this.tokenCache.refreshPromise = this.refreshToken(API_BASE_URL, APP_ID, SECRET_KEY);
+    
+    try {
+      const newToken = await this.tokenCache.refreshPromise;
+      return newToken;
+    } finally {
+      this.tokenCache.isRefreshing = false;
+      this.tokenCache.refreshPromise = null;
+    }
+  },
+
+  async refreshToken(apiUrl, appId, secretKey) {
+    try {
+      const response = await fetch(`${apiUrl}/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          app_id: appId,
+          secret_key: secretKey
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const token = data.access_token || data.token || data.jwt || data.accessToken;
+      
+      if (!token) {
+        throw new Error('No se encontró access_token en la respuesta');
+      }
+
+      this.tokenCache.token = token;
+      this.tokenCache.expiry = Date.now() + (50 * 60 * 1000);
+      
+      return token;
+    } catch (error) {
+      this.tokenCache.token = null;
+      this.tokenCache.expiry = null;
+      throw new Error(`Error de autenticación: ${error.message}`);
+    }
+  },
+
+  async fetchFromChipax(endpoint) {
+    const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
+    
+    try {
+      const token = await this.getChipaxToken();
+      const url = `${API_BASE_URL}${endpoint}`;
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `JWT ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
+};
 
 const ChipaxEndpointExplorer = () => {
   const [exploring, setExploring] = useState(false);
