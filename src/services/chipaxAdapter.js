@@ -1,4 +1,5 @@
 // chipaxAdapter.js - ADAPTADOR COMPLETO CON TODAS LAS EXPORTACIONES
+// ✅ Estados corregidos según descubrimiento: "pagadas" = "pendientes de aprobación"
 
 /**
  * ✅ ADAPTADOR: Cuentas por cobrar (DTEs de venta)
@@ -113,7 +114,8 @@ export const adaptarCuentasPorCobrar = (dtes) => {
 };
 
 /**
- * ✅ ADAPTADOR CORREGIDO: Cuentas por pagar (SIN FILTRO de pagadas)
+ * ✅ ADAPTADOR PRINCIPAL: Cuentas por pagar CON ESTADOS CORREGIDOS
+ * DESCUBRIMIENTO: Las "pagadas" son realmente "pendientes de aprobación"
  */
 export const adaptarCuentasPorPagar = (compras) => {
   if (!Array.isArray(compras)) {
@@ -121,7 +123,7 @@ export const adaptarCuentasPorPagar = (compras) => {
     return [];
   }
 
-  console.log('💸 Adaptando compras (SIN FILTRO de pagadas - mostrando todas)...');
+  console.log('💸 Adaptando compras (ESTADOS CORREGIDOS según descubrimiento)...');
   console.log(`🔍 INPUT DEBUG: {tipo: '${typeof compras}', esArray: ${Array.isArray(compras)}, longitud: ${compras.length}}`);
 
   const resultado = compras.map((compra, index) => {
@@ -136,41 +138,52 @@ export const adaptarCuentasPorPagar = (compras) => {
                        compra.estado === 'anulado' ||
                        compra.estado === 'rechazado';
     
-    // ✅ CAMBIO PRINCIPAL: NO FILTRAR POR ESTADO DE PAGO
-    // Determinar estado sin filtrar pagadas
-    let estado = 'Pendiente';
+    // ✅ MAPEO CORREGIDO según el descubrimiento del usuario
+    let estado = 'Aceptado'; // Default
     let saldoPendiente = montoTotal;
+    let descripcionEstado = '';
+    let categoria = 'normal'; // Para filtros
     
     if (estaAnulado) {
       estado = 'Anulado';
       saldoPendiente = 0;
+      descripcionEstado = 'Factura anulada o rechazada';
+      categoria = 'anulado';
     } else {
-      // ✅ NUEVO: Determinar estado basado en información disponible
+      const estadoChipax = compra.estado?.toLowerCase() || '';
       const fechaPago = compra.fechaPagoInterna || 
                        compra.fecha_pago_interna || 
                        compra.fechaPago || 
                        compra.fecha_pago;
       
-      const estadoChipax = compra.estado;
-      
-      // Mapear estados de Chipax
+      // ✅ LÓGICA CORREGIDA: Según el descubrimiento del usuario
       if (estadoChipax === 'pagado' || estadoChipax === 'paid') {
-        estado = 'Pagado';
-        saldoPendiente = 0;
-      } else if (estadoChipax === 'aceptado' || estadoChipax === 'accepted') {
+        // 🎯 DESCUBRIMIENTO: Las "pagadas" son realmente pendientes de aprobación
+        estado = 'Pendiente Aprobación';
+        saldoPendiente = montoTotal; // Mantener monto porque necesita aprobación
+        descripcionEstado = 'Pendiente de aprobación (aparecía como pagada)';
+        categoria = 'pendiente_aprobacion';
+      } else if (estadoChipax === 'aceptado' || estadoChipax === 'accepted' || estadoChipax === 'aceptada') {
         estado = 'Aceptado';
-        // ✅ MANTENER MONTO: Aceptado pero no necesariamente pagado
-        saldoPendiente = montoTotal;
-      } else if (estadoChipax === 'pendiente' || estadoChipax === 'pending') {
-        estado = 'Pendiente';
-        saldoPendiente = montoTotal;
+        saldoPendiente = montoTotal; // Aceptado = ya aprobado pero no pagado
+        descripcionEstado = 'Factura aceptada y aprobada';
+        categoria = 'aceptado';
       } else if (fechaPago) {
-        estado = 'Pagado';
+        estado = 'Pagado Realmente';
         saldoPendiente = 0;
-      } else {
-        // ✅ DEFAULT: Si no sabemos, asumir pendiente
-        estado = 'Pendiente';
+        descripcionEstado = 'Realmente pagado (con fecha de pago)';
+        categoria = 'pagado_realmente';
+      } else if (estadoChipax === 'pendiente' || estadoChipax === 'pending') {
+        estado = 'Pendiente Proceso';
         saldoPendiente = montoTotal;
+        descripcionEstado = 'En proceso, aún no aprobado';
+        categoria = 'pendiente_proceso';
+      } else {
+        // Default para estados desconocidos
+        estado = 'Estado Desconocido';
+        saldoPendiente = montoTotal;
+        descripcionEstado = `Estado original: ${estadoChipax || 'Sin estado'}`;
+        categoria = 'desconocido';
       }
     }
     
@@ -181,8 +194,8 @@ export const adaptarCuentasPorPagar = (compras) => {
       rutProveedor: compra.rutEmisor || compra.rut_emisor || compra.rut || 'Sin RUT',
       proveedor: compra.razonSocial || compra.razon_social || compra.proveedor || 'Proveedor no especificado',
       
-      // ✅ CAMPOS PRINCIPALES (sin filtrar por pago)
-      monto: saldoPendiente,                // Monto según estado
+      // ✅ CAMPOS PRINCIPALES con estados corregidos
+      monto: saldoPendiente,                // Monto según estado corregido
       montoTotal: montoTotal,               // Monto original siempre
       montoNeto: montoNeto,
       iva: iva,
@@ -193,11 +206,15 @@ export const adaptarCuentasPorPagar = (compras) => {
       fechaPago: compra.fechaPago || compra.fecha_pago || null,
       fechaRecepcion: compra.fechaRecepcion || compra.fecha_recepcion || null,
       
-      // ✅ ESTADO Y METADATOS
+      // ✅ ESTADO Y METADATOS CORREGIDOS
       estado: estado,
       estadoOriginal: compra.estado,        // Guardar estado original de Chipax
-      estaPagado: estado === 'Pagado',
+      descripcionEstado: descripcionEstado, // Nueva: explicación del mapeo
+      categoria: categoria,                 // Para filtros fáciles
+      estaPagado: estado === 'Pagado Realmente',
       estaAnulado: estaAnulado,
+      necesitaAprobacion: estado === 'Pendiente Aprobación',
+      estaAprobado: estado === 'Aceptado' || estado === 'Pagado Realmente',
       
       // Información adicional
       tipo: compra.tipo || compra.tipo_documento || 33,
@@ -210,51 +227,100 @@ export const adaptarCuentasPorPagar = (compras) => {
       estadoSII: compra.estado || 'Sin estado',
       eventoReceptor: compra.eventoReceptor || compra.evento_receptor || null,
       
+      // Para debugging - MUY IMPORTANTE
+      debug: {
+        estadoOriginalChipax: compra.estado,
+        fechaPagoDetectada: !!fechaPago,
+        motivoMapeo: descripcionEstado,
+        datosOriginales: {
+          estado: compra.estado,
+          fechaPago: fechaPago,
+          anulado: compra.anulado
+        }
+      },
+      
       // Para debugging
-      origenDatos: 'compras_sin_filtro_pago',
+      origenDatos: 'compras_estados_corregidos',
       fechaProcesamiento: new Date().toISOString()
     };
   });
   
-  // 🔍 DEBUG: Estadísticas detalladas SIN filtrar
+  // 🔍 DEBUG: Estadísticas detalladas con NUEVOS ESTADOS
   const estadisticas = {
     total: resultado.length,
-    pendientes: resultado.filter(c => c.estado === 'Pendiente').length,
+    pendientesAprobacion: resultado.filter(c => c.estado === 'Pendiente Aprobación').length,
     aceptadas: resultado.filter(c => c.estado === 'Aceptado').length,
-    pagadas: resultado.filter(c => c.estado === 'Pagado').length,
+    pagadasRealmente: resultado.filter(c => c.estado === 'Pagado Realmente').length,
+    pendientesProceso: resultado.filter(c => c.estado === 'Pendiente Proceso').length,
     anuladas: resultado.filter(c => c.estado === 'Anulado').length,
-    montoTotalPendiente: resultado
-      .filter(c => c.estado === 'Pendiente' || c.estado === 'Aceptado')
+    estadosDesconocidos: resultado.filter(c => c.estado === 'Estado Desconocido').length,
+    
+    // Montos por categoría
+    montoPendienteAprobacion: resultado
+      .filter(c => c.estado === 'Pendiente Aprobación')
+      .reduce((sum, c) => sum + c.monto, 0),
+    montoAceptado: resultado
+      .filter(c => c.estado === 'Aceptado')
       .reduce((sum, c) => sum + c.monto, 0),
     montoTotalGeneral: resultado.reduce((sum, c) => sum + c.montoTotal, 0)
   };
   
-  console.log('🔍 DEBUG ADAPTADOR COMPRAS - TODAS LAS FACTURAS:');
+  console.log('🔍 DEBUG ADAPTADOR COMPRAS - ESTADOS CORREGIDOS:');
   console.log(`  📋 Total compras: ${estadisticas.total}`);
-  console.log(`  ⏳ Pendientes: ${estadisticas.pendientes}`);
-  console.log(`  ✅ Aceptadas: ${estadisticas.aceptadas}`);
-  console.log(`  💳 Pagadas: ${estadisticas.pagadas}`);
+  console.log(`  ⏳ Pendientes de Aprobación: ${estadisticas.pendientesAprobacion} (antes aparecían como "pagadas")`);
+  console.log(`  ✅ Aceptadas (Aprobadas): ${estadisticas.aceptadas}`);
+  console.log(`  💳 Pagadas Realmente: ${estadisticas.pagadasRealmente}`);
+  console.log(`  🔄 Pendientes de Proceso: ${estadisticas.pendientesProceso}`);
   console.log(`  ❌ Anuladas: ${estadisticas.anuladas}`);
-  console.log(`  💵 Monto pendiente+aceptado: ${estadisticas.montoTotalPendiente.toLocaleString('es-CL')}`);
-  console.log(`  💰 Monto total: ${estadisticas.montoTotalGeneral.toLocaleString('es-CL')}`);
+  console.log(`  ❓ Estados Desconocidos: ${estadisticas.estadosDesconocidos}`);
+  console.log(`  💵 Monto Pendiente Aprobación: ${estadisticas.montoPendienteAprobacion.toLocaleString('es-CL')}`);
+  console.log(`  💰 Monto Aceptado: ${estadisticas.montoAceptado.toLocaleString('es-CL')}`);
+  console.log(`  💎 Monto Total: ${estadisticas.montoTotalGeneral.toLocaleString('es-CL')}`);
+  
+  // ✅ ANÁLISIS DE ESTADOS ORIGINALES para debugging
+  const estadosOriginales = {};
+  resultado.forEach(c => {
+    const estadoOrig = c.estadoOriginal || 'Sin estado';
+    estadosOriginales[estadoOrig] = (estadosOriginales[estadoOrig] || 0) + 1;
+  });
+  
+  console.log('\n🔍 ANÁLISIS DE ESTADOS ORIGINALES DE CHIPAX:');
+  Object.entries(estadosOriginales).forEach(([estado, cantidad]) => {
+    console.log(`   "${estado}": ${cantidad} facturas`);
+  });
   
   if (resultado.length > 0) {
     const fechaMinima = resultado.reduce((min, c) => c.fecha < min ? c.fecha : min, resultado[0].fecha);
     const fechaMaxima = resultado.reduce((max, c) => c.fecha > max ? c.fecha : max, resultado[0].fecha);
-    console.log(`  📅 Rango de fechas: ${fechaMinima} → ${fechaMaxima}`);
+    console.log(`\n  📅 Rango de fechas: ${fechaMinima} → ${fechaMaxima}`);
   }
   
   return resultado;
 };
 
 /**
- * ✅ FUNCIÓN AUXILIAR: Filtrar compras pendientes
+ * ✅ FUNCIÓN AUXILIAR: Filtrar compras pendientes (actualizada)
  */
 export const filtrarComprasPendientes = (compras) => {
   if (!Array.isArray(compras)) return [];
   
   return compras.filter(compra => 
-    compra.estado === 'Pendiente' && 
+    (compra.estado === 'Pendiente Aprobación' || 
+     compra.estado === 'Pendiente Proceso' ||
+     compra.estado === 'Aceptado') && 
+    !compra.estaAnulado &&
+    compra.monto > 0
+  );
+};
+
+/**
+ * ✅ FUNCIÓN AUXILIAR: Filtrar solo pendientes de aprobación
+ */
+export const filtrarPendientesAprobacion = (compras) => {
+  if (!Array.isArray(compras)) return [];
+  
+  return compras.filter(compra => 
+    compra.estado === 'Pendiente Aprobación' && 
     !compra.estaAnulado &&
     compra.monto > 0
   );
@@ -276,6 +342,15 @@ export const filtrarComprasPorFecha = (compras, fechaInicio, fechaFin) => {
 };
 
 /**
+ * ✅ FUNCIÓN AUXILIAR: Filtrar por categoría de estado
+ */
+export const filtrarPorCategoria = (compras, categoria) => {
+  if (!Array.isArray(compras)) return [];
+  
+  return compras.filter(compra => compra.categoria === categoria);
+};
+
+/**
  * ✅ ADAPTADOR: Saldos bancarios
  */
 export const adaptarSaldosBancarios = (cuentas) => {
@@ -289,6 +364,7 @@ export const adaptarSaldosBancarios = (cuentas) => {
     nombre: cuenta.nombre || cuenta.nombreCuenta || cuenta.alias || `Cuenta ${index + 1}`,
     banco: cuenta.banco || cuenta.nombreBanco || 'Banco no especificado',
     saldo: cuenta.saldoCalculado || cuenta.saldo || cuenta.balance || 0,
+    saldoCalculado: cuenta.saldoCalculado || cuenta.saldo || cuenta.balance || 0,
     moneda: cuenta.moneda || 'CLP',
     tipo: cuenta.tipo || cuenta.tipoCuenta || 'Corriente',
     ultimaActualizacion: cuenta.ultimaActualizacion || null
@@ -320,6 +396,48 @@ export const adaptarDatosChipax = (tipo, datos) => {
   }
 };
 
+/**
+ * ✅ FUNCIÓN UTILIDAD: Obtener estadísticas de estados
+ */
+export const obtenerEstadisticasEstados = (compras) => {
+  if (!Array.isArray(compras)) return {};
+  
+  const stats = {
+    total: compras.length,
+    porEstado: {},
+    porCategoria: {},
+    montosPorEstado: {},
+    fechas: {
+      masReciente: null,
+      masAntigua: null
+    }
+  };
+  
+  compras.forEach(compra => {
+    // Contar por estado
+    const estado = compra.estado || 'Sin estado';
+    stats.porEstado[estado] = (stats.porEstado[estado] || 0) + 1;
+    
+    // Contar por categoría
+    const categoria = compra.categoria || 'sin_categoria';
+    stats.porCategoria[categoria] = (stats.porCategoria[categoria] || 0) + 1;
+    
+    // Sumar montos por estado
+    stats.montosPorEstado[estado] = (stats.montosPorEstado[estado] || 0) + (compra.monto || 0);
+    
+    // Fechas
+    const fecha = new Date(compra.fecha);
+    if (!stats.fechas.masReciente || fecha > new Date(stats.fechas.masReciente)) {
+      stats.fechas.masReciente = compra.fecha;
+    }
+    if (!stats.fechas.masAntigua || fecha < new Date(stats.fechas.masAntigua)) {
+      stats.fechas.masAntigua = compra.fecha;
+    }
+  });
+  
+  return stats;
+};
+
 // === EXPORTACIONES PARA COMPATIBILIDAD ===
 export const adaptarDTEs = adaptarCuentasPorCobrar;
 export const adaptarCompras = adaptarCuentasPorPagar;
@@ -331,8 +449,11 @@ export default {
   adaptarCuentasPorPagar,
   adaptarSaldosBancarios,
   filtrarComprasPendientes,
+  filtrarPendientesAprobacion,
   filtrarComprasPorFecha,
+  filtrarPorCategoria,
   adaptarDatosChipax,
+  obtenerEstadisticasEstados,
   adaptarDTEs,
   adaptarCompras,
   adaptarCuentasCorrientes
