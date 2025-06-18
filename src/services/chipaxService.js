@@ -574,89 +574,99 @@ const investigarEndpointsDisponibles = async () => {
 };
 
 /**
- * 🔍 FUNCIÓN DE DEBUG: Inspeccionar estructura real de datos
+ * 🔍 FUNCIÓN DE DEBUG MEJORADA: Ver estructura real de cartolas y DTEs
  */
 const debugearDatosReales = async () => {
   console.log('🔍 INSPECCIONANDO DATOS REALES DE CHIPAX...');
   
   try {
-    // 1. DEBUG: Cuentas corrientes
-    console.log('\n🏦 === DEBUG CUENTAS CORRIENTES ===');
-    const cuentas = await fetchFromChipax('/cuentas-corrientes');
-    console.log('📊 Total cuentas:', cuentas.length);
-    console.log('🔍 Primera cuenta (estructura completa):', JSON.stringify(cuentas[0], null, 2));
-    console.log('💰 Campos de saldo encontrados en primera cuenta:');
-    Object.keys(cuentas[0]).forEach(key => {
-      if (key.toLowerCase().includes('saldo') || key.toLowerCase().includes('balance')) {
-        console.log(`   - ${key}: ${cuentas[0][key]}`);
-      }
-    });
+    // 1. DEBUG: Cartolas (para saldos)
+    console.log('\n💰 === DEBUG CARTOLAS ===');
+    const cartolasData = await fetchFromChipax('/flujo-caja/cartolas?limit=5');
+    const cartolas = cartolasData.docs || cartolasData.items || cartolasData || [];
+    console.log('📊 Total cartolas (muestra):', cartolas.length);
+    
+    if (cartolas.length > 0) {
+      console.log('🔍 Primera cartola (estructura completa):');
+      console.log(JSON.stringify(cartolas[0], null, 2));
+      
+      console.log('\n🔍 Análisis de campo Saldo en cartolas:');
+      cartolas.forEach((cartola, i) => {
+        if (cartola.Saldo) {
+          console.log(`Cartola ${i + 1}:`, {
+            cuenta_corriente_id: cartola.cuenta_corriente_id,
+            fecha: cartola.fecha,
+            Saldo: cartola.Saldo,
+            last_record: cartola.Saldo.last_record
+          });
+        } else {
+          console.log(`Cartola ${i + 1}: SIN campo Saldo`);
+        }
+      });
+    }
 
     // 2. DEBUG: DTEs por cobrar
     console.log('\n📋 === DEBUG DTEs POR COBRAR ===');
-    const dtesData = await fetchFromChipax('/dtes?porCobrar=1');
+    const dtesData = await fetchFromChipax('/dtes?porCobrar=1&limit=3');
     const dtes = dtesData.items || dtesData;
-    console.log('📊 Total DTEs:', dtes.length);
-    console.log('🔍 Primer DTE (estructura completa):', JSON.stringify(dtes[0], null, 2));
-    console.log('💰 Campos de monto encontrados en primer DTE:');
-    Object.keys(dtes[0]).forEach(key => {
-      if (key.toLowerCase().includes('monto') || key.toLowerCase().includes('saldo') || key.toLowerCase().includes('total')) {
-        console.log(`   - ${key}: ${dtes[0][key]}`);
-      }
-    });
+    console.log('📊 Total DTEs (muestra):', dtes.length);
+    
+    if (dtes.length > 0) {
+      console.log('🔍 Primer DTE (campos de monto):');
+      const primerDTE = dtes[0];
+      console.log({
+        id: primerDTE.id,
+        folio: primerDTE.folio,
+        razon_social: primerDTE.razon_social,
+        monto_total: primerDTE.monto_total,
+        monto_por_cobrar: primerDTE.monto_por_cobrar,
+        monto_neto: primerDTE.monto_neto,
+        iva: primerDTE.iva,
+        Saldo: primerDTE.Saldo,
+        anulado: primerDTE.anulado
+      });
+      
+      // Verificar cuántos DTEs tienen montos > 0
+      const dtesConMonto = dtes.filter(dte => 
+        (dte.monto_por_cobrar && parseFloat(dte.monto_por_cobrar) > 0) ||
+        (dte.Saldo && dte.Saldo.saldo_deudor && parseFloat(dte.Saldo.saldo_deudor) > 0) ||
+        (dte.monto_total && parseFloat(dte.monto_total) > 0)
+      );
+      console.log(`💰 DTEs con monto > 0: ${dtesConMonto.length}/${dtes.length}`);
+    }
 
     // 3. DEBUG: Compras
     console.log('\n💸 === DEBUG COMPRAS ===');
-    const comprasData = await fetchFromChipax('/compras');
+    const comprasData = await fetchFromChipax('/compras?limit=3');
     const compras = comprasData.items || comprasData;
-    console.log('📊 Total compras:', compras.length);
-    console.log('🔍 Primera compra (estructura completa):', JSON.stringify(compras[0], null, 2));
-    console.log('💰 Campos de monto encontrados en primera compra:');
-    Object.keys(compras[0]).forEach(key => {
-      if (key.toLowerCase().includes('monto') || key.toLowerCase().includes('saldo') || key.toLowerCase().includes('total')) {
-        console.log(`   - ${key}: ${compras[0][key]}`);
-      }
-    });
-
-    // 4. ANÁLISIS: Verificar si hay montos > 0
-    console.log('\n📈 === ANÁLISIS DE VALORES ===');
+    console.log('📊 Total compras (muestra):', compras.length);
     
-    // Verificar DTEs con montos > 0
-    const dtesConMonto = dtes.filter(dte => {
-      return dte.monto_total > 0 || dte.monto_por_cobrar > 0 || 
-             (dte.Saldo && dte.Saldo.saldo_deudor > 0);
-    });
-    console.log(`💰 DTEs con monto > 0: ${dtesConMonto.length}/${dtes.length}`);
-    
-    if (dtesConMonto.length > 0) {
-      console.log('🔍 Ejemplo de DTE con monto > 0:', {
-        id: dtesConMonto[0].id,
-        folio: dtesConMonto[0].folio,
-        monto_total: dtesConMonto[0].monto_total,
-        monto_por_cobrar: dtesConMonto[0].monto_por_cobrar,
-        Saldo: dtesConMonto[0].Saldo
+    if (compras.length > 0) {
+      console.log('🔍 Primera compra (campos de monto):');
+      const primeraCompra = compras[0];
+      console.log({
+        id: primeraCompra.id,
+        folio: primeraCompra.folio,
+        razon_social: primeraCompra.razon_social,
+        monto_total: primeraCompra.monto_total,
+        monto_neto: primeraCompra.monto_neto,
+        iva: primeraCompra.iva,
+        fecha_pago_interna: primeraCompra.fecha_pago_interna,
+        estado: primeraCompra.estado,
+        anulado: primeraCompra.anulado
       });
-    }
-
-    // Verificar compras con montos > 0
-    const comprasConMonto = compras.filter(compra => {
-      return compra.monto_total > 0 || compra.monto_por_pagar > 0;
-    });
-    console.log(`💰 Compras con monto > 0: ${comprasConMonto.length}/${compras.length}`);
-    
-    if (comprasConMonto.length > 0) {
-      console.log('🔍 Ejemplo de compra con monto > 0:', {
-        id: comprasConMonto[0].id,
-        folio: comprasConMonto[0].folio,
-        monto_total: comprasConMonto[0].monto_total,
-        monto_por_pagar: comprasConMonto[0].monto_por_pagar
-      });
+      
+      // Verificar cuántas compras están pendientes
+      const comprasPendientes = compras.filter(compra => 
+        !compra.fecha_pago_interna && compra.anulado !== 'S'
+      );
+      console.log(`💸 Compras pendientes: ${comprasPendientes.length}/${compras.length}`);
     }
 
     return {
-      cuentas: { total: cuentas.length, estructura: cuentas[0] },
-      dtes: { total: dtes.length, conMonto: dtesConMonto.length, estructura: dtes[0] },
-      compras: { total: compras.length, conMonto: comprasConMonto.length, estructura: compras[0] }
+      cartolas: { total: cartolas.length, conSaldo: cartolas.filter(c => c.Saldo).length },
+      dtes: { total: dtes.length, estructura: dtes[0] },
+      compras: { total: compras.length, estructura: compras[0] }
     };
 
   } catch (error) {
