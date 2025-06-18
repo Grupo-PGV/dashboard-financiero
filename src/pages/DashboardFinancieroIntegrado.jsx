@@ -1,11 +1,11 @@
-// DashboardFinancieroIntegrado.jsx - VERSIÓN CORREGIDA CON EXPORT DEFAULT
+// DashboardFinancieroIntegrado.jsx - CARGA SECUENCIAL PARA EVITAR CONFLICTOS DE TOKEN
+
 import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, Calendar, Wallet, PieChart, TrendingUp, 
   RefreshCw, CheckCircle, Clock
 } from 'lucide-react';
 
-// ✅ IMPORTACIONES CORREGIDAS 
 import chipaxService from '../services/chipaxService';
 import { 
   adaptarCuentasPorCobrar, 
@@ -24,13 +24,13 @@ const DashboardFinancieroIntegrado = () => {
   
   // Estados para filtrado
   const [filtroCompras, setFiltroCompras] = useState({
-    soloNoPagadas: true, // Por defecto mostrar solo no pagadas
+    soloNoPagadas: true,
     fechaInicio: '',
     fechaFin: '',
     folioFiltro: ''
   });
 
-  // === FUNCIONES DE CARGA DE DATOS ===
+  // === FUNCIONES DE CARGA SECUENCIAL ===
 
   const cargarSaldosBancarios = async () => {
     try {
@@ -52,16 +52,12 @@ const DashboardFinancieroIntegrado = () => {
   };
 
   const cargarCuentasPorCobrar = async () => {
-    console.log('📋 Cargando cuentas por cobrar...');
-    
     try {
+      console.log('📋 Cargando cuentas por cobrar...');
       const dtes = await chipaxService.obtenerCuentasPorCobrar();
-      console.log('📊 DTEs obtenidos:', dtes);
       
       if (Array.isArray(dtes)) {
         const dtesAdaptados = adaptarCuentasPorCobrar(dtes);
-        
-        // Filtrar solo los que tienen saldo pendiente
         const dtesConSaldo = dtesAdaptados.filter(dte => 
           dte.monto > 0 && dte.estado === 'Pendiente' && !dte.anulado
         );
@@ -82,11 +78,9 @@ const DashboardFinancieroIntegrado = () => {
   };
 
   const cargarCuentasPorPagar = async () => {
-    console.log('💸 Cargando cuentas por pagar...');
-    
     try {
+      console.log('💸 Cargando cuentas por pagar...');
       const compras = await chipaxService.obtenerCuentasPorPagar();
-      console.log('📊 Compras obtenidas:', compras);
       
       if (Array.isArray(compras)) {
         const comprasAdaptadas = adaptarCuentasPorPagar(compras);
@@ -105,19 +99,29 @@ const DashboardFinancieroIntegrado = () => {
     }
   };
 
-  // Cargar todos los datos
+  // ✅ CARGA SECUENCIAL (uno por uno) en lugar de paralela
   const cargarTodosLosDatos = async () => {
     setLoading(true);
-    setErrors([]); // Limpiar errores previos
+    setErrors([]);
     
     console.log('🚀 Iniciando carga completa del dashboard...');
     
     try {
-      await Promise.all([
-        cargarSaldosBancarios(),
-        cargarCuentasPorCobrar(),
-        cargarCuentasPorPagar()
-      ]);
+      // ✅ CARGAR UNO POR UNO para evitar conflictos de token
+      console.log('🏦 === PASO 1: Saldos bancarios ===');
+      await cargarSaldosBancarios();
+      
+      // Pausa entre cargas
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      console.log('📋 === PASO 2: Cuentas por cobrar ===');
+      await cargarCuentasPorCobrar();
+      
+      // Pausa entre cargas
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      console.log('💸 === PASO 3: Cuentas por pagar ===');
+      await cargarCuentasPorPagar();
       
       console.log('✅ Carga completa finalizada');
     } catch (error) {
@@ -166,12 +170,10 @@ const DashboardFinancieroIntegrado = () => {
     
     let comprasFiltradas = [...cuentasPorPagar];
     
-    // Filtro por estado de pago
     if (filtroCompras.soloNoPagadas) {
       comprasFiltradas = filtrarComprasPendientes(comprasFiltradas);
     }
     
-    // Filtro por rango de fechas
     if (filtroCompras.fechaInicio && filtroCompras.fechaFin) {
       comprasFiltradas = filtrarComprasPorFecha(
         comprasFiltradas, 
@@ -180,7 +182,6 @@ const DashboardFinancieroIntegrado = () => {
       );
     }
     
-    // Filtro por folio
     if (filtroCompras.folioFiltro.trim()) {
       comprasFiltradas = comprasFiltradas.filter(compra => 
         compra.folio.toString().includes(filtroCompras.folioFiltro.trim())
@@ -254,6 +255,9 @@ const DashboardFinancieroIntegrado = () => {
       
       <div className="mt-3 text-sm text-gray-600">
         Mostrando {obtenerComprasFiltradas().length} de {cuentasPorPagar.length} compras
+        {obtenerComprasFiltradas().length !== cuentasPorPagar.length && 
+          ` (filtradas: ${cuentasPorPagar.length - obtenerComprasFiltradas().length})`
+        }
       </div>
     </div>
   );
@@ -288,6 +292,16 @@ const DashboardFinancieroIntegrado = () => {
               <li key={index}>{error}</li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Indicador de carga */}
+      {loading && (
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <RefreshCw className="w-5 h-5 text-blue-500 mr-2 animate-spin" />
+            <p className="text-blue-700">Cargando datos financieros...</p>
+          </div>
         </div>
       )}
 
@@ -356,53 +370,62 @@ const DashboardFinancieroIntegrado = () => {
 
       {/* Sección de Cuentas por Pagar */}
       <div className="bg-white p-6 rounded-lg shadow mb-8">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Cuentas por Pagar</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          Cuentas por Pagar 
+          <span className="text-sm font-normal text-gray-500 ml-2">
+            (Máximo 200 más recientes)
+          </span>
+        </h2>
         
         <FiltrosCompras />
         
-        <div className="overflow-x-auto">
-          <table className="min-w-full table-auto">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Folio</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha Pago</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {obtenerComprasFiltradas().slice(0, 10).map((compra) => (
-                <tr key={compra.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 text-sm">{compra.folio}</td>
-                  <td className="px-4 py-2 text-sm">{compra.razonSocial}</td>
-                  <td className="px-4 py-2 text-sm">{compra.fecha}</td>
-                  <td className="px-4 py-2 text-sm">
-                    {compra.fechaPago ? compra.fechaPago : 'Sin pagar'}
-                  </td>
-                  <td className="px-4 py-2 text-sm font-medium">{formatCurrency(compra.monto)}</td>
-                  <td className="px-4 py-2">
-                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                      compra.estado === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' :
-                      compra.estado === 'Pagado' ? 'bg-green-100 text-green-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {compra.estado}
-                    </span>
-                  </td>
+        {obtenerComprasFiltradas().length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full table-auto">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Folio</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha Pago</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {obtenerComprasFiltradas().slice(0, 20).map((compra) => (
+                  <tr key={compra.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 text-sm">{compra.folio}</td>
+                    <td className="px-4 py-2 text-sm">{compra.razonSocial}</td>
+                    <td className="px-4 py-2 text-sm">{compra.fecha}</td>
+                    <td className="px-4 py-2 text-sm">
+                      {compra.fechaPago ? compra.fechaPago : 'Sin pagar'}
+                    </td>
+                    <td className="px-4 py-2 text-sm font-medium">{formatCurrency(compra.montoTotal)}</td>
+                    <td className="px-4 py-2">
+                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                        compra.estado === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' :
+                        compra.estado === 'Pagado' ? 'bg-green-100 text-green-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {compra.estado}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-500">No hay compras que coincidan con los filtros</p>
+          </div>
+        )}
         
-        {obtenerComprasFiltradas().length > 10 && (
+        {obtenerComprasFiltradas().length > 20 && (
           <div className="mt-4 text-center text-sm text-gray-500">
-            Mostrando 10 de {obtenerComprasFiltradas().length} compras. 
-            <span className="text-blue-600 hover:text-blue-800 cursor-pointer ml-1">
-              Ver todas
-            </span>
+            Mostrando 20 de {obtenerComprasFiltradas().length} compras filtradas.
           </div>
         )}
       </div>
@@ -425,7 +448,7 @@ const DashboardFinancieroIntegrado = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {cuentasPorCobrar.slice(0, 10).map((cuenta) => (
+                {cuentasPorCobrar.slice(0, 20).map((cuenta) => (
                   <tr key={cuenta.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2 text-sm">{cuenta.folio}</td>
                     <td className="px-4 py-2 text-sm">{cuenta.razonSocial}</td>
@@ -449,12 +472,9 @@ const DashboardFinancieroIntegrado = () => {
           </div>
         )}
         
-        {cuentasPorCobrar.length > 10 && (
+        {cuentasPorCobrar.length > 20 && (
           <div className="mt-4 text-center text-sm text-gray-500">
-            Mostrando 10 de {cuentasPorCobrar.length} facturas pendientes.
-            <span className="text-blue-600 hover:text-blue-800 cursor-pointer ml-1">
-              Ver todas
-            </span>
+            Mostrando 20 de {cuentasPorCobrar.length} facturas pendientes.
           </div>
         )}
       </div>
@@ -469,6 +489,7 @@ const DashboardFinancieroIntegrado = () => {
             <p>Cuentas por pagar: {cuentasPorPagar.length} items</p>
             <p>Compras filtradas: {obtenerComprasFiltradas().length} items</p>
             <p>Errores: {errors.length}</p>
+            <p>Estado carga: {loading ? 'Cargando...' : 'Completo'}</p>
           </div>
         </div>
       )}
@@ -476,5 +497,4 @@ const DashboardFinancieroIntegrado = () => {
   );
 };
 
-// ✅ EXPORT DEFAULT AGREGADO - ESTO RESUELVE EL ERROR DE BUILD
 export default DashboardFinancieroIntegrado;
