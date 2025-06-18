@@ -12,7 +12,7 @@ export const adaptarCuentasPorCobrar = (dtes) => {
     return [];
   }
   
-  return dtes.map((dte, index) => {
+  const resultado = dtes.map((dte, index) => {
     // ✅ CORRECCIÓN: Usar nombres reales en camelCase
     let saldoPendiente = 0;
     
@@ -54,6 +54,19 @@ export const adaptarCuentasPorCobrar = (dtes) => {
       fechaProcesamiento: new Date().toISOString()
     };
   });
+  
+  // 🔍 DEBUG: Ver qué valores genera el adaptador
+  const totalMonto = resultado.reduce((sum, item) => sum + item.monto, 0);
+  console.log('🔍 DEBUG ADAPTADOR DTEs:');
+  console.log(`  - Total items: ${resultado.length}`);
+  console.log(`  - Total monto: ${totalMonto.toLocaleString('es-CL')}`);
+  console.log(`  - Primeros 3 montos:`, resultado.slice(0, 3).map(r => ({
+    folio: r.folio,
+    monto: r.monto,
+    saldoInfo: r.saldoInfo
+  })));
+  
+  return resultado;
 };
 
 /**
@@ -68,7 +81,7 @@ export const adaptarCuentasPorPagar = (compras) => {
     return [];
   }
   
-  return compras.map((compra, index) => {
+  const resultado = compras.map((compra, index) => {
     // ✅ CORRECCIÓN: Usar nombres reales en camelCase
     const estaPagado = compra.fechaPagoInterna !== null && compra.fechaPagoInterna !== undefined; // ✅ camelCase
     const estaAnulado = compra.anulado === 'S';
@@ -110,6 +123,22 @@ export const adaptarCuentasPorPagar = (compras) => {
       fechaProcesamiento: new Date().toISOString()
     };
   });
+  
+  // 🔍 DEBUG: Ver qué valores genera el adaptador
+  const totalMonto = resultado.reduce((sum, item) => sum + item.monto, 0);
+  const pendientes = resultado.filter(item => item.monto > 0);
+  console.log('🔍 DEBUG ADAPTADOR COMPRAS:');
+  console.log(`  - Total items: ${resultado.length}`);
+  console.log(`  - Items pendientes: ${pendientes.length}`);
+  console.log(`  - Total monto pendiente: ${totalMonto.toLocaleString('es-CL')}`);
+  console.log(`  - Primeros 3 estados:`, resultado.slice(0, 3).map(r => ({
+    folio: r.folio,
+    monto: r.monto,
+    estado: r.estado,
+    fechaPago: r.fechaPago
+  })));
+  
+  return resultado;
 };
 
 /**
@@ -144,7 +173,7 @@ export const adaptarSaldosBancarios = (cuentasConSaldos) => {
       tipo: cuenta.TipoCuentaCorriente?.tipoCuenta || 'Cuenta Corriente',
       nombreCorto: cuenta.TipoCuentaCorriente?.nombreCorto || 'CC',
       moneda: cuenta.Moneda?.moneda || 'CLP',
-      simboloMoneda: cuenta.Moneda?.simbolo || '$',
+      simboloMoneda: cuenta.Moneda?.simbolo || ',
       decimales: cuenta.Moneda?.decimales || 0,
       
       movimientos: cuenta.movimientos || {
