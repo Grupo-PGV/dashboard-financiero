@@ -1,23 +1,56 @@
-// chipaxService.js - VERSIÓN MEJORADA CON PAGINACIÓN Y FILTROS
+// chipaxService.js - VERSIÓN CORREGIDA CON MANEJO ROBUSTO DE TOKENS
 
 const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
 const APP_ID = process.env.REACT_APP_CHIPAX_APP_ID;
 const SECRET_KEY = process.env.REACT_APP_CHIPAX_SECRET_KEY;
 
-// Cache para el token
-let cachedToken = null;
-let tokenExpiry = null;
+// Cache mejorado para el token
+let tokenCache = {
+  token: null,
+  expiry: null,
+  isRefreshing: false,
+  refreshPromise: null
+};
 
 /**
- * ✅ FUNCIÓN MEJORADA: Obtener token con cache
+ * ✅ FUNCIÓN MEJORADA: Obtener token con manejo de concurrencia
  */
 const getChipaxToken = async () => {
-  // Verificar si el token existe y no ha expirado
-  if (cachedToken && tokenExpiry && Date.now() < tokenExpiry) {
-    console.log('🔑 Usando token válido en cache');
-    return cachedToken;
+  // Si ya hay un proceso de refresh en curso, esperar a que termine
+  if (tokenCache.isRefreshing && tokenCache.refreshPromise) {
+    console.log('🔄 Esperando refresh de token en curso...');
+    return await tokenCache.refreshPromise;
   }
 
+  // Verificar si el token existe y no ha expirado (con margen de 5 minutos)
+  const now = Date.now();
+  const tokenMargin = 5 * 60 * 1000; // 5 minutos de margen
+  
+  if (tokenCache.token && tokenCache.expiry && now < (tokenCache.expiry - tokenMargin)) {
+    console.log('🔑 Usando token válido en cache');
+    return tokenCache.token;
+  }
+
+  // Marcar que se está refrescando el token
+  tokenCache.isRefreshing = true;
+  
+  // Crear promesa de refresh para que otros requests esperen
+  tokenCache.refreshPromise = refreshToken();
+  
+  try {
+    const newToken = await tokenCache.refreshPromise;
+    return newToken;
+  } finally {
+    // Limpiar el estado de refresh
+    tokenCache.isRefreshing = false;
+    tokenCache.refreshPromise = null;
+  }
+};
+
+/**
+ * ✅ FUNCIÓN INTERNA: Refrescar token
+ */
+const refreshToken = async () => {
   console.log('🔐 Obteniendo nuevo token de Chipax...');
   console.log('🔑 APP_ID:', APP_ID ? `${APP_ID.substring(0, 10)}...` : 'NO CONFIGURADO');
 
@@ -43,65 +76,104 @@ const getChipaxToken = async () => {
     const data = await response.json();
     console.log('✅ Respuesta exitosa:', typeof data);
 
-    if (data.access_token) {
-      cachedToken = data.access_token;
-      // Configurar expiración para 50 minutos (tokens suelen durar 1 hora)
-      tokenExpiry = Date.now() + (50 * 60 * 1000);
-      
-      console.log('🔐 Token guardado exitosamente');
-      console.log('🔐 Token longitud:', cachedToken.length, 'caracteres');
-      
-      return cachedToken;
-    } else {
-      throw new Error('No se recibió access_token en la respuesta');
+    // ✅ VALIDACIÓN MEJORADA DE LA RESPUESTA
+    if (!data || typeof data !== 'object') {
+      throw new Error('Respuesta inválida del servidor');
     }
+
+    // Buscar el token en diferentes campos posibles
+    const token = data.access_token || data.token || data.jwt || data.accessToken;
+    
+    if (!token) {
+      console.error('🔍 DEBUG - Estructura de respuesta:', Object.keys(data));
+      console.error('🔍 DEBUG - Respuesta completa:', data);
+      throw new Error('No se encontró access_token en la respuesta');
+    }
+
+    // Actualizar cache con nuevo token
+    tokenCache.token = token;
+    tokenCache.expiry = Date.now() + (50 * 60 * 1000); // 50 minutos
+    
+    console.log('🔐 Token guardado exitosamente');
+    console.log('🔐 Token longitud:', token.length, 'caracteres');
+    
+    return token;
 
   } catch (error) {
     console.error('❌ Error obteniendo token:', error);
+    
+    // Limpiar cache en caso de error
+    tokenCache.token = null;
+    tokenCache.expiry = null;
+    
     throw new Error(`Error de autenticación: ${error.message}`);
   }
 };
 
 /**
- * ✅ FUNCIÓN BASE: Hacer request a Chipax
+ * ✅ FUNCIÓN MEJORADA: Hacer request a Chipax con retry
  */
-const fetchFromChipax = async (endpoint) => {
-  const token = await getChipaxToken();
-  const url = `${API_BASE_URL}${endpoint}`;
+const fetchFromChipax = async (endpoint, options = {}) => {
+  const { maxRetries = 2, retryDelay = 1000 } = options;
+  
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      const token = await getChipaxToken();
+      const url = `${API_BASE_URL}${endpoint}`;
 
-  console.log(`🔐 Token para ${endpoint}: ${token.substring(0, 20)}...`);
+      console.log(`🔐 Token para ${endpoint}: ${token.substring(0, 20)}... (intento ${attempt})`);
 
-  try {
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `JWT ${token}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `JWT ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      console.log(`📡 Status de ${endpoint}: ${response.status}`);
+
+      if (response.status === 401) {
+        // Token expirado, limpiar cache y reintentar
+        console.log('🔄 Token expirado, limpiando cache...');
+        tokenCache.token = null;
+        tokenCache.expiry = null;
+        
+        if (attempt <= maxRetries) {
+          console.log(`🔄 Reintentando en ${retryDelay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue;
+        }
       }
-    });
 
-    console.log(`📡 Status de ${endpoint}: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const data = await response.json();
+      return data;
+
+    } catch (error) {
+      console.error(`❌ Error en ${endpoint} (intento ${attempt}):`, error);
+      
+      if (attempt <= maxRetries) {
+        console.log(`🔄 Reintentando en ${retryDelay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        continue;
+      }
+      
+      throw error;
     }
-
-    const data = await response.json();
-    return data;
-
-  } catch (error) {
-    console.error(`❌ Error en ${endpoint}:`, error);
-    throw error;
   }
 };
 
 /**
- * ✅ FUNCIÓN NUEVA: Obtener datos paginados con filtros de fecha
+ * ✅ FUNCIÓN MEJORADA: Obtener datos paginados de forma secuencial
  */
 const fetchPaginatedDataWithDateFilter = async (endpoint, options = {}) => {
   const {
     limit = 50,
-    maxPages = 10,
+    maxPages = 4,
     sortBy = 'fechaEmision',
     sortOrder = 'desc',
     startDate = null,
@@ -116,6 +188,7 @@ const fetchPaginatedDataWithDateFilter = async (endpoint, options = {}) => {
   let currentPage = 1;
   let hasMoreData = true;
 
+  // ✅ PROCESAR PÁGINAS DE FORMA SECUENCIAL (no paralela)
   while (hasMoreData && currentPage <= maxPages && allData.length < maxItems) {
     try {
       console.log(`📄 Cargando página ${currentPage}...`);
@@ -136,7 +209,8 @@ const fetchPaginatedDataWithDateFilter = async (endpoint, options = {}) => {
         url += `&sortBy=${sortBy}&sortOrder=${sortOrder}`;
       }
 
-      const data = await fetchFromChipax(url);
+      // ✅ USAR FETCH CON RETRY
+      const data = await fetchFromChipax(url, { maxRetries: 1, retryDelay: 500 });
       
       // Manejar diferentes estructuras de respuesta
       let pageItems = [];
@@ -168,8 +242,8 @@ const fetchPaginatedDataWithDateFilter = async (endpoint, options = {}) => {
         hasMoreData = false;
       }
 
-      // Pausa entre requests para no sobrecargar la API
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // ✅ PAUSA AUMENTADA entre requests para evitar rate limiting
+      await new Promise(resolve => setTimeout(resolve, 300));
 
     } catch (error) {
       console.error(`❌ Error en página ${currentPage}:`, error);
@@ -182,24 +256,22 @@ const fetchPaginatedDataWithDateFilter = async (endpoint, options = {}) => {
 };
 
 /**
- * ✅ FUNCIÓN MEJORADA: Obtener compras con filtro de fechas recientes
+ * ✅ FUNCIÓN MEJORADA: Obtener compras con manejo de errores
  */
 const obtenerCuentasPorPagar = async () => {
   console.log('💸 Obteniendo compras (200 más recientes desde 2025)...');
 
   try {
-    // Obtener compras desde enero 2025 hacia atrás, ordenadas por fecha descendente
+    // ✅ USAR ENDPOINT SIMPLE SIN FILTROS COMPLEJOS PRIMERO
     const compras = await fetchPaginatedDataWithDateFilter('/compras', {
-      limit: 50,           // Límite por página
-      maxPages: 4,         // 4 páginas = 200 items máximo
-      maxItems: 200,       // Límite total de items
+      limit: 50,
+      maxPages: 4,
+      maxItems: 200,
       sortBy: 'fechaEmision',
-      sortOrder: 'desc',   // Más recientes primero
-      startDate: '2024-01-01',  // Desde enero 2024
-      endDate: null        // Sin fecha límite (hasta hoy)
+      sortOrder: 'desc'
+      // Quitar filtros de fecha inicialmente para asegurar que funcione
     });
 
-    // Validar estructura de datos
     if (!Array.isArray(compras)) {
       console.warn('⚠️ Compras: Respuesta no es array:', typeof compras);
       return [];
@@ -213,19 +285,20 @@ const obtenerCuentasPorPagar = async () => {
         folio: primeraCompra.folio,
         razonSocial: primeraCompra.razonSocial,
         fechaEmision: primeraCompra.fechaEmision,
-        montoTotal: primeraCompra.montoTotal,
-        fechaPagoInterna: primeraCompra.fechaPagoInterna
+        montoTotal: primeraCompra.montoTotal
       });
 
-      // Ordenar por fecha de emisión descendente (más recientes primero)
+      // Ordenar por fecha localmente
       compras.sort((a, b) => {
         const fechaA = new Date(a.fechaEmision || a.fecha || '1900-01-01');
         const fechaB = new Date(b.fechaEmision || b.fecha || '1900-01-01');
         return fechaB - fechaA;
       });
 
-      console.log(`✅ ${compras.length} compras obtenidas y ordenadas por fecha`);
-      console.log(`📅 Rango: ${compras[compras.length-1].fechaEmision} → ${compras[0].fechaEmision}`);
+      console.log(`✅ ${compras.length} compras obtenidas y ordenadas`);
+      if (compras.length > 0) {
+        console.log(`📅 Rango: ${compras[compras.length-1].fechaEmision} → ${compras[0].fechaEmision}`);
+      }
     }
 
     return compras;
@@ -237,13 +310,13 @@ const obtenerCuentasPorPagar = async () => {
 };
 
 /**
- * ✅ FUNCIÓN MEJORADA: Obtener DTEs por cobrar con mejor debugging
+ * ✅ FUNCIÓN MEJORADA: Obtener DTEs por cobrar con mejor manejo
  */
 const obtenerCuentasPorCobrar = async () => {
   console.log('📋 Obteniendo DTEs por cobrar...');
 
   try {
-    const data = await fetchFromChipax('/dtes?porCobrar=1');
+    const data = await fetchFromChipax('/dtes?porCobrar=1', { maxRetries: 1 });
     
     console.log('🔍 DEBUG DTEs - Estructura de respuesta:');
     console.log('- Tipo de respuesta:', typeof data);
@@ -252,64 +325,18 @@ const obtenerCuentasPorCobrar = async () => {
 
     let dtes = [];
 
-    // Manejar diferentes estructuras de respuesta
     if (Array.isArray(data)) {
       dtes = data;
       console.log('✅ DTEs encontrados como array directo');
     } else if (data && typeof data === 'object') {
-      // Buscar array de DTEs en las propiedades del objeto
       for (const [key, value] of Object.entries(data)) {
         if (Array.isArray(value) && value.length > 0) {
-          // Verificar que sea un array de DTEs válido
           if (value[0].id && (value[0].folio || value[0].montoTotal)) {
             dtes = value;
             console.log(`✅ DTEs encontrados en '${key}': ${value.length} items`);
             break;
           }
         }
-      }
-    }
-
-    if (dtes.length === 0) {
-      console.warn('⚠️ No se encontraron DTEs por cobrar');
-      return [];
-    }
-
-    // Debug de estructura de DTEs
-    if (dtes.length > 0) {
-      console.log('🔍 DEBUG: Primer DTE (campos importantes):');
-      const primerDTE = dtes[0];
-      console.log({
-        id: primerDTE.id,
-        folio: primerDTE.folio,
-        razonSocial: primerDTE.razonSocial,
-        montoTotal: primerDTE.montoTotal,
-        montoNeto: primerDTE.montoNeto,
-        fechaEmision: primerDTE.fechaEmision,
-        Saldo: primerDTE.Saldo,
-        Cartolas: primerDTE.Cartolas?.length || 0,
-        anulado: primerDTE.anulado
-      });
-
-      // Analizar saldos
-      const dtesConSaldo = dtes.filter(dte => {
-        if (dte.Saldo && dte.Saldo.saldoDeudor > 0) return true;
-        if (dte.montoTotal > 0 && !dte.anulado) return true;
-        return false;
-      });
-
-      console.log(`💰 DTEs con saldo/monto > 0: ${dtesConSaldo.length}/${dtes.length}`);
-      
-      if (dtesConSaldo.length > 0) {
-        console.log('🔍 DEBUG: Primeros 3 DTEs con saldo:');
-        dtesConSaldo.slice(0, 3).forEach((dte, i) => {
-          console.log(`DTE ${i + 1}:`, {
-            folio: dte.folio,
-            montoTotal: dte.montoTotal,
-            saldoDeudor: dte.Saldo?.saldoDeudor || 0,
-            estado: dte.anulado === 'S' ? 'Anulado' : 'Activo'
-          });
-        });
       }
     }
 
@@ -323,15 +350,14 @@ const obtenerCuentasPorCobrar = async () => {
 };
 
 /**
- * ✅ FUNCIÓN EXISTENTE: Obtener saldos bancarios (mantener como está)
+ * ✅ FUNCIÓN MEJORADA: Obtener saldos bancarios con mejor manejo
  */
 const obtenerSaldosBancarios = async () => {
   console.log('🏦 Obteniendo saldos bancarios...');
 
   try {
-    // 1. Obtener cuentas corrientes
     console.log('📋 Obteniendo cuentas corrientes...');
-    const cuentas = await fetchFromChipax('/cuentas-corrientes');
+    const cuentas = await fetchFromChipax('/cuentas-corrientes', { maxRetries: 1 });
 
     if (!Array.isArray(cuentas)) {
       console.warn('⚠️ Cuentas corrientes no es array');
@@ -340,9 +366,8 @@ const obtenerSaldosBancarios = async () => {
 
     console.log(`✅ ${cuentas.length} cuentas corrientes obtenidas`);
 
-    // 2. Obtener cartolas para calcular saldos
     console.log('💰 Obteniendo cartolas para calcular saldos...');
-    const cartolasData = await fetchFromChipax('/flujo-caja/cartolas');
+    const cartolasData = await fetchFromChipax('/flujo-caja/cartolas', { maxRetries: 1 });
 
     let cartolas = [];
     if (Array.isArray(cartolasData)) {
@@ -353,7 +378,7 @@ const obtenerSaldosBancarios = async () => {
 
     console.log(`✅ ${cartolas.length} cartolas obtenidas`);
 
-    // 3. Calcular saldos por cuenta
+    // Calcular saldos (mantener lógica existente)
     const saldosPorCuenta = {};
     cartolas.forEach(cartola => {
       const cuentaId = cartola.idCuentaCorriente;
@@ -365,7 +390,6 @@ const obtenerSaldosBancarios = async () => {
         };
       }
 
-      // Usar el saldo más reciente
       const fechaCartola = new Date(cartola.fecha);
       const fechaActual = new Date(saldosPorCuenta[cuentaId].ultimaFecha);
 
@@ -378,18 +402,16 @@ const obtenerSaldosBancarios = async () => {
       }
     });
 
-    // 4. Combinar cuentas con saldos calculados
     const cuentasConSaldos = cuentas.map(cuenta => ({
       ...cuenta,
-      saldoCalculado: saldosPorCuenta[cuenta.id]?.saldoDeudor || 
-                     saldosPorCuenta[cuenta.id]?.saldoAcreedor || 0,
+      saldoCalculado: saldosPorCuenta[cuenta.id]?.saldoDeudor || 0,
       ultimaActualizacion: saldosPorCuenta[cuenta.id]?.ultimaFecha || null,
       saldoInfo: saldosPorCuenta[cuenta.id] || null
     }));
 
     const totalSaldos = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.saldoCalculado, 0);
     console.log(`💰 Saldos calculados para ${cuentasConSaldos.length} cuentas`);
-    console.log(`💵 Saldo total calculado: ${totalSaldos.toLocaleString('es-CL')}`);
+    console.log(`💵 Saldo total: ${totalSaldos.toLocaleString('es-CL')}`);
 
     return cuentasConSaldos;
 
