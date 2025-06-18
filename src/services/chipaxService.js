@@ -140,45 +140,67 @@ const fetchFromChipax = async (endpoint, options = {}) => {
 };
 
 /**
- * ✅ FUNCIÓN CORREGIDA PARA OBTENER SALDOS BANCARIOS
+ * ✅ FUNCIÓN CORREGIDA: Obtener saldos bancarios desde cartolas
+ * CORRECCIÓN: Los saldos reales están en /flujo-caja/cartolas, no en /cuentas-corrientes
  */
 const obtenerSaldosBancarios = async () => {
   console.log('🏦 Obteniendo saldos bancarios...');
 
   try {
-    // Usar el endpoint que sabemos que funciona
-    const data = await fetchFromChipax('/cuentas-corrientes');
+    // 1. Obtener cuentas corrientes (estructura básica)
+    console.log('📋 Obteniendo cuentas corrientes...');
+    const cuentas = await fetchFromChipax('/cuentas-corrientes');
 
-    // VALIDACIÓN CRÍTICA: Verificar que sea un array
-    if (!Array.isArray(data)) {
-      console.warn('⚠️ Respuesta no es array:', typeof data);
-
-      // Si es un objeto, buscar arrays dentro
-      if (data && typeof data === 'object') {
-        // Buscar propiedades que contengan arrays
-        for (const [key, value] of Object.entries(data)) {
-          if (Array.isArray(value)) {
-            console.log(`✅ Encontrado array en propiedad '${key}':`, value.length, 'items');
-            return adaptarCuentasCorrientes(value);
-          }
-        }
-        
-        // Si no hay arrays, crear array con el objeto
-        console.log('🔄 Convirtiendo objeto único a array');
-        return adaptarCuentasCorrientes([data]);
-      }
-
-      // Si no es ni array ni objeto válido, retornar array vacío
-      console.warn('⚠️ Datos inválidos, retornando array vacío');
+    if (!Array.isArray(cuentas) || cuentas.length === 0) {
+      console.warn('⚠️ No se encontraron cuentas corrientes');
       return [];
     }
 
-    console.log(`✅ ${data.length} cuentas corrientes obtenidas`);
-    return adaptarCuentasCorrientes(data);
+    console.log(`✅ ${cuentas.length} cuentas corrientes obtenidas`);
+
+    // 2. Obtener cartolas para saldos reales
+    console.log('💰 Obteniendo cartolas para calcular saldos...');
+    const cartolasData = await fetchFromChipax('/flujo-caja/cartolas');
+    const cartolas = cartolasData.docs || cartolasData.items || cartolasData || [];
+
+    console.log(`✅ ${cartolas.length} cartolas obtenidas`);
+
+    // 3. Procesar saldos desde cartolas
+    const saldosPorCuenta = {};
+    
+    cartolas.forEach(cartola => {
+      if (cartola.cuenta_corriente_id && cartola.Saldo) {
+        const cuentaId = cartola.cuenta_corriente_id;
+        
+        // Solo tomar el último registro de saldo
+        if (cartola.Saldo.last_record === 1) {
+          saldosPorCuenta[cuentaId] = {
+            saldoDeudor: parseFloat(cartola.Saldo.saldo_deudor) || 0,
+            saldoAcreedor: parseFloat(cartola.Saldo.saldo_acreedor) || 0,
+            ultimaFecha: cartola.fecha
+          };
+        }
+      }
+    });
+
+    // 4. Combinar cuentas con saldos calculados
+    const cuentasConSaldos = cuentas.map(cuenta => ({
+      ...cuenta,
+      saldoCalculado: saldosPorCuenta[cuenta.id]?.saldoDeudor || 
+                     saldosPorCuenta[cuenta.id]?.saldoAcreedor || 0,
+      ultimaActualizacion: saldosPorCuenta[cuenta.id]?.ultimaFecha || null,
+      saldoInfo: saldosPorCuenta[cuenta.id] || null
+    }));
+
+    // 5. Log de resumen
+    const totalSaldos = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.saldoCalculado, 0);
+    console.log(`💰 Saldos calculados para ${cuentasConSaldos.length} cuentas`);
+    console.log(`💵 Saldo total calculado: ${totalSaldos.toLocaleString('es-CL')}`);
+
+    return adaptarCuentasCorrientes(cuentasConSaldos);
 
   } catch (error) {
     console.error('❌ Error obteniendo saldos bancarios:', error);
-    // FALLBACK: Retornar array vacío en lugar de fallar
     return [];
   }
 };
@@ -552,6 +574,98 @@ const investigarEndpointsDisponibles = async () => {
 };
 
 /**
+ * 🔍 FUNCIÓN DE DEBUG: Inspeccionar estructura real de datos
+ */
+const debugearDatosReales = async () => {
+  console.log('🔍 INSPECCIONANDO DATOS REALES DE CHIPAX...');
+  
+  try {
+    // 1. DEBUG: Cuentas corrientes
+    console.log('\n🏦 === DEBUG CUENTAS CORRIENTES ===');
+    const cuentas = await fetchFromChipax('/cuentas-corrientes');
+    console.log('📊 Total cuentas:', cuentas.length);
+    console.log('🔍 Primera cuenta (estructura completa):', JSON.stringify(cuentas[0], null, 2));
+    console.log('💰 Campos de saldo encontrados en primera cuenta:');
+    Object.keys(cuentas[0]).forEach(key => {
+      if (key.toLowerCase().includes('saldo') || key.toLowerCase().includes('balance')) {
+        console.log(`   - ${key}: ${cuentas[0][key]}`);
+      }
+    });
+
+    // 2. DEBUG: DTEs por cobrar
+    console.log('\n📋 === DEBUG DTEs POR COBRAR ===');
+    const dtesData = await fetchFromChipax('/dtes?porCobrar=1');
+    const dtes = dtesData.items || dtesData;
+    console.log('📊 Total DTEs:', dtes.length);
+    console.log('🔍 Primer DTE (estructura completa):', JSON.stringify(dtes[0], null, 2));
+    console.log('💰 Campos de monto encontrados en primer DTE:');
+    Object.keys(dtes[0]).forEach(key => {
+      if (key.toLowerCase().includes('monto') || key.toLowerCase().includes('saldo') || key.toLowerCase().includes('total')) {
+        console.log(`   - ${key}: ${dtes[0][key]}`);
+      }
+    });
+
+    // 3. DEBUG: Compras
+    console.log('\n💸 === DEBUG COMPRAS ===');
+    const comprasData = await fetchFromChipax('/compras');
+    const compras = comprasData.items || comprasData;
+    console.log('📊 Total compras:', compras.length);
+    console.log('🔍 Primera compra (estructura completa):', JSON.stringify(compras[0], null, 2));
+    console.log('💰 Campos de monto encontrados en primera compra:');
+    Object.keys(compras[0]).forEach(key => {
+      if (key.toLowerCase().includes('monto') || key.toLowerCase().includes('saldo') || key.toLowerCase().includes('total')) {
+        console.log(`   - ${key}: ${compras[0][key]}`);
+      }
+    });
+
+    // 4. ANÁLISIS: Verificar si hay montos > 0
+    console.log('\n📈 === ANÁLISIS DE VALORES ===');
+    
+    // Verificar DTEs con montos > 0
+    const dtesConMonto = dtes.filter(dte => {
+      return dte.monto_total > 0 || dte.monto_por_cobrar > 0 || 
+             (dte.Saldo && dte.Saldo.saldo_deudor > 0);
+    });
+    console.log(`💰 DTEs con monto > 0: ${dtesConMonto.length}/${dtes.length}`);
+    
+    if (dtesConMonto.length > 0) {
+      console.log('🔍 Ejemplo de DTE con monto > 0:', {
+        id: dtesConMonto[0].id,
+        folio: dtesConMonto[0].folio,
+        monto_total: dtesConMonto[0].monto_total,
+        monto_por_cobrar: dtesConMonto[0].monto_por_cobrar,
+        Saldo: dtesConMonto[0].Saldo
+      });
+    }
+
+    // Verificar compras con montos > 0
+    const comprasConMonto = compras.filter(compra => {
+      return compra.monto_total > 0 || compra.monto_por_pagar > 0;
+    });
+    console.log(`💰 Compras con monto > 0: ${comprasConMonto.length}/${compras.length}`);
+    
+    if (comprasConMonto.length > 0) {
+      console.log('🔍 Ejemplo de compra con monto > 0:', {
+        id: comprasConMonto[0].id,
+        folio: comprasConMonto[0].folio,
+        monto_total: comprasConMonto[0].monto_total,
+        monto_por_pagar: comprasConMonto[0].monto_por_pagar
+      });
+    }
+
+    return {
+      cuentas: { total: cuentas.length, estructura: cuentas[0] },
+      dtes: { total: dtes.length, conMonto: dtesConMonto.length, estructura: dtes[0] },
+      compras: { total: compras.length, conMonto: comprasConMonto.length, estructura: compras[0] }
+    };
+
+  } catch (error) {
+    console.error('❌ Error en debug:', error);
+    return { error: error.message };
+  }
+};
+
+/**
  * ✅ EXPORTACIONES - CON TODAS LAS FUNCIONES NECESARIAS
  */
 const chipaxService = {
@@ -566,7 +680,8 @@ const chipaxService = {
   obtenerProveedores,
   fetchPaginatedData,
   investigarEndpointsDisponibles,
-  testearSaldosBancarios
+  testearSaldosBancarios,
+  debugearDatosReales       // ✅ Función de debug
 };
 
 export default chipaxService;
@@ -583,5 +698,6 @@ export {
   obtenerProveedores,
   fetchPaginatedData,
   investigarEndpointsDisponibles,
-  testearSaldosBancarios
+  testearSaldosBancarios,
+  debugearDatosReales       // ✅ Función de debug
 };
