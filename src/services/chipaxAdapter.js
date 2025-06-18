@@ -1,8 +1,8 @@
-// === ADAPTADORES CORREGIDOS CON NOMBRES REALES DE CAMPOS ===
+// === ADAPTADORES CORREGIDOS PARA EL DASHBOARD ===
 
 /**
  * ✅ ADAPTADOR CORREGIDO: DTEs (Cuentas por Cobrar)
- * CORRECCIÓN: Usar nombres en camelCase que son los reales
+ * SOLUCIÓN: Usar siempre montoTotal como base y validar saldo real
  */
 export const adaptarCuentasPorCobrar = (dtes) => {
   console.log('📊 Adaptando DTEs de venta (cuentas por cobrar)...');
@@ -13,41 +13,69 @@ export const adaptarCuentasPorCobrar = (dtes) => {
   }
   
   const resultado = dtes.map((dte, index) => {
-    // ✅ CORRECCIÓN: Usar nombres reales en camelCase
-    let saldoPendiente = 0;
+    // ✅ SOLUCIÓN PRINCIPAL: Usar montoTotal como base
+    let montoFactura = parseFloat(dte.montoTotal) || 0;
+    let saldoPendiente = montoFactura; // Por defecto, toda la factura está pendiente
     
-    // 1. Prioridad: Saldo.saldoDeudor (campo real confirmado)
-    if (dte.Saldo && dte.Saldo.saldoDeudor !== undefined) {
-      saldoPendiente = parseFloat(dte.Saldo.saldoDeudor) || 0;
+    // Verificar si hay información de saldo para determinar pagos
+    if (dte.Saldo) {
+      const saldoDeudor = parseFloat(dte.Saldo.saldoDeudor) || 0;
+      const saldoAcreedor = parseFloat(dte.Saldo.saldoAcreedor) || 0;
+      
+      // Si hay saldo deudor, usar ese valor (más preciso)
+      if (saldoDeudor > 0) {
+        saldoPendiente = saldoDeudor;
+      }
+      // Si hay saldo acreedor, significa que se pagó de más
+      else if (saldoAcreedor > 0) {
+        saldoPendiente = 0; // Está pagada
+      }
     }
-    // 2. Fallback: montoTotal (no monto_total)
-    else if (dte.montoTotal !== undefined) {
-      saldoPendiente = parseFloat(dte.montoTotal) || 0;
+    
+    // Verificar si hay cartolas (pagos registrados)
+    let montoPagado = 0;
+    if (dte.Cartolas && Array.isArray(dte.Cartolas)) {
+      montoPagado = dte.Cartolas.reduce((total, cartola) => {
+        return total + (parseFloat(cartola.abono) || 0);
+      }, 0);
+      
+      // Si hay pagos, restar del monto total
+      if (montoPagado > 0) {
+        saldoPendiente = Math.max(0, montoFactura - montoPagado);
+      }
     }
     
     return {
       id: dte.id || index,
       folio: dte.folio || 'S/N',
-      razonSocial: dte.razonSocial || 'Cliente no especificado',        // ✅ camelCase
+      razonSocial: dte.razonSocial || 'Cliente no especificado',
       rutCliente: dte.rut || 'Sin RUT',
-      monto: saldoPendiente,                                            // ✅ Campo correcto
-      montoTotal: parseFloat(dte.montoTotal) || 0,                      // ✅ camelCase
-      montoNeto: parseFloat(dte.montoNeto) || 0,                        // ✅ camelCase
-      iva: parseFloat(dte.iva) || 0,                                    // ✅ correcto
-      fecha: dte.fechaEmision || new Date().toISOString().split('T')[0], // ✅ camelCase
-      fechaVencimiento: dte.fechaVencimiento || null,                   // ✅ camelCase
-      fechaEnvio: dte.fechaEnvio || null,                               // ✅ camelCase
-      tipo: dte.tipo || 33,                                             // ✅ correcto
-      estado: dte.anulado === 'S' ? 'Anulado' : (saldoPendiente > 0 ? 'Pendiente' : 'Pagado'),
-      moneda: dte.tipoMonedaMonto || 'CLP',                            // ✅ camelCase
       
-      // Información de saldo detallada
+      // ✅ CAMPOS PRINCIPALES CORREGIDOS
+      monto: saldoPendiente,                                            // Lo que realmente está pendiente
+      montoTotal: montoFactura,                                         // Monto original de la factura
+      montoPagado: montoPagado,                                         // Lo que ya se ha pagado
+      montoNeto: parseFloat(dte.montoNeto) || 0,
+      iva: parseFloat(dte.iva) || 0,
+      
+      // Fechas
+      fecha: dte.fechaEmision || new Date().toISOString().split('T')[0],
+      fechaVencimiento: dte.fechaVencimiento || null,
+      fechaEnvio: dte.fechaEnvio || null,
+      
+      // Estado calculado
+      estado: dte.anulado === 'S' ? 'Anulado' : 
+              (saldoPendiente <= 0 ? 'Pagado' : 'Pendiente'),
+      
+      tipo: dte.tipo || 33,
+      moneda: dte.tipoMonedaMonto || 'CLP',
+      
+      // Información adicional para debugging
       saldoInfo: dte.Saldo || null,
-      
-      // Información adicional
-      descuento: parseFloat(dte.descuento) || 0,                       // ✅ correcto
-      referencias: dte.referencias || null,                            // ✅ correcto
-      anulado: dte.anulado === 'S',                                    // ✅ correcto
+      cartolasInfo: dte.Cartolas || null,
+      descuento: parseFloat(dte.descuento) || 0,
+      referencias: dte.referencias || null,
+      anulado: dte.anulado === 'S',
       
       // Metadatos
       origenDatos: 'dtes_venta',
@@ -55,23 +83,28 @@ export const adaptarCuentasPorCobrar = (dtes) => {
     };
   });
   
-  // 🔍 DEBUG: Ver qué valores genera el adaptador
-  const totalMonto = resultado.reduce((sum, item) => sum + item.monto, 0);
-  console.log('🔍 DEBUG ADAPTADOR DTEs:');
+  // 🔍 DEBUG: Verificar resultados
+  const totalPendiente = resultado.reduce((sum, item) => sum + item.monto, 0);
+  const itemsConMonto = resultado.filter(item => item.monto > 0);
+  
+  console.log('🔍 DEBUG ADAPTADOR DTEs (CORREGIDO):');
   console.log(`  - Total items: ${resultado.length}`);
-  console.log(`  - Total monto: ${totalMonto.toLocaleString('es-CL')}`);
-  console.log(`  - Primeros 3 montos:`, resultado.slice(0, 3).map(r => ({
+  console.log(`  - Items con saldo pendiente: ${itemsConMonto.length}`);
+  console.log(`  - Total monto pendiente: ${totalPendiente.toLocaleString('es-CL')}`);
+  console.log(`  - Primeros 3 con saldo:`, itemsConMonto.slice(0, 3).map(r => ({
     folio: r.folio,
-    monto: r.monto,
-    saldoInfo: r.saldoInfo
+    montoTotal: r.montoTotal,
+    montoPagado: r.montoPagado,
+    saldoPendiente: r.monto,
+    estado: r.estado
   })));
   
   return resultado;
 };
 
 /**
- * ✅ ADAPTADOR CORREGIDO: Compras (Cuentas por Pagar)
- * CORRECCIÓN: Usar nombres reales en camelCase
+ * ✅ ADAPTADOR MEJORADO: Compras (Cuentas por Pagar)
+ * SOLUCIÓN: Mostrar TODAS las compras y permitir filtrado manual
  */
 export const adaptarCuentasPorPagar = (compras) => {
   console.log('💸 Adaptando compras (cuentas por pagar)...');
@@ -82,125 +115,133 @@ export const adaptarCuentasPorPagar = (compras) => {
   }
   
   const resultado = compras.map((compra, index) => {
-    // ✅ CORRECCIÓN: Usar nombres reales en camelCase
-    const estaPagado = compra.fechaPagoInterna !== null && compra.fechaPagoInterna !== undefined; // ✅ camelCase
+    // ✅ CAMBIO PRINCIPAL: Mostrar todas las compras con información completa
+    const montoTotal = parseFloat(compra.montoTotal) || 0;
     const estaAnulado = compra.anulado === 'S';
-    const estaPendiente = !estaPagado && !estaAnulado;
+    const tieneFechaPago = compra.fechaPagoInterna !== null && compra.fechaPagoInterna !== undefined;
     
-    // El monto pendiente es el total si está pendiente, 0 si está pagado/anulado
-    const montoPendiente = estaPendiente ? (parseFloat(compra.montoTotal) || 0) : 0; // ✅ camelCase
+    // Estado más descriptivo
+    let estado = 'Pendiente';
+    let montoPendiente = montoTotal;
+    
+    if (estaAnulado) {
+      estado = 'Anulado';
+      montoPendiente = 0;
+    } else if (tieneFechaPago) {
+      estado = 'Pagado';
+      // ✅ IMPORTANTE: Para el filtrado manual, mostrar el monto aunque esté pagado
+      // El usuario puede filtrar por fecha para ver solo las pendientes
+      montoPendiente = montoTotal; // Mostrar monto original para referencia
+    }
     
     return {
       id: compra.id || index,
       folio: compra.folio || 'S/N',
-      razonSocial: compra.razonSocial || 'Proveedor no especificado',      // ✅ camelCase
-      rutProveedor: compra.rutEmisor || 'Sin RUT',                         // ✅ camelCase
-      proveedor: compra.razonSocial || 'Proveedor no especificado',        // ✅ camelCase
-      monto: montoPendiente,                                               // ✅ Calculado
-      montoTotal: parseFloat(compra.montoTotal) || 0,                      // ✅ camelCase
-      montoNeto: parseFloat(compra.montoNeto) || 0,                        // ✅ camelCase
-      iva: parseFloat(compra.iva) || 0,                                    // ✅ correcto
-      fecha: compra.fechaEmision || new Date().toISOString().split('T')[0], // ✅ camelCase
-      fechaVencimiento: compra.fechaVencimiento || null,                   // ✅ camelCase
-      fechaPago: compra.fechaPagoInterna || null,                          // ✅ camelCase
-      estado: estaAnulado ? 'Anulado' : (estaPagado ? 'Pagado' : 'Pendiente'),
-      estadoOriginal: compra.estado || 'recibido',                         // ✅ correcto
-      moneda: 'CLP',
+      razonSocial: compra.razonSocial || 'Proveedor no especificado',
+      rutProveedor: compra.rutEmisor || 'Sin RUT',
+      proveedor: compra.razonSocial || 'Proveedor no especificado',
+      
+      // ✅ CAMPOS PRINCIPALES
+      monto: montoPendiente,                                            // Monto de referencia
+      montoTotal: montoTotal,                                           // Monto original
+      montoNeto: parseFloat(compra.montoNeto) || 0,
+      iva: parseFloat(compra.iva) || 0,
+      
+      // ✅ FECHAS IMPORTANTES PARA FILTRADO
+      fecha: compra.fechaEmision || new Date().toISOString().split('T')[0],
+      fechaVencimiento: compra.fechaVencimiento || null,
+      fechaPago: compra.fechaPagoInterna || null,                       // ✅ Clave para filtrado
+      fechaRecepcion: compra.fechaRecepcion || null,
+      
+      // ✅ ESTADO DETALLADO
+      estado: estado,
+      estaPagado: tieneFechaPago,                                       // Booleano para filtros
+      estaAnulado: estaAnulado,
       
       // Información adicional
-      descuento: parseFloat(compra.descuento) || 0,                        // ✅ correcto
-      referencias: compra.referencias || null,                             // ✅ correcto
-      archivo: compra.archivo || null,                                     // ✅ correcto
-      anulado: estaAnulado,                                                // ✅ correcto
-      tipoCompra: compra.tipoCompra || null,                               // ✅ camelCase
-      tipo: compra.tipo || null,                                           // ✅ correcto
+      tipo: compra.tipo || 33,
+      tipoCompra: compra.tipoCompra || 'Del Giro',
+      moneda: compra.idMoneda === 1000 ? 'CLP' : 'USD',
+      descuento: parseFloat(compra.descuento) || 0,
       
-      // Información de categorías si existe
-      categorias: compra.categorias || [],                                 // ✅ correcto
+      // Metadatos útiles
+      periodo: compra.periodo || null,
+      estadoSII: compra.estado || 'Sin estado',
+      eventoReceptor: compra.eventoReceptor || null,
       
-      // Metadatos
+      // Para debugging
       origenDatos: 'compras',
       fechaProcesamiento: new Date().toISOString()
     };
   });
   
-  // 🔍 DEBUG: Ver qué valores genera el adaptador
-  const totalMonto = resultado.reduce((sum, item) => sum + item.monto, 0);
-  const pendientes = resultado.filter(item => item.monto > 0);
-  console.log('🔍 DEBUG ADAPTADOR COMPRAS:');
-  console.log(`  - Total items: ${resultado.length}`);
-  console.log(`  - Items pendientes: ${pendientes.length}`);
-  console.log(`  - Total monto pendiente: ${totalMonto.toLocaleString('es-CL')}`);
-  console.log(`  - Primeros 3 estados:`, resultado.slice(0, 3).map(r => ({
-    folio: r.folio,
-    monto: r.monto,
-    estado: r.estado,
-    fechaPago: r.fechaPago
+  // 🔍 DEBUG: Estadísticas detalladas
+  const estadisticas = {
+    total: resultado.length,
+    pendientes: resultado.filter(c => c.estado === 'Pendiente').length,
+    pagadas: resultado.filter(c => c.estado === 'Pagado').length,
+    anuladas: resultado.filter(c => c.estado === 'Anulado').length,
+    montoTotalPendiente: resultado
+      .filter(c => c.estado === 'Pendiente')
+      .reduce((sum, c) => sum + c.monto, 0),
+    montoTotalGeneral: resultado.reduce((sum, c) => sum + c.montoTotal, 0)
+  };
+  
+  console.log('🔍 DEBUG ADAPTADOR COMPRAS (MEJORADO):');
+  console.log(`  - Total compras: ${estadisticas.total}`);
+  console.log(`  - Pendientes: ${estadisticas.pendientes}`);
+  console.log(`  - Pagadas: ${estadisticas.pagadas}`);
+  console.log(`  - Anuladas: ${estadisticas.anuladas}`);
+  console.log(`  - Monto total pendiente: ${estadisticas.montoTotalPendiente.toLocaleString('es-CL')}`);
+  console.log(`  - Últimas 3 compras:`, resultado.slice(-3).map(c => ({
+    folio: c.folio,
+    fecha: c.fecha,
+    fechaPago: c.fechaPago,
+    estado: c.estado,
+    monto: c.monto
   })));
   
   return resultado;
 };
 
 /**
- * ✅ ADAPTADOR PARA SALDOS BANCARIOS (sin cambios por ahora)
+ * ✅ FUNCIÓN AUXILIAR: Filtrar compras pendientes para el dashboard
  */
-export const adaptarSaldosBancarios = (cuentasConSaldos) => {
-  console.log('🏦 Adaptando saldos bancarios...');
+export const filtrarComprasPendientes = (compras) => {
+  if (!Array.isArray(compras)) return [];
   
-  if (!Array.isArray(cuentasConSaldos)) {
-    console.warn('⚠️ adaptarSaldosBancarios: datos no son array');
-    return [];
-  }
+  // Filtrar solo las que están realmente pendientes de pago
+  return compras.filter(compra => 
+    compra.estado === 'Pendiente' && 
+    !compra.estaAnulado
+  );
+};
+
+/**
+ * ✅ FUNCIÓN AUXILIAR: Filtrar por rango de fechas
+ */
+export const filtrarComprasPorFecha = (compras, fechaInicio, fechaFin) => {
+  if (!Array.isArray(compras)) return [];
   
-  return cuentasConSaldos.map((cuenta, index) => {
-    let saldo = 0;
+  return compras.filter(compra => {
+    const fechaCompra = new Date(compra.fecha);
+    const inicio = new Date(fechaInicio);
+    const fin = new Date(fechaFin);
     
-    if (cuenta.saldoCalculado !== undefined) {
-      saldo = parseFloat(cuenta.saldoCalculado) || 0;
-    }
-    else if (cuenta.Saldo) {
-      saldo = parseFloat(cuenta.Saldo.saldo_deudor || cuenta.Saldo.saldo_acreedor || 0);
-    }
-    else if (cuenta.saldo !== undefined) {
-      saldo = parseFloat(cuenta.saldo) || 0;
-    }
-    
-    return {
-      id: cuenta.id || index,
-      nombre: cuenta.numeroCuenta || `Cuenta ${index + 1}`,
-      banco: cuenta.banco || 'Banco no especificado',
-      saldo: saldo,
-      tipo: cuenta.TipoCuentaCorriente?.tipoCuenta || 'Cuenta Corriente',
-      nombreCorto: cuenta.TipoCuentaCorriente?.nombreCorto || 'CC',
-      moneda: cuenta.Moneda?.moneda || 'CLP',
-    simboloMoneda: cuenta.Moneda?.simbolo || '$',
-      decimales: cuenta.Moneda?.decimales || 0,
-      
-      movimientos: cuenta.movimientos || {
-        abonos: 0,
-        cargos: 0,
-        cantidad: 0,
-        ultimaActualizacion: null
-      },
-      
-      origenSaldo: cuenta.saldoCalculado !== undefined ? 'calculado_desde_cartolas' : 'directo',
-      fechaProcesamiento: new Date().toISOString()
-    };
+    return fechaCompra >= inicio && fechaCompra <= fin;
   });
 };
 
-// ✅ COMPATIBILIDAD HACIA ATRÁS
-export const adaptarCompras = adaptarCuentasPorPagar;
+// === EXPORTACIONES PARA COMPATIBILIDAD ===
 export const adaptarDTEs = adaptarCuentasPorCobrar;
-export const adaptarCuentasCorrientes = adaptarSaldosBancarios;
-
-export default {
-  adaptarCuentasPorCobrar,
-  adaptarCuentasPorPagar,
-  adaptarSaldosBancarios,
-  
-  // Alias para compatibilidad
-  adaptarDTEs,
-  adaptarCompras,
-  adaptarCuentasCorrientes
+export const adaptarCuentasCorrientes = (cuentas) => {
+  // Adaptador para saldos bancarios (mantener como está)
+  return cuentas.map(cuenta => ({
+    id: cuenta.id,
+    nombre: cuenta.nombre || cuenta.nombreCuenta,
+    banco: cuenta.banco || 'Banco no especificado',
+    saldo: cuenta.saldoCalculado || cuenta.saldo || 0,
+    moneda: cuenta.moneda || 'CLP',
+    tipo: cuenta.tipo || 'Corriente'
+  }));
 };
