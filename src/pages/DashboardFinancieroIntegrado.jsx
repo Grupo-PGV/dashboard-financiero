@@ -1,9 +1,9 @@
-// DashboardFinancieroIntegrado.jsx - CARGA SECUENCIAL PARA EVITAR CONFLICTOS DE TOKEN
+// DashboardFinancieroIntegrado.jsx - CON PAGINACIÓN COMPLETA
 
 import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, Calendar, Wallet, PieChart, TrendingUp, 
-  RefreshCw, CheckCircle, Clock
+  RefreshCw, CheckCircle, Clock, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 import chipaxService from '../services/chipaxService';
@@ -28,6 +28,17 @@ const DashboardFinancieroIntegrado = () => {
     fechaInicio: '',
     fechaFin: '',
     folioFiltro: ''
+  });
+
+  // ✅ ESTADOS PARA PAGINACIÓN
+  const [paginacionCompras, setPaginacionCompras] = useState({
+    paginaActual: 1,
+    itemsPorPagina: 50
+  });
+
+  const [paginacionCobrar, setPaginacionCobrar] = useState({
+    paginaActual: 1,
+    itemsPorPagina: 50
   });
 
   // === FUNCIONES DE CARGA SECUENCIAL ===
@@ -88,6 +99,8 @@ const DashboardFinancieroIntegrado = () => {
         console.log(`✅ ${comprasAdaptadas.length} cuentas por pagar cargadas`);
         
         setCuentasPorPagar(comprasAdaptadas);
+        // Reset paginación al cargar nuevos datos
+        setPaginacionCompras(prev => ({ ...prev, paginaActual: 1 }));
       } else {
         console.warn('⚠️ Compras no es array, usando array vacío');
         setCuentasPorPagar([]);
@@ -99,7 +112,7 @@ const DashboardFinancieroIntegrado = () => {
     }
   };
 
-  // ✅ CARGA SECUENCIAL (uno por uno) en lugar de paralela
+  // ✅ CARGA SECUENCIAL
   const cargarTodosLosDatos = async () => {
     setLoading(true);
     setErrors([]);
@@ -107,17 +120,12 @@ const DashboardFinancieroIntegrado = () => {
     console.log('🚀 Iniciando carga completa del dashboard...');
     
     try {
-      // ✅ CARGAR UNO POR UNO para evitar conflictos de token
       console.log('🏦 === PASO 1: Saldos bancarios ===');
       await cargarSaldosBancarios();
-      
-      // Pausa entre cargas
       await new Promise(resolve => setTimeout(resolve, 500));
       
       console.log('📋 === PASO 2: Cuentas por cobrar ===');
       await cargarCuentasPorCobrar();
-      
-      // Pausa entre cargas
       await new Promise(resolve => setTimeout(resolve, 500));
       
       console.log('💸 === PASO 3: Cuentas por pagar ===');
@@ -191,6 +199,30 @@ const DashboardFinancieroIntegrado = () => {
     return comprasFiltradas;
   };
 
+  // ✅ FUNCIONES DE PAGINACIÓN
+
+  const obtenerComprasPaginadas = () => {
+    const comprasFiltradas = obtenerComprasFiltradas();
+    const inicio = (paginacionCompras.paginaActual - 1) * paginacionCompras.itemsPorPagina;
+    const fin = inicio + paginacionCompras.itemsPorPagina;
+    return comprasFiltradas.slice(inicio, fin);
+  };
+
+  const obtenerCobrarPaginadas = () => {
+    const inicio = (paginacionCobrar.paginaActual - 1) * paginacionCobrar.itemsPorPagina;
+    const fin = inicio + paginacionCobrar.itemsPorPagina;
+    return cuentasPorCobrar.slice(inicio, fin);
+  };
+
+  const getTotalPaginasCompras = () => {
+    const total = obtenerComprasFiltradas().length;
+    return Math.ceil(total / paginacionCompras.itemsPorPagina);
+  };
+
+  const getTotalPaginasCobrar = () => {
+    return Math.ceil(cuentasPorCobrar.length / paginacionCobrar.itemsPorPagina);
+  };
+
   // === FUNCIÓN DE FORMATO ===
   const formatCurrency = (amount) => {
     if (typeof amount !== 'number' || isNaN(amount)) return '$0';
@@ -212,10 +244,10 @@ const DashboardFinancieroIntegrado = () => {
           <input
             type="checkbox"
             checked={filtroCompras.soloNoPagadas}
-            onChange={(e) => setFiltroCompras(prev => ({
-              ...prev,
-              soloNoPagadas: e.target.checked
-            }))}
+            onChange={(e) => {
+              setFiltroCompras(prev => ({ ...prev, soloNoPagadas: e.target.checked }));
+              setPaginacionCompras(prev => ({ ...prev, paginaActual: 1 })); // Reset página
+            }}
             className="mr-2"
           />
           Solo no pagadas
@@ -225,42 +257,114 @@ const DashboardFinancieroIntegrado = () => {
           type="text"
           placeholder="Filtrar por folio"
           value={filtroCompras.folioFiltro}
-          onChange={(e) => setFiltroCompras(prev => ({
-            ...prev,
-            folioFiltro: e.target.value
-          }))}
+          onChange={(e) => {
+            setFiltroCompras(prev => ({ ...prev, folioFiltro: e.target.value }));
+            setPaginacionCompras(prev => ({ ...prev, paginaActual: 1 })); // Reset página
+          }}
           className="px-3 py-2 border border-gray-300 rounded"
         />
         
         <input
           type="date"
           value={filtroCompras.fechaInicio}
-          onChange={(e) => setFiltroCompras(prev => ({
-            ...prev,
-            fechaInicio: e.target.value
-          }))}
+          onChange={(e) => {
+            setFiltroCompras(prev => ({ ...prev, fechaInicio: e.target.value }));
+            setPaginacionCompras(prev => ({ ...prev, paginaActual: 1 })); // Reset página
+          }}
           className="px-3 py-2 border border-gray-300 rounded"
         />
         
         <input
           type="date"
           value={filtroCompras.fechaFin}
-          onChange={(e) => setFiltroCompras(prev => ({
-            ...prev,
-            fechaFin: e.target.value
-          }))}
+          onChange={(e) => {
+            setFiltroCompras(prev => ({ ...prev, fechaFin: e.target.value }));
+            setPaginacionCompras(prev => ({ ...prev, paginaActual: 1 })); // Reset página
+          }}
           className="px-3 py-2 border border-gray-300 rounded"
         />
       </div>
       
-      <div className="mt-3 text-sm text-gray-600">
-        Mostrando {obtenerComprasFiltradas().length} de {cuentasPorPagar.length} compras
-        {obtenerComprasFiltradas().length !== cuentasPorPagar.length && 
-          ` (filtradas: ${cuentasPorPagar.length - obtenerComprasFiltradas().length})`
-        }
+      <div className="mt-3 flex justify-between items-center text-sm text-gray-600">
+        <span>
+          Mostrando {obtenerComprasFiltradas().length} de {cuentasPorPagar.length} compras
+        </span>
+        <select
+          value={paginacionCompras.itemsPorPagina}
+          onChange={(e) => setPaginacionCompras(prev => ({ 
+            ...prev, 
+            itemsPorPagina: parseInt(e.target.value),
+            paginaActual: 1 
+          }))}
+          className="px-2 py-1 border border-gray-300 rounded text-sm"
+        >
+          <option value={25}>25 por página</option>
+          <option value={50}>50 por página</option>
+          <option value={100}>100 por página</option>
+        </select>
       </div>
     </div>
   );
+
+  // ✅ COMPONENTE DE PAGINACIÓN
+  const ComponentePaginacion = ({ paginacion, setPaginacion, totalPaginas, nombre }) => {
+    const paginasAMostrar = [];
+    const maxPaginas = 5;
+    
+    let inicio = Math.max(1, paginacion.paginaActual - Math.floor(maxPaginas / 2));
+    let fin = Math.min(totalPaginas, inicio + maxPaginas - 1);
+    
+    if (fin - inicio + 1 < maxPaginas) {
+      inicio = Math.max(1, fin - maxPaginas + 1);
+    }
+    
+    for (let i = inicio; i <= fin; i++) {
+      paginasAMostrar.push(i);
+    }
+
+    return (
+      <div className="flex items-center justify-between px-4 py-3 bg-white border-t">
+        <div className="text-sm text-gray-700">
+          Mostrando {((paginacion.paginaActual - 1) * paginacion.itemsPorPagina) + 1} a{' '}
+          {Math.min(paginacion.paginaActual * paginacion.itemsPorPagina, 
+                   nombre === 'compras' ? obtenerComprasFiltradas().length : cuentasPorCobrar.length)} de{' '}
+          {nombre === 'compras' ? obtenerComprasFiltradas().length : cuentasPorCobrar.length} resultados
+        </div>
+        
+        <div className="flex items-center space-x-1">
+          <button
+            onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: prev.paginaActual - 1 }))}
+            disabled={paginacion.paginaActual === 1}
+            className="p-2 rounded text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          
+          {paginasAMostrar.map(pagina => (
+            <button
+              key={pagina}
+              onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: pagina }))}
+              className={`px-3 py-1 rounded text-sm ${
+                paginacion.paginaActual === pagina
+                  ? 'bg-blue-500 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {pagina}
+            </button>
+          ))}
+          
+          <button
+            onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: prev.paginaActual + 1 }))}
+            disabled={paginacion.paginaActual === totalPaginas}
+            className="p-2 rounded text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -368,113 +472,154 @@ const DashboardFinancieroIntegrado = () => {
         </div>
       </div>
 
-      {/* Sección de Cuentas por Pagar */}
-      <div className="bg-white p-6 rounded-lg shadow mb-8">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Cuentas por Pagar 
-          <span className="text-sm font-normal text-gray-500 ml-2">
-            (Máximo 200 más recientes)
-          </span>
-        </h2>
+      {/* Sección de Cuentas por Pagar CON PAGINACIÓN */}
+      <div className="bg-white rounded-lg shadow mb-8">
+        <div className="p-6 border-b">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Cuentas por Pagar 
+            <span className="text-sm font-normal text-gray-500 ml-2">
+              (Total cargadas: {cuentasPorPagar.length})
+            </span>
+          </h2>
+        </div>
         
-        <FiltrosCompras />
+        <div className="p-6">
+          <FiltrosCompras />
+        </div>
         
         {obtenerComprasFiltradas().length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full table-auto">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Folio</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha Pago</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {obtenerComprasFiltradas().slice(0, 20).map((compra) => (
-                  <tr key={compra.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-sm">{compra.folio}</td>
-                    <td className="px-4 py-2 text-sm">{compra.razonSocial}</td>
-                    <td className="px-4 py-2 text-sm">{compra.fecha}</td>
-                    <td className="px-4 py-2 text-sm">
-                      {compra.fechaPago ? compra.fechaPago : 'Sin pagar'}
-                    </td>
-                    <td className="px-4 py-2 text-sm font-medium">{formatCurrency(compra.montoTotal)}</td>
-                    <td className="px-4 py-2">
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        compra.estado === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' :
-                        compra.estado === 'Pagado' ? 'bg-green-100 text-green-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {compra.estado}
-                      </span>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Folio</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proveedor</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha Pago</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monto</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {obtenerComprasPaginadas().map((compra) => (
+                    <tr key={compra.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{compra.folio}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{compra.razonSocial}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{compra.fecha}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {compra.fechaPago ? compra.fechaPago : 'Sin pagar'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {formatCurrency(compra.montoTotal)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          compra.estado === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' :
+                          compra.estado === 'Pagado' ? 'bg-green-100 text-green-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {compra.estado}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            
+            <ComponentePaginacion 
+              paginacion={paginacionCompras}
+              setPaginacion={setPaginacionCompras}
+              totalPaginas={getTotalPaginasCompras()}
+              nombre="compras"
+            />
+          </>
         ) : (
-          <div className="text-center py-8">
+          <div className="text-center py-12">
             <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500">No hay compras que coincidan con los filtros</p>
           </div>
         )}
-        
-        {obtenerComprasFiltradas().length > 20 && (
-          <div className="mt-4 text-center text-sm text-gray-500">
-            Mostrando 20 de {obtenerComprasFiltradas().length} compras filtradas.
-          </div>
-        )}
       </div>
 
-      {/* Sección de Cuentas por Cobrar */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Cuentas por Cobrar Pendientes</h2>
+      {/* Sección de Cuentas por Cobrar CON PAGINACIÓN */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6 border-b">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Cuentas por Cobrar Pendientes
+            <span className="text-sm font-normal text-gray-500 ml-2">
+              (Total: {cuentasPorCobrar.length})
+            </span>
+          </h2>
+        </div>
         
         {cuentasPorCobrar.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full table-auto">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Folio</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vencimiento</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Monto Pendiente</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {cuentasPorCobrar.slice(0, 20).map((cuenta) => (
-                  <tr key={cuenta.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-sm">{cuenta.folio}</td>
-                    <td className="px-4 py-2 text-sm">{cuenta.razonSocial}</td>
-                    <td className="px-4 py-2 text-sm">{cuenta.fecha}</td>
-                    <td className="px-4 py-2 text-sm">{cuenta.fechaVencimiento || 'Sin fecha'}</td>
-                    <td className="px-4 py-2 text-sm font-medium">{formatCurrency(cuenta.monto)}</td>
-                    <td className="px-4 py-2">
-                      <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
-                        {cuenta.estado}
-                      </span>
-                    </td>
+          <>
+            <div className="p-6 border-b">
+              <div className="flex justify-end">
+                <select
+                  value={paginacionCobrar.itemsPorPagina}
+                  onChange={(e) => setPaginacionCobrar(prev => ({ 
+                    ...prev, 
+                    itemsPorPagina: parseInt(e.target.value),
+                    paginaActual: 1 
+                  }))}
+                  className="px-3 py-2 border border-gray-300 rounded text-sm"
+                >
+                  <option value={25}>25 por página</option>
+                  <option value={50}>50 por página</option>
+                  <option value={100}>100 por página</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Folio</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vencimiento</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monto Pendiente</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {obtenerCobrarPaginadas().map((cuenta) => (
+                    <tr key={cuenta.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{cuenta.folio}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{cuenta.razonSocial}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{cuenta.fecha}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {cuenta.fechaVencimiento || 'Sin fecha'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {formatCurrency(cuenta.monto)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                          {cuenta.estado}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            
+            <ComponentePaginacion 
+              paginacion={paginacionCobrar}
+              setPaginacion={setPaginacionCobrar}
+              totalPaginas={getTotalPaginasCobrar()}
+              nombre="cobrar"
+            />
+          </>
         ) : (
-          <div className="text-center py-8">
+          <div className="text-center py-12">
             <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
             <p className="text-gray-500">No hay cuentas por cobrar pendientes</p>
-          </div>
-        )}
-        
-        {cuentasPorCobrar.length > 20 && (
-          <div className="mt-4 text-center text-sm text-gray-500">
-            Mostrando 20 de {cuentasPorCobrar.length} facturas pendientes.
           </div>
         )}
       </div>
@@ -488,8 +633,9 @@ const DashboardFinancieroIntegrado = () => {
             <p>Cuentas por cobrar: {cuentasPorCobrar.length} items</p>
             <p>Cuentas por pagar: {cuentasPorPagar.length} items</p>
             <p>Compras filtradas: {obtenerComprasFiltradas().length} items</p>
+            <p>Página actual compras: {paginacionCompras.paginaActual}/{getTotalPaginasCompras()}</p>
+            <p>Página actual cobrar: {paginacionCobrar.paginaActual}/{getTotalPaginasCobrar()}</p>
             <p>Errores: {errors.length}</p>
-            <p>Estado carga: {loading ? 'Cargando...' : 'Completo'}</p>
           </div>
         </div>
       )}
