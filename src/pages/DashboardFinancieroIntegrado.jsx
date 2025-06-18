@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, Calendar, Wallet, PieChart, TrendingUp, 
-  RefreshCw, CheckCircle, Clock, ChevronLeft, ChevronRight
+  RefreshCw, CheckCircle, Clock, ChevronLeft, ChevronRight,
+  Database, Search
 } from 'lucide-react';
 
 import chipaxService from '../services/chipaxService';
@@ -60,7 +61,7 @@ const DashboardFinancieroIntegrado = () => {
       setSaldosBancarios([]);
       setErrors(prev => [...prev, `Saldos: ${error.message}`]);
     }
-  };
+  // === FUNCIÓN DE FORMATO ===
 
   const cargarCuentasPorCobrar = async () => {
     try {
@@ -223,7 +224,377 @@ const DashboardFinancieroIntegrado = () => {
     return Math.ceil(cuentasPorCobrar.length / paginacionCobrar.itemsPorPagina);
   };
 
-  // === FUNCIÓN DE FORMATO ===
+  // ✅ COMPONENTE DEL EXPLORADOR DE ENDPOINTS INTEGRADO
+  const ExplorerComponent = () => {
+    const [exploring, setExploring] = useState(false);
+    const [results, setResults] = useState([]);
+    const [selectedResult, setSelectedResult] = useState(null);
+
+    // ChipaxService integrado
+    const explorerService = {
+      tokenCache: {
+        token: null,
+        expiry: null,
+        isRefreshing: false,
+        refreshPromise: null
+      },
+
+      async getChipaxToken() {
+        const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
+        const APP_ID = process.env.REACT_APP_CHIPAX_APP_ID;
+        const SECRET_KEY = process.env.REACT_APP_CHIPAX_SECRET_KEY;
+
+        if (this.tokenCache.isRefreshing && this.tokenCache.refreshPromise) {
+          return await this.tokenCache.refreshPromise;
+        }
+
+        const now = Date.now();
+        const tokenMargin = 5 * 60 * 1000;
+        
+        if (this.tokenCache.token && this.tokenCache.expiry && now < (this.tokenCache.expiry - tokenMargin)) {
+          return this.tokenCache.token;
+        }
+
+        this.tokenCache.isRefreshing = true;
+        this.tokenCache.refreshPromise = this.refreshToken(API_BASE_URL, APP_ID, SECRET_KEY);
+        
+        try {
+          const newToken = await this.tokenCache.refreshPromise;
+          return newToken;
+        } finally {
+          this.tokenCache.isRefreshing = false;
+          this.tokenCache.refreshPromise = null;
+        }
+      },
+
+      async refreshToken(apiUrl, appId, secretKey) {
+        try {
+          const response = await fetch(`${apiUrl}/login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              app_id: appId,
+              secret_key: secretKey
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          const token = data.access_token || data.token || data.jwt || data.accessToken;
+          
+          if (!token) {
+            throw new Error('No se encontró access_token en la respuesta');
+          }
+
+          this.tokenCache.token = token;
+          this.tokenCache.expiry = Date.now() + (50 * 60 * 1000);
+          
+          return token;
+        } catch (error) {
+          this.tokenCache.token = null;
+          this.tokenCache.expiry = null;
+          throw new Error(`Error de autenticación: ${error.message}`);
+        }
+      },
+
+      async fetchFromChipax(endpoint) {
+        const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
+        
+        try {
+          const token = await this.getChipaxToken();
+          const url = `${API_BASE_URL}${endpoint}`;
+
+          const response = await fetch(url, {
+            headers: {
+              'Authorization': `JWT ${token}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          throw error;
+        }
+      }
+    };
+
+    // Lista de endpoints a probar
+    const endpointsToExplore = [
+      { path: '/compras', name: 'Compras (actual)', category: 'compras' },
+      { path: '/compras?recientes=1', name: 'Compras Recientes', category: 'compras' },
+      { path: '/compras?year=2025', name: 'Compras 2025', category: 'compras' },
+      { path: '/compras?year=2024', name: 'Compras 2024', category: 'compras' },
+      { path: '/dtes', name: 'Todos los DTEs', category: 'dtes' },
+      { path: '/dtes?recibidos=1', name: 'DTEs Recibidos', category: 'dtes' },
+      { path: '/dtes?tipo=33', name: 'DTEs Tipo 33 (Facturas)', category: 'dtes' },
+      { path: '/dtes?tipo=34', name: 'DTEs Tipo 34 (No Afectas)', category: 'dtes' },
+      { path: '/dtes?porPagar=1', name: 'DTEs Por Pagar', category: 'dtes' },
+      { path: '/documentos-recibidos', name: 'Documentos Recibidos', category: 'documentos' },
+      { path: '/facturas-recibidas', name: 'Facturas Recibidas', category: 'documentos' },
+      { path: '/facturas', name: 'Facturas', category: 'otros' },
+    ];
+
+    const exploreEndpoints = async () => {
+      setExploring(true);
+      setResults([]);
+      setSelectedResult(null);
+
+      const newResults = [];
+
+      for (const endpoint of endpointsToExplore) {
+        try {
+          console.log(`🔍 Explorando: ${endpoint.path}`);
+          
+          const startTime = Date.now();
+          const data = await explorerService.fetchFromChipax(`${endpoint.path}?limit=5&page=1`);
+          const responseTime = Date.now() - startTime;
+
+          let items = [];
+          let structure = 'unknown';
+          
+          if (Array.isArray(data)) {
+            items = data;
+            structure = 'array';
+          } else if (data && data.items && Array.isArray(data.items)) {
+            items = data.items;
+            structure = 'object_with_items';
+          } else if (data && data.data && Array.isArray(data.data)) {
+            items = data.data;
+            structure = 'object_with_data';
+          }
+
+          let fechaAnalysis = null;
+          if (items.length > 0) {
+            const primeraFecha = items[0];
+            fechaAnalysis = {
+              fechaEmision: primeraFecha.fechaEmision || primeraFecha.fecha_emision,
+              fechaRecepcion: primeraFecha.fechaRecepcion || primeraFecha.fecha_recepcion,
+              created: primeraFecha.created,
+              modified: primeraFecha.modified,
+              campos: Object.keys(primeraFecha).filter(key => 
+                key.toLowerCase().includes('fecha') || 
+                key.toLowerCase().includes('date') ||
+                key.toLowerCase().includes('created') ||
+                key.toLowerCase().includes('modified')
+              )
+            };
+          }
+
+          newResults.push({
+            endpoint: endpoint.path,
+            name: endpoint.name,
+            category: endpoint.category,
+            status: 'success',
+            responseTime,
+            itemCount: items.length,
+            structure,
+            fechaAnalysis,
+            sampleData: items.slice(0, 2),
+            fullResponse: data
+          });
+
+          console.log(`✅ ${endpoint.path}: ${items.length} items, ${responseTime}ms`);
+
+        } catch (error) {
+          newResults.push({
+            endpoint: endpoint.path,
+            name: endpoint.name,
+            category: endpoint.category,
+            status: 'error',
+            error: error.message
+          });
+          
+          console.log(`❌ ${endpoint.path}: ${error.message}`);
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      // Ordenar resultados
+      newResults.sort((a, b) => {
+        if (a.status === 'success' && b.status === 'error') return -1;
+        if (a.status === 'error' && b.status === 'success') return 1;
+        
+        if (a.status === 'success' && b.status === 'success') {
+          if (a.itemCount !== b.itemCount) {
+            return b.itemCount - a.itemCount;
+          }
+          
+          const fechaA = a.fechaAnalysis?.fechaEmision || a.fechaAnalysis?.created || '2000-01-01';
+          const fechaB = b.fechaAnalysis?.fechaEmision || b.fechaAnalysis?.created || '2000-01-01';
+          return new Date(fechaB) - new Date(fechaA);
+        }
+        
+        return 0;
+      });
+
+      setResults(newResults);
+      setExploring(false);
+    };
+
+    const getStatusIcon = (status) => {
+      switch (status) {
+        case 'success':
+          return <CheckCircle className="w-4 h-4 text-green-500" />;
+        case 'error':
+          return <AlertCircle className="w-4 h-4 text-red-500" />;
+        default:
+          return <RefreshCw className="w-4 h-4 text-gray-400" />;
+      }
+    };
+
+    const formatDate = (dateStr) => {
+      if (!dateStr) return 'N/A';
+      try {
+        return new Date(dateStr).toLocaleDateString('es-CL');
+      } catch {
+        return dateStr;
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                <Database className="w-5 h-5 mr-2 text-blue-600" />
+                Explorador de Endpoints
+              </h2>
+              <p className="text-gray-600 mt-1">
+                Encuentra el endpoint con facturas recientes
+              </p>
+            </div>
+            
+            <button
+              onClick={exploreEndpoints}
+              disabled={exploring}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+            >
+              <Search className={`w-4 h-4 mr-2 ${exploring ? 'animate-spin' : ''}`} />
+              {exploring ? 'Explorando...' : 'Explorar'}
+            </button>
+          </div>
+
+          {exploring && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center">
+                <RefreshCw className="w-5 h-5 text-blue-500 mr-2 animate-spin" />
+                <span className="text-blue-700">
+                  Explorando {endpointsToExplore.length} endpoints...
+                </span>
+              </div>
+            </div>
+          )}
+
+          {results.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <h3 className="text-lg font-semibold text-gray-900">Resultados</h3>
+                
+                {results.slice(0, 8).map((result, index) => (
+                  <div
+                    key={result.endpoint}
+                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                      selectedResult?.endpoint === result.endpoint
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                    onClick={() => setSelectedResult(result)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          {getStatusIcon(result.status)}
+                          <span className="font-medium text-gray-900">{result.name}</span>
+                        </div>
+                        
+                        <p className="text-sm text-gray-600 mb-2">{result.endpoint}</p>
+                        
+                        {result.status === 'success' ? (
+                          <div className="text-sm text-gray-500 space-y-1">
+                            <p>📊 {result.itemCount} items</p>
+                            {result.fechaAnalysis?.fechaEmision && (
+                              <p>📅 {formatDate(result.fechaAnalysis.fechaEmision)}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-red-600">❌ {result.error}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {selectedResult && selectedResult.status === 'success' && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Detalles: {selectedResult.name}
+                  </h3>
+                  
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-gray-900 mb-2">Información</h4>
+                    <div className="text-sm space-y-1">
+                      <p><span className="text-gray-600">Items:</span> {selectedResult.itemCount}</p>
+                      <p><span className="text-gray-600">Estructura:</span> {selectedResult.structure}</p>
+                      <p><span className="text-gray-600">Tiempo:</span> {selectedResult.responseTime}ms</p>
+                    </div>
+                  </div>
+
+                  {selectedResult.fechaAnalysis && (
+                    <div className="bg-yellow-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-gray-900 mb-2">Fechas</h4>
+                      <div className="text-sm space-y-1">
+                        {selectedResult.fechaAnalysis.fechaEmision && (
+                          <p><span className="text-gray-600">Emisión:</span> {formatDate(selectedResult.fechaAnalysis.fechaEmision)}</p>
+                        )}
+                        {selectedResult.fechaAnalysis.fechaRecepcion && (
+                          <p><span className="text-gray-600">Recepción:</span> {formatDate(selectedResult.fechaAnalysis.fechaRecepcion)}</p>
+                        )}
+                        {selectedResult.fechaAnalysis.created && (
+                          <p><span className="text-gray-600">Created:</span> {formatDate(selectedResult.fechaAnalysis.created)}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-blue-900 mb-2">💡 Evaluación</h4>
+                    <div className="text-sm text-blue-800">
+                      {selectedResult.itemCount === 0 ? (
+                        <p>❌ Sin datos útiles</p>
+                      ) : selectedResult.fechaAnalysis?.fechaEmision ? (
+                        new Date(selectedResult.fechaAnalysis.fechaEmision) > new Date('2024-01-01') ? (
+                          <p>✅ ¡Excelente! Datos recientes (2024+)</p>
+                        ) : (
+                          <p>⚠️ Datos antiguos (pre-2024)</p>
+                        )
+                      ) : (
+                        <p>⚠️ Sin análisis de fechas</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
   const formatCurrency = (amount) => {
     if (typeof amount !== 'number' || isNaN(amount)) return '$0';
     return new Intl.NumberFormat('es-CL', {
@@ -374,15 +745,31 @@ const DashboardFinancieroIntegrado = () => {
           <h1 className="text-3xl font-bold text-gray-900">Dashboard Financiero</h1>
           <p className="text-gray-600 mt-1">Resumen financiero integral de tu empresa</p>
         </div>
-        <button
-          onClick={cargarTodosLosDatos}
-          disabled={loading}
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Cargando...' : 'Actualizar'}
-        </button>
+        <div className="flex space-x-3">
+          <button
+            onClick={() => setMostrarExplorador(!mostrarExplorador)}
+            className="flex items-center px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+          >
+            <Database className="w-4 h-4 mr-2" />
+            {mostrarExplorador ? 'Ocultar Explorador' : 'Explorar Endpoints'}
+          </button>
+          <button
+            onClick={cargarTodosLosDatos}
+            disabled={loading}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'Cargando...' : 'Actualizar'}
+          </button>
+        </div>
       </div>
+
+      {/* Explorador de Endpoints */}
+      {mostrarExplorador && (
+        <div className="mb-8">
+          <ExplorerComponent />
+        </div>
+      )}
 
       {/* Alertas de errores */}
       {errors.length > 0 && (
