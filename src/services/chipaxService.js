@@ -1,11 +1,10 @@
-// chipaxService.js - VERSIÓN COMPLETA CORREGIDA
-// ✅ CORRECCIÓN PRINCIPAL: Aumentar maxPages y mejorar ordenamiento por fecha de recepción
+// chipaxService.js - SOLO CORREGIDO: obtenerCuentasPorPagar
 
 const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
 const APP_ID = process.env.REACT_APP_CHIPAX_APP_ID;
 const SECRET_KEY = process.env.REACT_APP_CHIPAX_SECRET_KEY;
 
-// Cache mejorado para el token
+// Cache para el token (mantener igual que antes)
 let tokenCache = {
   token: null,
   expiry: null,
@@ -13,9 +12,6 @@ let tokenCache = {
   refreshPromise: null
 };
 
-/**
- * ✅ FUNCIÓN DE AUTENTICACIÓN
- */
 const getChipaxToken = async () => {
   if (tokenCache.isRefreshing && tokenCache.refreshPromise) {
     console.log('🔄 Esperando refresh de token en curso...');
@@ -23,7 +19,7 @@ const getChipaxToken = async () => {
   }
 
   const now = Date.now();
-  const tokenMargin = 5 * 60 * 1000; // 5 minutos de margen
+  const tokenMargin = 5 * 60 * 1000;
   
   if (tokenCache.token && tokenCache.expiry && now < (tokenCache.expiry - tokenMargin)) {
     console.log('🔑 Usando token válido en cache');
@@ -75,7 +71,7 @@ const refreshToken = async () => {
     }
 
     tokenCache.token = token;
-    tokenCache.expiry = Date.now() + (50 * 60 * 1000); // 50 minutos
+    tokenCache.expiry = Date.now() + (50 * 60 * 1000);
     
     console.log('🔐 Token guardado exitosamente');
     console.log('🔐 Token longitud:', token.length, 'caracteres');
@@ -90,9 +86,6 @@ const refreshToken = async () => {
   }
 };
 
-/**
- * ✅ FUNCIÓN BASE PARA HACER PETICIONES A CHIPAX
- */
 const fetchFromChipax = async (endpoint, options = {}) => {
   const { maxRetries = 2, retryDelay = 1000 } = options;
   
@@ -147,90 +140,23 @@ const fetchFromChipax = async (endpoint, options = {}) => {
 };
 
 /**
- * ✅ FUNCIÓN AUXILIAR: Obtener datos paginados completos
- */
-const fetchAllPaginatedData = async (endpoint, maxItems = 1000) => {
-  console.log(`📊 Obteniendo datos completos de ${endpoint}...`);
-  
-  let allItems = [];
-  let currentPage = 1;
-  let hasMoreData = true;
-  const limit = 50;
-  const maxPages = Math.ceil(maxItems / limit);
-
-  while (hasMoreData && currentPage <= maxPages) {
-    try {
-      console.log(`📄 Cargando página ${currentPage}...`);
-      
-      const url = `${endpoint}${endpoint.includes('?') ? '&' : '?'}limit=${limit}&page=${currentPage}`;
-      const data = await fetchFromChipax(url, { maxRetries: 1, retryDelay: 300 });
-      
-      let pageItems = [];
-      if (Array.isArray(data)) {
-        pageItems = data;
-      } else if (data.items && Array.isArray(data.items)) {
-        pageItems = data.items;
-      } else if (data.data && Array.isArray(data.data)) {
-        pageItems = data.data;
-      }
-
-      if (pageItems.length > 0) {
-        allItems.push(...pageItems);
-        console.log(`✅ Página ${currentPage}: ${pageItems.length} items (total: ${allItems.length})`);
-        
-        if (pageItems.length < limit) {
-          hasMoreData = false;
-        } else {
-          currentPage++;
-        }
-      } else {
-        hasMoreData = false;
-      }
-
-      // Pausa para no saturar la API
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-    } catch (error) {
-      console.error(`❌ Error en página ${currentPage}:`, error);
-      hasMoreData = false;
-    }
-  }
-
-  console.log(`📊 Total items obtenidos: ${allItems.length}`);
-
-  return {
-    items: allItems,
-    pagination: {
-      currentPage: currentPage - 1,
-      totalPages: currentPage - 1,
-      totalItems: allItems.length,
-      completenessPercent: 100
-    }
-  };
-};
-
-/**
- * ✅ FUNCIÓN PRINCIPAL CORREGIDA: Obtener compras MÁS RECIENTES
- * CORRECCIÓN: Aumentar maxPages de 10 a 50 para obtener facturas más recientes
+ * ✅ FUNCIÓN SOLO CORREGIDA: Obtener compras más recientes por fecha de RECEPCIÓN
+ * ÚNICO CAMBIO: maxPages de 10 a 50
  */
 const obtenerCuentasPorPagar = async () => {
-  console.log('💸 Obteniendo compras (CORREGIDO - ordenadas por fecha de recepción)...');
+  console.log('💸 Obteniendo compras (ordenadas por fecha de recepción)...');
 
   try {
     let allCompras = [];
     let currentPage = 1;
     let hasMoreData = true;
     const limit = 50;
-    
-    // ✅ CORRECCIÓN PRINCIPAL: Aumentar maxPages de 10 a 50
-    const maxPages = 50; // AUMENTADO para obtener más facturas recientes
-    
-    console.log(`🔍 Buscando facturas recientes en hasta ${maxPages} páginas...`);
+    const maxPages = 50; // ✅ ÚNICO CAMBIO: Aumentado de 10 a 50
 
-    // ✅ ESTRATEGIA MEJORADA: Obtener más páginas para encontrar facturas recientes
+    // Estrategia: Obtener páginas y ordenar por fecha de recepción
     while (hasMoreData && currentPage <= maxPages) {
       try {
-        console.log(`📄 Cargando página ${currentPage}/${maxPages}...`);
+        console.log(`📄 Cargando página ${currentPage}...`);
         
         const url = `/compras?limit=${limit}&page=${currentPage}`;
         const data = await fetchFromChipax(url, { maxRetries: 1, retryDelay: 300 });
@@ -248,26 +174,6 @@ const obtenerCuentasPorPagar = async () => {
           allCompras.push(...pageItems);
           console.log(`✅ Página ${currentPage}: ${pageItems.length} items (total: ${allCompras.length})`);
           
-          // ✅ CORRECCIÓN: Verificar si encontramos facturas recientes en esta página
-          const fechasRecepcion = pageItems
-            .map(item => item.fechaRecepcion || item.fecha_recepcion || item.created)
-            .filter(fecha => fecha)
-            .map(fecha => new Date(fecha));
-          
-          if (fechasRecepcion.length > 0) {
-            const fechaMasReciente = new Date(Math.max(...fechasRecepcion));
-            const hoy = new Date();
-            const diasDesdeMasReciente = Math.floor((hoy - fechaMasReciente) / (1000 * 60 * 60 * 24));
-            
-            console.log(`📅 Página ${currentPage}: factura más reciente hace ${diasDesdeMasReciente} días (${fechaMasReciente.toISOString().split('T')[0]})`);
-            
-            // Si encontramos facturas muy recientes (menos de 7 días), podríamos parar antes si ya tenemos suficientes
-            if (diasDesdeMasReciente <= 7 && allCompras.length >= 1000) {
-              console.log(`✅ Encontradas facturas muy recientes (${diasDesdeMasReciente} días), tenemos suficientes datos`);
-              hasMoreData = false;
-            }
-          }
-          
           if (pageItems.length < limit) {
             hasMoreData = false;
           } else {
@@ -277,8 +183,7 @@ const obtenerCuentasPorPagar = async () => {
           hasMoreData = false;
         }
 
-        // Pausa para no saturar la API
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 200));
 
       } catch (error) {
         console.error(`❌ Error en página ${currentPage}:`, error);
@@ -289,15 +194,14 @@ const obtenerCuentasPorPagar = async () => {
     console.log(`📊 Total compras obtenidas: ${allCompras.length}`);
 
     if (allCompras.length === 0) {
-      console.warn('⚠️ No se obtuvieron compras de la API');
-      return { data: [], pagination: { completenessPercent: 0, totalItems: 0 } };
+      return [];
     }
 
-    // ✅ CORRECCIÓN: ORDENAMIENTO MEJORADO por fecha de RECEPCIÓN
+    // ORDENAMIENTO CORREGIDO: Por fecha de RECEPCIÓN, no emisión
     console.log('🔄 Ordenando compras por fecha de RECEPCIÓN (más recientes primero)...');
     
     allCompras.sort((a, b) => {
-      // ✅ USAR FECHA DE RECEPCIÓN como prioridad absoluta
+      // USAR FECHA DE RECEPCIÓN como prioridad
       const fechaA = new Date(
         a.fechaRecepcion || 
         a.fecha_recepcion || 
@@ -321,10 +225,10 @@ const obtenerCuentasPorPagar = async () => {
       return fechaB - fechaA; // Descendente (más recientes primero)
     });
 
-    // ✅ CORRECCIÓN: Tomar más facturas recientes
-    const comprasRecientes = allCompras.slice(0, 800); // AUMENTADO de 300 a 800
+    // TOMAR LAS 300 MÁS RECIENTES POR RECEPCIÓN
+    const comprasRecientes = allCompras.slice(0, 300);
 
-    // ✅ VERIFICACIÓN mejorada del rango de fechas de RECEPCIÓN
+    // Debug: verificar el rango de fechas de RECEPCIÓN
     if (comprasRecientes.length > 0) {
       const primeraCompra = comprasRecientes[0];
       const ultimaCompra = comprasRecientes[comprasRecientes.length - 1];
@@ -353,92 +257,110 @@ const obtenerCuentasPorPagar = async () => {
       console.log(`✅ ${comprasRecientes.length} compras más recientes seleccionadas`);
       console.log(`📅 Rango de RECEPCIÓN: ${fechaRecepcionAntigua} → ${fechaRecepcionReciente}`);
 
-      // ✅ VERIFICACIÓN de datos recientes POR RECEPCIÓN
+      // Verificar si tenemos datos recientes POR RECEPCIÓN
       const fechaReciente = new Date(fechaRecepcionReciente);
       const hoy = new Date();
       const diffDias = Math.floor((hoy - fechaReciente) / (1000 * 60 * 60 * 24));
       
       if (diffDias > 30) {
         console.warn(`⚠️ ADVERTENCIA: La factura más reciente fue recibida hace ${diffDias} días (${fechaReciente.toISOString().split('T')[0]})`);
-        console.warn(`⚠️ Considera verificar si hay facturas más recientes en la API o aumentar maxPages`);
       } else {
         console.log(`✅ Datos recientes: última factura recibida hace ${diffDias} días`);
       }
 
-      // ✅ MOSTRAR muestra de fechas para debugging
+      // MOSTRAR MUESTRA DE FECHAS DE RECEPCIÓN vs EMISIÓN
       console.log('🔍 DEBUG: Primeras 5 compras (recepción vs emisión):');
       comprasRecientes.slice(0, 5).forEach((compra, i) => {
-        console.log(`${i + 1}. Folio: ${compra.folio} | Emisión: ${compra.fechaEmision} | Recepción: ${compra.fechaRecepcion || compra.fecha_recepcion || 'N/A'} | Created: ${compra.created || 'N/A'}`);
+        console.log(`${i + 1}. Folio ${compra.folio}:`);
+        console.log(`   Emisión: ${compra.fechaEmision}`);
+        console.log(`   Recepción: ${compra.fechaRecepcion || compra.fecha_recepcion || 'N/A'}`);
+        console.log(`   Created: ${compra.created || 'N/A'}`);
       });
     }
 
-    // ✅ RETORNAR en el formato esperado
-    return {
-      data: comprasRecientes,
-      pagination: {
-        currentPage: currentPage - 1,
-        totalPages: currentPage - 1,
-        totalItems: comprasRecientes.length,
-        completenessPercent: Math.min(100, Math.round((comprasRecientes.length / allCompras.length) * 100))
-      }
-    };
+    return comprasRecientes;
 
   } catch (error) {
     console.error('❌ Error obteniendo compras:', error);
-    throw error;
+    return [];
   }
 };
 
 /**
- * ✅ FUNCIÓN: Obtener cuentas por cobrar (DTEs)
+ * ✅ FUNCIÓN ORIGINAL: Obtener DTEs por cobrar (SIN CAMBIOS)
  */
 const obtenerCuentasPorCobrar = async () => {
-  console.log('💰 Obteniendo cuentas por cobrar (DTEs)...');
+  console.log('📋 Obteniendo DTEs por cobrar...');
 
   try {
-    return await fetchAllPaginatedData('/dtes');
+    const data = await fetchFromChipax('/dtes?porCobrar=1', { maxRetries: 1 });
+    
+    console.log('🔍 DEBUG DTEs - Estructura de respuesta:');
+    console.log('- Tipo de respuesta:', typeof data);
+    console.log('- Es array:', Array.isArray(data));
+
+    let dtes = [];
+
+    if (Array.isArray(data)) {
+      dtes = data;
+      console.log('✅ DTEs encontrados como array directo');
+    } else if (data && typeof data === 'object') {
+      for (const [key, value] of Object.entries(data)) {
+        if (Array.isArray(value) && value.length > 0) {
+          if (value[0].id && (value[0].folio || value[0].montoTotal)) {
+            dtes = value;
+            console.log(`✅ DTEs encontrados en '${key}': ${value.length} items`);
+            break;
+          }
+        }
+      }
+    }
+
+    console.log(`✅ ${dtes.length} DTEs por cobrar obtenidos`);
+    return dtes;
+
   } catch (error) {
-    console.error('❌ Error obteniendo cuentas por cobrar:', error);
-    throw error;
+    console.error('❌ Error obteniendo DTEs por cobrar:', error);
+    return [];
   }
 };
 
 /**
- * ✅ FUNCIÓN: Obtener saldos bancarios
+ * ✅ FUNCIÓN ORIGINAL: Obtener saldos bancarios (SIN CAMBIOS)
  */
 const obtenerSaldosBancarios = async () => {
   console.log('🏦 Obteniendo saldos bancarios...');
 
   try {
-    // Obtener cuentas bancarias
-    const cuentasResponse = await fetchFromChipax('/cuentas_bancarias');
-    let cuentas = [];
-    
-    if (Array.isArray(cuentasResponse)) {
-      cuentas = cuentasResponse;
-    } else if (cuentasResponse.items && Array.isArray(cuentasResponse.items)) {
-      cuentas = cuentasResponse.items;
-    } else if (cuentasResponse.data && Array.isArray(cuentasResponse.data)) {
-      cuentas = cuentasResponse.data;
+    console.log('📋 Obteniendo cuentas corrientes...');
+    const cuentas = await fetchFromChipax('/cuentas-corrientes', { maxRetries: 1 });
+
+    if (!Array.isArray(cuentas)) {
+      console.warn('⚠️ Cuentas corrientes no es array');
+      return [];
     }
 
-    console.log(`🏦 ${cuentas.length} cuentas bancarias encontradas`);
+    console.log(`✅ ${cuentas.length} cuentas corrientes obtenidas`);
 
-    // Obtener cartolas para calcular saldos
-    const cartolasResponse = await fetchAllPaginatedData('/flujo-caja/cartolas');
-    const cartolas = cartolasResponse.items;
+    console.log('💰 Obteniendo cartolas para calcular saldos...');
+    const cartolasData = await fetchFromChipax('/flujo-caja/cartolas', { maxRetries: 1 });
 
-    console.log(`📊 ${cartolas.length} cartolas obtenidas`);
+    let cartolas = [];
+    if (Array.isArray(cartolasData)) {
+      cartolas = cartolasData;
+    } else if (cartolasData.items && Array.isArray(cartolasData.items)) {
+      cartolas = cartolasData.items;
+    }
+
+    console.log(`✅ ${cartolas.length} cartolas obtenidas`);
 
     // Calcular saldos por cuenta usando la cartola más reciente
     const saldosPorCuenta = {};
-    
     cartolas.forEach(cartola => {
-      const cuentaId = cartola.cuenta_corriente_id;
-      
+      const cuentaId = cartola.idCuentaCorriente;
       if (!saldosPorCuenta[cuentaId]) {
         saldosPorCuenta[cuentaId] = {
-          saldoDeudor: cartola.saldo || 0,
+          saldoDeudor: 0,
           saldoAcreedor: 0,
           ultimaFecha: cartola.fecha
         };
@@ -456,7 +378,6 @@ const obtenerSaldosBancarios = async () => {
       }
     });
 
-    // Combinar cuentas con saldos calculados
     const cuentasConSaldos = cuentas.map(cuenta => ({
       ...cuenta,
       saldoCalculado: saldosPorCuenta[cuenta.id]?.saldoDeudor || 0,
@@ -476,63 +397,21 @@ const obtenerSaldosBancarios = async () => {
   }
 };
 
-/**
- * ✅ FUNCIÓN: Obtener clientes
- */
-const obtenerClientes = async () => {
-  console.log('👥 Obteniendo clientes...');
-
-  try {
-    return await fetchAllPaginatedData('/clientes');
-  } catch (error) {
-    console.error('❌ Error obteniendo clientes:', error);
-    throw error;
-  }
-};
-
-/**
- * ✅ FUNCIÓN: Obtener proveedores
- */
-const obtenerProveedores = async () => {
-  console.log('🏭 Obteniendo proveedores...');
-
-  try {
-    return await fetchAllPaginatedData('/proveedores');
-  } catch (error) {
-    console.error('❌ Error obteniendo proveedores:', error);
-    throw error;
-  }
-};
-
-/**
- * ✅ ALIAS: Crear alias para compatibilidad
- */
-const obtenerCompras = obtenerCuentasPorPagar;
-
-// ✅ EXPORTACIONES DEL SERVICIO
+// Exportaciones - IGUAL QUE ANTES
 const chipaxService = {
   getChipaxToken,
   fetchFromChipax,
-  fetchAllPaginatedData,
   obtenerSaldosBancarios,
   obtenerCuentasPorCobrar,
   obtenerCuentasPorPagar,
-  obtenerCompras, // Alias
-  obtenerClientes,
-  obtenerProveedores,
 };
 
 export default chipaxService;
 
-// ✅ EXPORTACIONES INDIVIDUALES
 export {
   getChipaxToken,
   fetchFromChipax,
-  fetchAllPaginatedData,
   obtenerSaldosBancarios,
   obtenerCuentasPorCobrar,
   obtenerCuentasPorPagar,
-  obtenerCompras,
-  obtenerClientes,
-  obtenerProveedores,
 };
