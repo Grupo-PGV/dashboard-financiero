@@ -234,22 +234,20 @@ const obtenerCuentasPorCobrar = async () => {
                 console.log(`DTE ${i + 1}:`, {
                   id: dte.id,
                   folio: dte.folio,
-                  razon_social: dte.razon_social,
-                  monto_total: dte.monto_total,
-                  monto_por_cobrar: dte.monto_por_cobrar,
-                  monto_neto: dte.monto_neto,
+                  razonSocial: dte.razonSocial,                    // ✅ camelCase
+                  montoTotal: dte.montoTotal,                      // ✅ camelCase
+                  montoNeto: dte.montoNeto,                        // ✅ camelCase
                   iva: dte.iva,
                   Saldo: dte.Saldo,
                   anulado: dte.anulado
                 });
               });
               
-              // Contar DTEs con monto > 0
+              // Contar DTEs con monto > 0 (CORREGIDO)
               const dtesConMonto = value.filter(dte => {
-                const monto1 = parseFloat(dte.monto_por_cobrar) || 0;
-                const monto2 = parseFloat(dte.Saldo?.saldo_deudor) || 0;
-                const monto3 = parseFloat(dte.monto_total) || 0;
-                return monto1 > 0 || monto2 > 0 || monto3 > 0;
+                const monto1 = parseFloat(dte.Saldo?.saldoDeudor) || 0;  // ✅ Campo real
+                const monto2 = parseFloat(dte.montoTotal) || 0;          // ✅ camelCase
+                return monto1 > 0 || monto2 > 0;
               });
               console.log(`💰 DTEs con monto > 0: ${dtesConMonto.length}/${value.length}`);
             }
@@ -308,25 +306,25 @@ const obtenerCuentasPorPagar = async () => {
                 console.log(`Compra ${i + 1}:`, {
                   id: compra.id,
                   folio: compra.folio,
-                  razon_social: compra.razon_social,
-                  monto_total: compra.monto_total,
-                  monto_neto: compra.monto_neto,
+                  razonSocial: compra.razonSocial,                 // ✅ camelCase
+                  montoTotal: compra.montoTotal,                   // ✅ camelCase
+                  montoNeto: compra.montoNeto,                     // ✅ camelCase
                   iva: compra.iva,
-                  fecha_pago_interna: compra.fecha_pago_interna,
+                  fechaPagoInterna: compra.fechaPagoInterna,       // ✅ camelCase
                   estado: compra.estado,
                   anulado: compra.anulado
                 });
               });
               
-              // Contar compras pendientes
+              // Contar compras pendientes (CORREGIDO)
               const comprasPendientes = value.filter(compra => 
-                !compra.fecha_pago_interna && compra.anulado !== 'S'
+                !compra.fechaPagoInterna && compra.anulado !== 'S'  // ✅ camelCase
               );
               console.log(`💸 Compras pendientes: ${comprasPendientes.length}/${value.length}`);
               
-              // Contar compras con monto > 0
+              // Contar compras con monto > 0 (CORREGIDO)
               const comprasConMonto = value.filter(compra => 
-                parseFloat(compra.monto_total) > 0
+                parseFloat(compra.montoTotal) > 0                  // ✅ camelCase
               );
               console.log(`💰 Compras con monto > 0: ${comprasConMonto.length}/${value.length}`);
             }
