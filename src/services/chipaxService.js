@@ -206,7 +206,7 @@ const obtenerSaldosBancarios = async () => {
 };
 
 /**
- * ✅ FUNCIÓN CORREGIDA PARA OBTENER CUENTAS POR COBRAR
+ * ✅ FUNCIÓN CORREGIDA PARA OBTENER CUENTAS POR COBRAR (CON DEBUG)
  */
 const obtenerCuentasPorCobrar = async () => {
   console.log('📋 Obteniendo DTEs por cobrar...');
@@ -223,6 +223,37 @@ const obtenerCuentasPorCobrar = async () => {
         for (const [key, value] of Object.entries(data)) {
           if (Array.isArray(value)) {
             console.log(`✅ DTEs encontrados en '${key}':`, value.length, 'items');
+            
+            // 🔍 DEBUG: Inspeccionar estructura de DTEs
+            if (value.length > 0) {
+              console.log('🔍 DEBUG: Primer DTE (estructura completa):');
+              console.log(JSON.stringify(value[0], null, 2));
+              
+              console.log('🔍 DEBUG: Primeros 3 DTEs - análisis de montos:');
+              value.slice(0, 3).forEach((dte, i) => {
+                console.log(`DTE ${i + 1}:`, {
+                  id: dte.id,
+                  folio: dte.folio,
+                  razon_social: dte.razon_social,
+                  monto_total: dte.monto_total,
+                  monto_por_cobrar: dte.monto_por_cobrar,
+                  monto_neto: dte.monto_neto,
+                  iva: dte.iva,
+                  Saldo: dte.Saldo,
+                  anulado: dte.anulado
+                });
+              });
+              
+              // Contar DTEs con monto > 0
+              const dtesConMonto = value.filter(dte => {
+                const monto1 = parseFloat(dte.monto_por_cobrar) || 0;
+                const monto2 = parseFloat(dte.Saldo?.saldo_deudor) || 0;
+                const monto3 = parseFloat(dte.monto_total) || 0;
+                return monto1 > 0 || monto2 > 0 || monto3 > 0;
+              });
+              console.log(`💰 DTEs con monto > 0: ${dtesConMonto.length}/${value.length}`);
+            }
+            
             return adaptarDTEs(value);
           }
         }
@@ -249,7 +280,7 @@ const obtenerCuentasPorCobrar = async () => {
 const obtenerDTEsPorCobrar = obtenerCuentasPorCobrar;
 
 /**
- * ✅ FUNCIÓN CORREGIDA PARA OBTENER CUENTAS POR PAGAR
+ * ✅ FUNCIÓN CORREGIDA PARA OBTENER CUENTAS POR PAGAR (CON DEBUG)
  */
 const obtenerCuentasPorPagar = async () => {
   console.log('💸 Obteniendo compras...');
@@ -266,6 +297,40 @@ const obtenerCuentasPorPagar = async () => {
         for (const [key, value] of Object.entries(data)) {
           if (Array.isArray(value)) {
             console.log(`✅ Compras encontradas en '${key}':`, value.length, 'items');
+            
+            // 🔍 DEBUG: Inspeccionar estructura de compras
+            if (value.length > 0) {
+              console.log('🔍 DEBUG: Primera compra (estructura completa):');
+              console.log(JSON.stringify(value[0], null, 2));
+              
+              console.log('🔍 DEBUG: Primeras 3 compras - análisis de montos:');
+              value.slice(0, 3).forEach((compra, i) => {
+                console.log(`Compra ${i + 1}:`, {
+                  id: compra.id,
+                  folio: compra.folio,
+                  razon_social: compra.razon_social,
+                  monto_total: compra.monto_total,
+                  monto_neto: compra.monto_neto,
+                  iva: compra.iva,
+                  fecha_pago_interna: compra.fecha_pago_interna,
+                  estado: compra.estado,
+                  anulado: compra.anulado
+                });
+              });
+              
+              // Contar compras pendientes
+              const comprasPendientes = value.filter(compra => 
+                !compra.fecha_pago_interna && compra.anulado !== 'S'
+              );
+              console.log(`💸 Compras pendientes: ${comprasPendientes.length}/${value.length}`);
+              
+              // Contar compras con monto > 0
+              const comprasConMonto = value.filter(compra => 
+                parseFloat(compra.monto_total) > 0
+              );
+              console.log(`💰 Compras con monto > 0: ${comprasConMonto.length}/${value.length}`);
+            }
+            
             return value; // Retornar raw data para que el adaptador la procese
           }
         }
