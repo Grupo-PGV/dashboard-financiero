@@ -41,7 +41,7 @@ const MAPEO_BANCOS = {
  * ✅ ADAPTADOR: Cuentas por cobrar (SIN CAMBIOS)
  * Mantiene la funcionalidad existente que ya funciona
  */
-export const adaptarCuentasPorCobrar = (facturas) => {
+const adaptarCuentasPorCobrar = (facturas) => {
   if (!Array.isArray(facturas)) {
     console.warn('⚠️ adaptarCuentasPorCobrar: datos no son array');
     return [];
@@ -79,7 +79,7 @@ export const adaptarCuentasPorCobrar = (facturas) => {
  * ✅ ADAPTADOR: Cuentas por pagar (SIN CAMBIOS)
  * Mantiene la funcionalidad existente que ya funciona
  */
-export const adaptarCuentasPorPagar = (compras) => {
+const adaptarCuentasPorPagar = (compras) => {
   if (!Array.isArray(compras)) {
     console.warn('⚠️ adaptarCuentasPorPagar: datos no son array');
     return [];
@@ -119,7 +119,7 @@ export const adaptarCuentasPorPagar = (compras) => {
  * 🔄 ADAPTADOR MEJORADO: Saldos bancarios
  * Actualizado para trabajar con el nuevo servicio de saldos
  */
-export const adaptarSaldosBancarios = (cuentas) => {
+const adaptarSaldosBancarios = (cuentas) => {
   if (!Array.isArray(cuentas)) {
     console.warn('⚠️ adaptarSaldosBancarios: datos no son array');
     console.warn(`   Tipo recibido: ${typeof cuentas}`);
@@ -223,7 +223,7 @@ export const adaptarSaldosBancarios = (cuentas) => {
 /**
  * Calcular total de cuentas por cobrar
  */
-export const calcularTotalCuentasPorCobrar = (cuentasPorCobrar) => {
+const calcularTotalCuentasPorCobrar = (cuentasPorCobrar) => {
   if (!Array.isArray(cuentasPorCobrar)) return 0;
   
   return cuentasPorCobrar.reduce((total, cuenta) => {
@@ -234,7 +234,7 @@ export const calcularTotalCuentasPorCobrar = (cuentasPorCobrar) => {
 /**
  * Calcular total de cuentas por pagar
  */
-export const calcularTotalCuentasPorPagar = (cuentasPorPagar) => {
+const calcularTotalCuentasPorPagar = (cuentasPorPagar) => {
   if (!Array.isArray(cuentasPorPagar)) return 0;
   
   return cuentasPorPagar.reduce((total, cuenta) => {
@@ -245,7 +245,7 @@ export const calcularTotalCuentasPorPagar = (cuentasPorPagar) => {
 /**
  * Calcular total de saldos bancarios
  */
-export const calcularTotalSaldosBancarios = (saldosBancarios) => {
+const calcularTotalSaldosBancarios = (saldosBancarios) => {
   if (!Array.isArray(saldosBancarios)) return 0;
   
   return saldosBancarios.reduce((total, cuenta) => {
@@ -260,7 +260,7 @@ export const calcularTotalSaldosBancarios = (saldosBancarios) => {
 /**
  * Generar resumen completo de datos financieros
  */
-export const generarResumenFinanciero = (cuentasPorCobrar, cuentasPorPagar, saldosBancarios) => {
+const generarResumenFinanciero = (cuentasPorCobrar, cuentasPorPagar, saldosBancarios) => {
   const totalCobrar = calcularTotalCuentasPorCobrar(cuentasPorCobrar);
   const totalPagar = calcularTotalCuentasPorPagar(cuentasPorPagar);
   const totalSaldos = calcularTotalSaldosBancarios(saldosBancarios);
@@ -296,7 +296,7 @@ export const generarResumenFinanciero = (cuentasPorCobrar, cuentasPorPagar, sald
 /**
  * Validar calidad de datos financieros
  */
-export const validarCalidadDatos = (cuentasPorCobrar, cuentasPorPagar, saldosBancarios) => {
+const validarCalidadDatos = (cuentasPorCobrar, cuentasPorPagar, saldosBancarios) => {
   const validacion = {
     cuentasPorCobrar: {
       esValido: Array.isArray(cuentasPorCobrar) && cuentasPorCobrar.length > 0,
@@ -336,7 +336,7 @@ export const validarCalidadDatos = (cuentasPorCobrar, cuentasPorPagar, saldosBan
 /**
  * Formatear fecha para mostrar
  */
-export const formatearFecha = (fecha) => {
+const formatearFecha = (fecha) => {
   if (!fecha) return 'Sin fecha';
   
   try {
@@ -354,7 +354,7 @@ export const formatearFecha = (fecha) => {
 /**
  * Determinar estado visual basado en monto
  */
-export const determinarEstadoVisual = (monto, tipo = 'neutral') => {
+const determinarEstadoVisual = (monto, tipo = 'neutral') => {
   if (tipo === 'saldo') {
     if (monto > 1000000) return 'excelente'; // > 1M
     if (monto > 100000) return 'bueno';      // > 100K
@@ -375,7 +375,7 @@ export const determinarEstadoVisual = (monto, tipo = 'neutral') => {
 /**
  * Obtener información de confiabilidad de saldos
  */
-export const obtenerInfoConfiabilidad = (saldosBancarios) => {
+const obtenerInfoConfiabilidad = (saldosBancarios) => {
   if (!Array.isArray(saldosBancarios)) {
     return { nivel: 'desconocido', mensaje: 'Datos no válidos' };
   }
@@ -419,7 +419,7 @@ export const obtenerInfoConfiabilidad = (saldosBancarios) => {
 /**
  * Filtrar compras por rango de fechas
  */
-export const filtrarComprasPorFecha = (compras, fechaInicio, fechaFin) => {
+const filtrarComprasPorFecha = (compras, fechaInicio, fechaFin) => {
   if (!Array.isArray(compras)) {
     console.warn('⚠️ filtrarComprasPorFecha: datos no son array');
     return [];
@@ -448,7 +448,7 @@ export const filtrarComprasPorFecha = (compras, fechaInicio, fechaFin) => {
 /**
  * Filtrar facturas por rango de fechas
  */
-export const filtrarFacturasPorFecha = (facturas, fechaInicio, fechaFin) => {
+const filtrarFacturasPorFecha = (facturas, fechaInicio, fechaFin) => {
   if (!Array.isArray(facturas)) {
     console.warn('⚠️ filtrarFacturasPorFecha: datos no son array');
     return [];
@@ -477,7 +477,7 @@ export const filtrarFacturasPorFecha = (facturas, fechaInicio, fechaFin) => {
 /**
  * Filtrar por año específico
  */
-export const filtrarPorAno = (datos, ano) => {
+const filtrarPorAno = (datos, ano) => {
   if (!Array.isArray(datos)) {
     console.warn('⚠️ filtrarPorAno: datos no son array');
     return [];
@@ -502,7 +502,7 @@ export const filtrarPorAno = (datos, ano) => {
 /**
  * Obtener estadísticas por período
  */
-export const obtenerEstadisticasPorPeriodo = (datos, tipoPeriodo = 'mes') => {
+const obtenerEstadisticasPorPeriodo = (datos, tipoPeriodo = 'mes') => {
   if (!Array.isArray(datos)) {
     console.warn('⚠️ obtenerEstadisticasPorPeriodo: datos no son array');
     return {};
