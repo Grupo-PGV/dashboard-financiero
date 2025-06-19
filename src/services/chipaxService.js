@@ -594,16 +594,15 @@ export const obtenerSaldosRealesActualizados = () => {
 async function buscarSaldosDirectos() {
   console.log('🔍 Buscando en endpoints directos de saldos...');
   
+  // Basado en la investigación: solo /cuentas-corrientes funciona
   const endpointsDirectos = [
-    '/saldos',
-    '/saldos-bancarios', 
-    '/balance',
-    '/balances',
-    '/cuentas-corrientes?incluir_saldos=true',
-    '/cuentas-corrientes?with_balance=1',
-    '/bancos?incluir_saldos=true',
-    '/tesoreria/saldos',
-    '/dashboard/financiero'
+    '/cuentas-corrientes',
+    '/cuentas-corrientes?expand=all',
+    '/cuentas-corrientes?include=saldos',
+    '/cuentas-corrientes?include=balance',
+    '/cuentas-corrientes?with_balance=true',
+    '/cuentas-corrientes?fields=*',
+    '/cuentas-corrientes?populate=saldo'
   ];
   
   for (const endpoint of endpointsDirectos) {
@@ -611,10 +610,23 @@ async function buscarSaldosDirectos() {
       console.log(`   🔍 Probando: ${endpoint}`);
       const response = await fetchFromChipax(endpoint);
       
-      const saldosExtraidos = extraerSaldosDeRespuesta(response, endpoint);
-      if (saldosExtraidos.length > 0) {
-        console.log(`   ✅ Encontrados ${saldosExtraidos.length} saldos en ${endpoint}`);
-        return saldosExtraidos;
+      if (response.docs && response.docs.length > 0) {
+        console.log(`   📊 ${response.docs.length} cuentas encontradas`);
+        
+        // Buscar si alguna cuenta tiene campos de saldo
+        const cuentasConSaldo = response.docs.filter(cuenta => {
+          const camposSaldo = Object.keys(cuenta).filter(key => 
+            key.toLowerCase().includes('saldo') || 
+            key.toLowerCase().includes('balance') ||
+            key.toLowerCase().includes('disponible')
+          );
+          return camposSaldo.length > 0;
+        });
+        
+        if (cuentasConSaldo.length > 0) {
+          console.log(`   ✅ ${cuentasConSaldo.length} cuentas con campos de saldo`);
+          return extraerSaldosDeRespuesta(response, endpoint);
+        }
       }
       
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -624,7 +636,7 @@ async function buscarSaldosDirectos() {
     }
   }
   
-  console.log('   ❌ No se encontraron saldos en endpoints directos');
+  console.log('   ❌ No se encontraron saldos directos en /cuentas-corrientes');
   return null;
 }
 
