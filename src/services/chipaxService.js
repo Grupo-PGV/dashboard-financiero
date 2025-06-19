@@ -203,18 +203,57 @@ const fetchAllPaginatedData = async (endpoint, options = {}) => {
 /**
  * 🎯 FUNCIÓN PRINCIPAL: Obtener saldos bancarios mejorados
  */
-export const obtenerSaldosBancarios = async (usarSaldosReales = true) => {
+export const obtenerSaldosBancarios = async (usarSaldosReales = false) => {
   console.log('🏦 OBTENIENDO SALDOS BANCARIOS - VERSIÓN MEJORADA');
   console.log('===============================================');
   
-  // OPCIÓN 1: Usar saldos reales actualizados directamente (recomendado)
+  // OPCIÓN 1: Usar saldos reales como fallback (solo si se especifica)
   if (usarSaldosReales) {
-    console.log('🎯 Usando saldos reales actualizados del 19-06-2025');
+    console.log('🎯 Usando saldos reales como fallback');
     return obtenerSaldosRealesActualizados();
   }
   
-  // OPCIÓN 2: Calcular desde cartolas (proceso complejo)
-  console.log('🧮 Calculando desde cartolas de Chipax...');
+  // OPCIÓN 2: Extraer desde Chipax API (comportamiento por defecto)
+  console.log('🧮 Extrayendo saldos desde Chipax API...');
+  
+  try {
+    // Intentar múltiples estrategias para obtener saldos reales
+    console.log('\n🔍 ESTRATEGIA 1: Buscar saldos en endpoints directos...');
+    const saldosDirectos = await buscarSaldosDirectos();
+    
+    if (saldosDirectos && saldosDirectos.length > 0) {
+      console.log('✅ Saldos obtenidos desde endpoints directos');
+      return saldosDirectos;
+    }
+    
+    console.log('\n🔍 ESTRATEGIA 2: Extraer saldos de última cartola por cuenta...');
+    const saldosUltimaCartola = await extraerSaldosUltimaCartola();
+    
+    if (saldosUltimaCartola && saldosUltimaCartola.length > 0) {
+      const validacion = validarSaldosExtraidos(saldosUltimaCartola);
+      if (validacion.precision > 70) {
+        console.log(`✅ Saldos extraídos de cartolas con ${validacion.precision.toFixed(1)}% precisión`);
+        return saldosUltimaCartola;
+      }
+    }
+    
+    console.log('\n🔍 ESTRATEGIA 3: Cálculo tradicional desde cartolas...');
+    const saldosTradicionales = await calcularSaldosTradicional();
+    
+    if (saldosTradicionales && saldosTradicionales.length > 0) {
+      console.log('✅ Saldos calculados usando método tradicional');
+      return saldosTradicionales;
+    }
+    
+    throw new Error('No se pudieron obtener saldos con ninguna estrategia');
+    
+  } catch (error) {
+    console.error('❌ Error extrayendo desde Chipax:', error);
+    
+    // Fallback final: usar saldos conocidos
+    console.log('🔄 Fallback: usando saldos conocidos actualizados');
+    return obtenerSaldosRealesActualizados();
+  }
   
   // Saldos iniciales conocidos al 1 de enero 2025
   const SALDOS_INICIALES_2025 = {
@@ -538,6 +577,363 @@ export const obtenerSaldosRealesActualizados = () => {
   
   return saldosRealesHoy;
 };
+
+// =====================================
+// 🔍 FUNCIONES PARA EXTRACCIÓN REAL DESDE CHIPAX
+// =====================================
+
+/**
+ * Buscar saldos en endpoints directos
+ */
+async function buscarSaldosDirectos() {
+  console.log('🔍 Buscando en endpoints directos de saldos...');
+  
+  const endpointsDirectos = [
+    '/saldos',
+    '/saldos-bancarios', 
+    '/balance',
+    '/balances',
+    '/cuentas-corrientes?incluir_saldos=true',
+    '/cuentas-corrientes?with_balance=1',
+    '/bancos?incluir_saldos=true',
+    '/tesoreria/saldos',
+    '/dashboard/financiero'
+  ];
+  
+  for (const endpoint of endpointsDirectos) {
+    try {
+      console.log(`   🔍 Probando: ${endpoint}`);
+      const response = await fetchFromChipax(endpoint);
+      
+      const saldosExtraidos = extraerSaldosDeRespuesta(response, endpoint);
+      if (saldosExtraidos.length > 0) {
+        console.log(`   ✅ Encontrados ${saldosExtraidos.length} saldos en ${endpoint}`);
+        return saldosExtraidos;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+    } catch (error) {
+      console.log(`   ❌ ${endpoint}: ${error.message}`);
+    }
+  }
+  
+  console.log('   ❌ No se encontraron saldos en endpoints directos');
+  return null;
+}
+
+/**
+ * Extraer saldos de la última cartola de cada cuenta
+ */
+async function extraerSaldosUltimaCartola() {
+  console.log('🔍 Extrayendo saldos de última cartola por cuenta...');
+  
+  const cuentasIds = [11086, 11085, 23017, 11419, 14212];
+  const saldosExtraidos = [];
+  
+  for (const cuentaId of cuentasIds) {
+    try {
+      console.log(`   🔍 Buscando última cartola cuenta ${cuentaId}...`);
+      
+      const endpoint = `/flujo-caja/cartolas?cuenta_corriente_id=${cuentaId}&limit=1&sort=-fecha`;
+      const response = await fetchFromChipax(endpoint);
+      
+      if (response.docs && response.docs.length > 0) {
+        const cartola = response.docs[0];
+        const saldoCuenta = extraerSaldoDeCartola(cartola, cuentaId);
+        
+        if (saldoCuenta) {
+          saldosExtraidos.push(saldoCuenta);
+          console.log(`   ✅ Cuenta ${cuentaId}: ${saldoCuenta.saldo.toLocaleString('es-CL')}`);
+        }
+      } else {
+        console.log(`   ❌ Sin cartolas para cuenta ${cuentaId}`);
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+    } catch (error) {
+      console.error(`   ❌ Error cuenta ${cuentaId}:`, error.message);
+    }
+  }
+  
+  console.log(`✅ Extraídos ${saldosExtraidos.length} saldos de cartolas`);
+  return saldosExtraidos.length > 0 ? saldosExtraidos : null;
+}
+
+/**
+ * Extraer saldo de una cartola específica
+ */
+function extraerSaldoDeCartola(cartola, cuentaId) {
+  const cuentasInfo = {
+    11086: { nombre: '00-800-10734-09', banco: 'Banco de Chile' },
+    11085: { nombre: '0-000-7066661-8', banco: 'Banco Santander' },
+    23017: { nombre: '89107021', banco: 'Banco BCI' },
+    11419: { nombre: '9117726', banco: 'Banco Internacional' },
+    14212: { nombre: '0000000803', banco: 'chipax_wallet' }
+  };
+  
+  const info = cuentasInfo[cuentaId];
+  if (!info || !cartola.Saldos || !Array.isArray(cartola.Saldos)) {
+    return null;
+  }
+  
+  // Buscar el saldo más reciente o el último registro
+  let saldoFinal = 0;
+  
+  // Estrategia 1: Buscar saldo con last_record = 1
+  const saldoUltimo = cartola.Saldos.find(s => s.last_record === 1);
+  if (saldoUltimo) {
+    saldoFinal = (saldoUltimo.saldo_deudor || 0) - (saldoUltimo.saldo_acreedor || 0);
+  } else {
+    // Estrategia 2: Usar el último saldo del array
+    const ultimoSaldo = cartola.Saldos[cartola.Saldos.length - 1];
+    if (ultimoSaldo) {
+      saldoFinal = (ultimoSaldo.saldo_deudor || 0) - (ultimoSaldo.saldo_acreedor || 0);
+    }
+  }
+  
+  return {
+    id: cuentaId,
+    nombre: info.nombre,
+    banco: info.banco,
+    tipo: 'Cuenta Corriente',
+    moneda: 'CLP',
+    saldo: saldoFinal,
+    saldoCalculado: saldoFinal,
+    ultimaActualizacion: cartola.fecha || new Date().toISOString(),
+    origenSaldo: 'ultima_cartola_chipax',
+    
+    detalleCalculo: {
+      fechaUltimaCartola: cartola.fecha,
+      cartolaId: cartola.id,
+      saldosEnCartola: cartola.Saldos.length,
+      metodoCalculo: 'ultima_cartola_saldo_final',
+      saldoFinal: saldoFinal
+    }
+  };
+}
+
+/**
+ * Extraer saldos de respuesta genérica
+ */
+function extraerSaldosDeRespuesta(response, endpoint) {
+  const saldos = [];
+  
+  // Buscar en diferentes estructuras de respuesta
+  let datos = null;
+  
+  if (response.docs && Array.isArray(response.docs)) {
+    datos = response.docs;
+  } else if (response.data && Array.isArray(response.data)) {
+    datos = response.data;
+  } else if (Array.isArray(response)) {
+    datos = response;
+  } else if (typeof response === 'object') {
+    // Buscar arrays dentro del objeto
+    const posiblesArrays = Object.values(response).filter(v => Array.isArray(v));
+    if (posiblesArrays.length > 0) {
+      datos = posiblesArrays[0];
+    }
+  }
+  
+  if (!datos || !Array.isArray(datos)) {
+    return saldos;
+  }
+  
+  // Extraer saldos de los datos
+  datos.forEach((item, index) => {
+    const saldoExtraido = extraerSaldoDeItem(item, index, endpoint);
+    if (saldoExtraido) {
+      saldos.push(saldoExtraido);
+    }
+  });
+  
+  return saldos;
+}
+
+/**
+ * Extraer saldo de un item individual
+ */
+function extraerSaldoDeItem(item, index, endpoint) {
+  // Buscar campos de saldo
+  const camposSaldo = [
+    'saldo', 'balance', 'saldo_actual', 'saldo_disponible', 
+    'balance_actual', 'current_balance', 'monto', 'valor'
+  ];
+  
+  let saldoValor = 0;
+  let campoUsado = null;
+  
+  for (const campo of camposSaldo) {
+    if (item[campo] !== undefined && item[campo] !== null) {
+      saldoValor = parseFloat(item[campo]) || 0;
+      campoUsado = campo;
+      break;
+    }
+  }
+  
+  // Si no hay saldo significativo, omitir
+  if (Math.abs(saldoValor) < 1) {
+    return null;
+  }
+  
+  return {
+    id: item.id || index,
+    nombre: item.nombre || item.numero || item.account || `Cuenta ${index + 1}`,
+    banco: item.banco || item.bank || item.institution || 'Banco no identificado',
+    tipo: 'Cuenta Corriente',
+    moneda: 'CLP',
+    saldo: saldoValor,
+    saldoCalculado: saldoValor,
+    ultimaActualizacion: item.fecha || item.updated_at || new Date().toISOString(),
+    origenSaldo: `endpoint_directo_${endpoint.replace(/[^a-z0-9]/gi, '_')}`,
+    
+    detalleCalculo: {
+      campoUsado: campoUsado,
+      endpointOrigen: endpoint,
+      metodoCalculo: 'extraccion_directa',
+      itemOriginal: item
+    }
+  };
+}
+
+/**
+ * Validar saldos extraídos contra valores conocidos
+ */
+function validarSaldosExtraidos(saldosExtraidos) {
+  const validaciones = [];
+  let coincidencias = 0;
+  
+  saldosExtraidos.forEach(cuenta => {
+    const saldoConocido = SALDOS_VALIDACION[cuenta.banco];
+    
+    if (saldoConocido !== undefined) {
+      const diferencia = Math.abs(cuenta.saldo - saldoConocido);
+      const porcentajeDiff = saldoConocido !== 0 ? (diferencia / Math.abs(saldoConocido)) * 100 : 0;
+      const coincide = diferencia < 5000; // Tolerancia de $5000
+      
+      if (coincide) coincidencias++;
+      
+      validaciones.push({
+        banco: cuenta.banco,
+        saldoExtraido: cuenta.saldo,
+        saldoConocido: saldoConocido,
+        diferencia: diferencia,
+        porcentajeDiff: porcentajeDiff,
+        coincide: coincide
+      });
+      
+      const estado = coincide ? '✅' : '⚠️';
+      console.log(`   ${estado} ${cuenta.banco}: diff ${diferencia.toLocaleString('es-CL')} (${porcentajeDiff.toFixed(1)}%)`);
+    }
+  });
+  
+  const precision = validaciones.length > 0 ? (coincidencias / validaciones.length) * 100 : 0;
+  
+  return {
+    validaciones,
+    precision,
+    coincidencias,
+    total: validaciones.length
+  };
+}
+
+/**
+ * Método tradicional de cálculo (mejorado)
+ */
+async function calcularSaldosTradicional() {
+  console.log('🔍 Aplicando método tradicional mejorado...');
+  
+  // Reutilizar la lógica existente pero con mejoras
+  const SALDOS_INICIALES_2025 = {
+    'Banco de Chile': { saldoInicial: 129969864, cuenta: '00-800-10734-09', cuentaId: 11086 },
+    'Banco Santander': { saldoInicial: 0, cuenta: '0-000-7066661-8', cuentaId: 11085 },
+    'Banco BCI': { saldoInicial: 178098, cuenta: '89107021', cuentaId: 23017 },
+    'Banco Internacional': { saldoInicial: 0, cuenta: 'generico', cuentaId: 11419 },
+    'chipax_wallet': { saldoInicial: 0, cuenta: '0000000803', cuentaId: 14212 }
+  };
+  
+  try {
+    // Obtener cartolas más recientes (últimos 30 días)
+    const fechaDesde = new Date();
+    fechaDesde.setDate(fechaDesde.getDate() - 30);
+    const fechaDesdeStr = fechaDesde.toISOString().split('T')[0];
+    
+    const endpoint = `/flujo-caja/cartolas?fecha_desde=${fechaDesdeStr}&limit=1000&sort=-fecha`;
+    const response = await fetchFromChipax(endpoint);
+    
+    if (!response.docs || response.docs.length === 0) {
+      throw new Error('No se encontraron cartolas recientes');
+    }
+    
+    console.log(`   📊 Procesando ${response.docs.length} cartolas recientes`);
+    
+    // Procesar saldos por cuenta
+    const saldosPorCuenta = {};
+    
+    response.docs.forEach(cartola => {
+      const cuentaId = cartola.cuenta_corriente_id;
+      if (!cuentaId || !cartola.Saldos) return;
+      
+      if (!saldosPorCuenta[cuentaId]) {
+        saldosPorCuenta[cuentaId] = [];
+      }
+      
+      cartola.Saldos.forEach(saldo => {
+        if (saldo.last_record === 1) { // Solo los saldos finales
+          saldosPorCuenta[cuentaId].push({
+            fecha: new Date(cartola.fecha),
+            saldo: (saldo.saldo_deudor || 0) - (saldo.saldo_acreedor || 0)
+          });
+        }
+      });
+    });
+    
+    // Generar resultado con saldos más recientes
+    const resultados = [];
+    
+    Object.entries(SALDOS_INICIALES_2025).forEach(([nombreBanco, info]) => {
+      let saldoFinal = info.saldoInicial; // Valor por defecto
+      let fechaUltimo = null;
+      
+      const saldosCuenta = saldosPorCuenta[info.cuentaId];
+      if (saldosCuenta && saldosCuenta.length > 0) {
+        // Ordenar por fecha y tomar el más reciente
+        saldosCuenta.sort((a, b) => b.fecha - a.fecha);
+        saldoFinal = saldosCuenta[0].saldo;
+        fechaUltimo = saldosCuenta[0].fecha;
+      }
+      
+      resultados.push({
+        id: info.cuentaId,
+        nombre: info.cuenta,
+        banco: nombreBanco,
+        tipo: 'Cuenta Corriente',
+        moneda: 'CLP',
+        saldo: saldoFinal,
+        saldoCalculado: saldoFinal,
+        ultimaActualizacion: fechaUltimo?.toISOString() || new Date().toISOString(),
+        origenSaldo: 'calculo_tradicional_mejorado',
+        
+        detalleCalculo: {
+          saldoInicial: info.saldoInicial,
+          saldoFinal: saldoFinal,
+          fechaUltimoSaldo: fechaUltimo?.toLocaleDateString(),
+          cartolasUsadas: saldosCuenta?.length || 0,
+          metodoCalculo: 'ultimo_saldo_registrado'
+        }
+      });
+    });
+    
+    console.log(`   ✅ ${resultados.length} saldos calculados por método tradicional`);
+    return resultados;
+    
+  } catch (error) {
+    console.error('   ❌ Error en método tradicional:', error);
+    return null;
+  }
+}
 
 // =====================================
 // 🔄 FUNCIONES AUXILIARES PARA SALDOS
