@@ -413,8 +413,167 @@ export const obtenerInfoConfiabilidad = (saldosBancarios) => {
 };
 
 // =====================================
-// 🚀 EXPORTACIONES
+// 🔧 FUNCIONES DE FILTRADO ADICIONALES
 // =====================================
+
+/**
+ * Filtrar compras por rango de fechas
+ */
+export const filtrarComprasPorFecha = (compras, fechaInicio, fechaFin) => {
+  if (!Array.isArray(compras)) {
+    console.warn('⚠️ filtrarComprasPorFecha: datos no son array');
+    return [];
+  }
+
+  console.log(`🔍 Filtrando compras por fecha: ${fechaInicio} - ${fechaFin}`);
+
+  const fechaInicioObj = new Date(fechaInicio);
+  const fechaFinObj = new Date(fechaFin);
+
+  const comprasFiltradas = compras.filter(compra => {
+    const fechaCompra = new Date(compra.fecha || compra.fecha_recepcion || compra.fecha_emision);
+    
+    // Validar que la fecha sea válida
+    if (isNaN(fechaCompra.getTime())) {
+      return false;
+    }
+
+    return fechaCompra >= fechaInicioObj && fechaCompra <= fechaFinObj;
+  });
+
+  console.log(`✅ ${comprasFiltradas.length} compras filtradas de ${compras.length} totales`);
+  return comprasFiltradas;
+};
+
+/**
+ * Filtrar facturas por rango de fechas
+ */
+export const filtrarFacturasPorFecha = (facturas, fechaInicio, fechaFin) => {
+  if (!Array.isArray(facturas)) {
+    console.warn('⚠️ filtrarFacturasPorFecha: datos no son array');
+    return [];
+  }
+
+  console.log(`🔍 Filtrando facturas por fecha: ${fechaInicio} - ${fechaFin}`);
+
+  const fechaInicioObj = new Date(fechaInicio);
+  const fechaFinObj = new Date(fechaFin);
+
+  const facturasFiltradas = facturas.filter(factura => {
+    const fechaFactura = new Date(factura.fecha || factura.fecha_emision || factura.fecha_recepcion);
+    
+    // Validar que la fecha sea válida
+    if (isNaN(fechaFactura.getTime())) {
+      return false;
+    }
+
+    return fechaFactura >= fechaInicioObj && fechaFactura <= fechaFinObj;
+  });
+
+  console.log(`✅ ${facturasFiltradas.length} facturas filtradas de ${facturas.length} totales`);
+  return facturasFiltradas;
+};
+
+/**
+ * Filtrar por año específico
+ */
+export const filtrarPorAno = (datos, ano) => {
+  if (!Array.isArray(datos)) {
+    console.warn('⚠️ filtrarPorAno: datos no son array');
+    return [];
+  }
+
+  console.log(`🔍 Filtrando datos por año: ${ano}`);
+
+  const datosFiltrados = datos.filter(item => {
+    const fecha = new Date(item.fecha || item.fecha_emision || item.fecha_recepcion);
+    
+    if (isNaN(fecha.getTime())) {
+      return false;
+    }
+
+    return fecha.getFullYear() === parseInt(ano);
+  });
+
+  console.log(`✅ ${datosFiltrados.length} items filtrados para año ${ano}`);
+  return datosFiltrados;
+};
+
+/**
+ * Obtener estadísticas por período
+ */
+export const obtenerEstadisticasPorPeriodo = (datos, tipoPeriodo = 'mes') => {
+  if (!Array.isArray(datos)) {
+    console.warn('⚠️ obtenerEstadisticasPorPeriodo: datos no son array');
+    return {};
+  }
+
+  console.log(`📊 Generando estadísticas por ${tipoPeriodo}...`);
+
+  const estadisticas = {};
+
+  datos.forEach(item => {
+    const fecha = new Date(item.fecha || item.fecha_emision || item.fecha_recepcion);
+    
+    if (isNaN(fecha.getTime())) {
+      return;
+    }
+
+    let clave;
+    switch (tipoPeriodo) {
+      case 'año':
+        clave = fecha.getFullYear().toString();
+        break;
+      case 'mes':
+        clave = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+        break;
+      case 'día':
+        clave = fecha.toISOString().split('T')[0];
+        break;
+      default:
+        clave = fecha.getFullYear().toString();
+    }
+
+    if (!estadisticas[clave]) {
+      estadisticas[clave] = {
+        cantidad: 0,
+        totalMonto: 0,
+        items: []
+      };
+    }
+
+    estadisticas[clave].cantidad++;
+    estadisticas[clave].totalMonto += item.monto_total || item.total || item.neto || 0;
+    estadisticas[clave].items.push(item);
+  });
+
+  console.log(`✅ Estadísticas generadas para ${Object.keys(estadisticas).length} períodos`);
+  return estadisticas;
+};
+
+// =====================================
+// 🚀 EXPORTACIONES COMPLETAS
+// =====================================
+
+// Exportar todas las funciones individualmente
+export {
+  adaptarCuentasPorCobrar,
+  adaptarCuentasPorPagar,
+  adaptarSaldosBancarios,
+  calcularTotalCuentasPorCobrar,
+  calcularTotalCuentasPorPagar,
+  calcularTotalSaldosBancarios,
+  generarResumenFinanciero,
+  validarCalidadDatos,
+  formatearFecha,
+  determinarEstadoVisual,
+  obtenerInfoConfiabilidad,
+  formatCurrency,
+  filtrarComprasPorFecha,
+  filtrarFacturasPorFecha,
+  filtrarPorAno,
+  obtenerEstadisticasPorPeriodo
+};
 
 // Exportar todas las funciones
 export default {
@@ -429,5 +588,9 @@ export default {
   formatearFecha,
   determinarEstadoVisual,
   obtenerInfoConfiabilidad,
-  formatCurrency
+  formatCurrency,
+  filtrarComprasPorFecha,
+  filtrarFacturasPorFecha,
+  filtrarPorAno,
+  obtenerEstadisticasPorPeriodo
 };
