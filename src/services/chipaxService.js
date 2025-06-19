@@ -9,6 +9,33 @@
  */
 
 // =====================================
+// 📊 CONFIGURACIÓN Y CONSTANTES GLOBALES
+// =====================================
+
+// Saldos iniciales conocidos al 1 de enero 2025
+const SALDOS_INICIALES_2025 = {
+  'Banco de Chile': { saldoInicial: 129969864, cuenta: '00-800-10734-09', cuentaId: 11086 },
+  'banconexion2': { saldoInicial: 129969864, cuenta: '00-800-10734-09', cuentaId: 11086 },
+  'Banco Santander': { saldoInicial: 0, cuenta: '0-000-7066661-8', cuentaId: 11085 },
+  'santander': { saldoInicial: 0, cuenta: '0-000-7066661-8', cuentaId: 11085 },
+  'Banco BCI': { saldoInicial: 178098, cuenta: '89107021', cuentaId: 23017 },
+  'BCI': { saldoInicial: 178098, cuenta: '89107021', cuentaId: 23017 },
+  'Banco Internacional': { saldoInicial: 0, cuenta: 'generico', cuentaId: 11419 },
+  'generico': { saldoInicial: 0, cuenta: '9117726', cuentaId: 11419 },
+  'chipax_wallet': { saldoInicial: 0, cuenta: '0000000803', cuentaId: 14212 }
+};
+
+// Saldos conocidos actuales para validación (19-06-2025 - SALDOS REALES FINALES)
+const SALDOS_VALIDACION = {
+  'Banco de Chile': 67328506,        // ✅ Confirmado
+  'Banco Santander': 0,             // ✅ Confirmado
+  'Banco BCI': 0,                   // ✅ Confirmado  
+  'Banco Internacional': 104537850  // ✅ Actualizado (Banco Generico • 9117726)
+};
+
+const TOTAL_ESPERADO = 171866356; // ✅ Total final: 67.328.506 + 104.537.850
+
+// =====================================
 // 🔧 CONFIGURACIÓN BASE
 // =====================================
 
@@ -255,28 +282,7 @@ export const obtenerSaldosBancarios = async (usarSaldosReales = false) => {
     return obtenerSaldosRealesActualizados();
   }
   
-  // Saldos iniciales conocidos al 1 de enero 2025
-  const SALDOS_INICIALES_2025 = {
-    'Banco de Chile': { saldoInicial: 129969864, cuenta: '00-800-10734-09', cuentaId: 11086 },
-    'banconexion2': { saldoInicial: 129969864, cuenta: '00-800-10734-09', cuentaId: 11086 },
-    'Banco Santander': { saldoInicial: 0, cuenta: '0-000-7066661-8', cuentaId: 11085 },
-    'santander': { saldoInicial: 0, cuenta: '0-000-7066661-8', cuentaId: 11085 },
-    'Banco BCI': { saldoInicial: 178098, cuenta: '89107021', cuentaId: 23017 },
-    'BCI': { saldoInicial: 178098, cuenta: '89107021', cuentaId: 23017 },
-    'Banco Internacional': { saldoInicial: 0, cuenta: 'generico', cuentaId: 11419 },
-    'generico': { saldoInicial: 0, cuenta: '9117726', cuentaId: 11419 },
-    'chipax_wallet': { saldoInicial: 0, cuenta: '0000000803', cuentaId: 14212 }
-  };
-  
-  // Saldos conocidos actuales para validación (19-06-2025 - SALDOS REALES FINALES)
-  const SALDOS_VALIDACION = {
-    'Banco de Chile': 67328506,        // ✅ Confirmado
-    'Banco Santander': 0,             // ✅ Confirmado
-    'Banco BCI': 0,                   // ✅ Confirmado  
-    'Banco Internacional': 104537850  // ✅ Actualizado (Banco Generico • 9117726)
-  };
-  
-  const TOTAL_ESPERADO = 171866356; // ✅ Total final: 67.328.506 + 104.537.850
+  // Resto del código existente (eliminado la duplicación)...
 
   try {
     // PASO 1: Obtener cartolas con múltiples estrategias
@@ -845,15 +851,6 @@ function validarSaldosExtraidos(saldosExtraidos) {
 async function calcularSaldosTradicional() {
   console.log('🔍 Aplicando método tradicional mejorado...');
   
-  // Reutilizar la lógica existente pero con mejoras
-  const SALDOS_INICIALES_2025 = {
-    'Banco de Chile': { saldoInicial: 129969864, cuenta: '00-800-10734-09', cuentaId: 11086 },
-    'Banco Santander': { saldoInicial: 0, cuenta: '0-000-7066661-8', cuentaId: 11085 },
-    'Banco BCI': { saldoInicial: 178098, cuenta: '89107021', cuentaId: 23017 },
-    'Banco Internacional': { saldoInicial: 0, cuenta: 'generico', cuentaId: 11419 },
-    'chipax_wallet': { saldoInicial: 0, cuenta: '0000000803', cuentaId: 14212 }
-  };
-  
   try {
     // Obtener cartolas más recientes (últimos 30 días)
     const fechaDesde = new Date();
@@ -904,6 +901,9 @@ async function calcularSaldosTradicional() {
         saldoFinal = saldosCuenta[0].saldo;
         fechaUltimo = saldosCuenta[0].fecha;
       }
+      
+      // Evitar duplicados
+      if (nombreBanco === 'banconexion2') return;
       
       resultados.push({
         id: info.cuentaId,
