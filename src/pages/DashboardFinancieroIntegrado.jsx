@@ -1,9 +1,9 @@
-// DashboardFinancieroIntegrado.jsx - VERSIÓN CORREGIDA PARA NETLIFY
+// DashboardFinancieroIntegrado.jsx - VERSIÓN CORREGIDA COMPLETA
 import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, Calendar, Wallet, PieChart, TrendingUp, 
   RefreshCw, CheckCircle, Clock, ChevronLeft, ChevronRight,
-  Database, Search, Bug
+  Database, Search, Bug, DollarSign, Users, FileText
 } from 'lucide-react';
 
 import chipaxService from '../services/chipaxService';
@@ -44,118 +44,63 @@ const DashboardFinancieroIntegrado = () => {
   });
 
   // === FUNCIONES DE CARGA ===
-const datos = await chipaxService.obtenerSaldosBancarios();
-    
-    // ✅ CORREGIDO: Los datos ya vienen como array directo
-    if (Array.isArray(datos) && datos.length > 0) {
-      setSaldosBancarios(datos);
-      console.log('✅ Saldos bancarios cargados:', datos.length);
-    } else {
-      console.warn('⚠️ No se obtuvieron saldos bancarios');
-      setSaldosBancarios([]);
+  const cargarSaldosBancarios = async () => {
+    try {
+      console.log('🏦 Cargando saldos bancarios...');
+      // ✅ CORREGIDO: Usar la nueva función obtenerSaldosBancarios
+      const datos = await chipaxService.obtenerSaldosBancarios();
+      
+      // ✅ CORREGIDO: Los datos ya vienen como array directo
+      if (Array.isArray(datos) && datos.length > 0) {
+        setSaldosBancarios(datos);
+        console.log('✅ Saldos bancarios cargados:', datos.length);
+      } else {
+        console.warn('⚠️ No se obtuvieron saldos bancarios');
+        setSaldosBancarios([]);
+      }
+    } catch (error) {
+      console.error('❌ Error cargando saldos:', error);
+      setErrors(prev => [...prev, `Error cargando saldos: ${error.message}`]);
     }
-  } catch (error) {
-    console.error('❌ Error cargando saldos:', error);
-    setErrors(prev => [...prev, `Error cargando saldos: ${error.message}`]);
-  }
-};
-
+  };
 
   const cargarCuentasPorCobrar = async () => {
     try {
-      console.log('📋 Cargando cuentas por cobrar...');
-      const dtes = await chipaxService.obtenerCuentasPorCobrar();
+      console.log('💰 Cargando cuentas por cobrar...');
+      const datos = await chipaxService.obtenerDtesPorCobrar();
       
-      if (Array.isArray(dtes)) {
-        const cuentasAdaptadas = adaptarCuentasPorCobrar(dtes);
-        setCuentasPorCobrar(cuentasAdaptadas);
-        console.log(`✅ ${cuentasAdaptadas.length} cuentas por cobrar cargadas`);
+      if (Array.isArray(datos) && datos.length > 0) {
+        const adaptados = adaptarCuentasPorCobrar(datos);
+        const pendientes = adaptados.filter(cuenta => cuenta.saldo > 0);
+        setCuentasPorCobrar(pendientes);
+        console.log('✅ Cuentas por cobrar cargadas:', pendientes.length);
       } else {
-        console.warn('⚠️ DTEs no es array');
+        console.warn('⚠️ No se obtuvieron cuentas por cobrar');
         setCuentasPorCobrar([]);
       }
     } catch (error) {
       console.error('❌ Error cargando cuentas por cobrar:', error);
-      setCuentasPorCobrar([]);
-      setErrors(prev => [...prev, `Cuentas por cobrar: ${error.message}`]);
+      setErrors(prev => [...prev, `Error cargando cuentas por cobrar: ${error.message}`]);
     }
   };
 
   const cargarCuentasPorPagar = async () => {
     try {
       console.log('💸 Cargando cuentas por pagar...');
-      const compras = await chipaxService.obtenerCuentasPorPagar();
+      const datos = await chipaxService.obtenerCompras();
       
-      if (Array.isArray(compras)) {
-        // ✅ FILTRAR SOLO 2025 por defecto
-        const compras2025 = compras.filter(compra => {
-          const fecha = compra.fechaEmision || compra.fecha_emision || compra.fecha || '';
-          return fecha.includes('2025');
-        });
-        
-        const cuentasAdaptadas = adaptarCuentasPorPagar(compras2025);
-        setCuentasPorPagar(cuentasAdaptadas);
-        console.log(`✅ ${cuentasAdaptadas.length} facturas de 2025 cargadas por defecto`);
+      if (Array.isArray(datos) && datos.length > 0) {
+        const adaptados = adaptarCuentasPorPagar(datos);
+        const pendientes = filtrarComprasPendientes(adaptados);
+        setCuentasPorPagar(pendientes);
+        console.log('✅ Cuentas por pagar cargadas:', pendientes.length);
       } else {
-        console.warn('⚠️ Compras no es array');
+        console.warn('⚠️ No se obtuvieron cuentas por pagar');
         setCuentasPorPagar([]);
       }
     } catch (error) {
       console.error('❌ Error cargando cuentas por pagar:', error);
-      setCuentasPorPagar([]);
-      setErrors(prev => [...prev, `Cuentas por pagar: ${error.message}`]);
-    }
-  };
-
-  const cargarSolo2025 = async () => {
-    try {
-      setLoading(true);
-      setErrors([]);
-      console.log('🚀 Cargando SOLO facturas de 2025...');
-      
-      const compras = await chipaxService.obtenerCuentasPorPagar();
-      
-      if (Array.isArray(compras)) {
-        // Filtrar solo 2025
-        const compras2025 = compras.filter(compra => {
-          const fecha = compra.fechaEmision || compra.fecha_emision || compra.fecha || '';
-          return fecha.includes('2025');
-        });
-        
-        const cuentasAdaptadas = adaptarCuentasPorPagar(compras2025);
-        setCuentasPorPagar(cuentasAdaptadas);
-        console.log(`✅ ${cuentasAdaptadas.length} facturas de 2025 cargadas`);
-      }
-    } catch (error) {
-      console.error('❌ Error cargando facturas 2025:', error);
-      setErrors(prev => [...prev, `Facturas 2025: ${error.message}`]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ✅ FUNCIONES ESPECÍFICAS para cada módulo
-  const cargarSoloSaldos = async () => {
-    try {
-      setLoading(true);
-      console.log('🏦 Cargando solo saldos bancarios...');
-      await cargarSaldosBancarios();
-    } catch (error) {
-      console.error('❌ Error cargando saldos:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const cargarSoloCuentasPorCobrar = async () => {
-    try {
-      setLoading(true);
-      console.log('📋 Cargando solo cuentas por cobrar...');
-      await cargarCuentasPorCobrar();
-    } catch (error) {
-      console.error('❌ Error cargando cuentas por cobrar:', error);
-    } finally {
-      setLoading(false);
+      setErrors(prev => [...prev, `Error cargando cuentas por pagar: ${error.message}`]);
     }
   };
 
@@ -164,360 +109,179 @@ const datos = await chipaxService.obtenerSaldosBancarios();
     setErrors([]);
     
     try {
-      console.log('🔄 Iniciando carga completa...');
-      
+      console.log('🔄 Cargando todos los datos...');
       await Promise.all([
         cargarSaldosBancarios(),
         cargarCuentasPorCobrar(),
         cargarCuentasPorPagar()
       ]);
-      
-      console.log('✅ Carga completa finalizada');
+      console.log('✅ Todos los datos cargados exitosamente');
     } catch (error) {
-      console.error('❌ Error en carga completa:', error);
-      setErrors(prev => [...prev, `Carga general: ${error.message}`]);
+      console.error('❌ Error cargando datos:', error);
+      setErrors(prev => [...prev, `Error general: ${error.message}`]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Carga inicial - SOLO verificar conectividad
-  useEffect(() => {
-    verificarConectividad();
-  }, []);
+  // === FUNCIONES AUXILIARES ===
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
 
-  // ✅ NUEVA FUNCIÓN: Solo verificar que la API funciona
-  const verificarConectividad = async () => {
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
     try {
-      setLoading(true);
-      setErrors([]);
-      console.log('🔍 Verificando conectividad con Chipax...');
-      
-      // Solo hacer login para verificar que la API responde
-      await chipaxService.getChipaxToken();
-      
-      console.log('✅ Conectividad con Chipax verificada');
-      setErrors([]);
-    } catch (error) {
-      console.error('❌ Error de conectividad:', error);
-      
-      if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
-        setErrors(['⚠️ Error de CORS detectado. La API funciona pero requiere configuración especial desde navegador.']);
-      } else {
-        setErrors([`❌ Error de conectividad: ${error.message}`]);
-      }
-    } finally {
-      setLoading(false);
+      return new Date(dateString).toLocaleDateString('es-CL');
+    } catch {
+      return dateString;
     }
   };
 
-  // === FUNCIONES DE FILTRADO Y PAGINACIÓN ===
-  const obtenerComprasFiltradas = () => {
-    let comprasFiltradas = [...cuentasPorPagar];
+  // === FUNCIONES DE FILTRADO ===
+  const aplicarFiltrosCompras = (compras) => {
+    let filtered = [...compras];
 
     if (filtroCompras.soloNoPagadas) {
-      comprasFiltradas = comprasFiltradas.filter(compra => 
-        compra.estado !== 'Pagado' && !compra.estaPagado
-      );
+      filtered = filtered.filter(compra => !compra.estaPagado);
+    }
+
+    if (filtroCompras.fechaInicio && filtroCompras.fechaFin) {
+      filtered = filtrarComprasPorFecha(filtered, filtroCompras.fechaInicio, filtroCompras.fechaFin);
     }
 
     if (filtroCompras.folioFiltro) {
-      comprasFiltradas = comprasFiltradas.filter(compra =>
+      filtered = filtered.filter(compra => 
         compra.folio.toString().toLowerCase().includes(filtroCompras.folioFiltro.toLowerCase())
       );
     }
 
-    if (filtroCompras.fechaInicio && filtroCompras.fechaFin) {
-      comprasFiltradas = filtrarComprasPorFecha(comprasFiltradas, filtroCompras.fechaInicio, filtroCompras.fechaFin);
-    }
-
-    return comprasFiltradas;
+    return filtered;
   };
 
-  const obtenerComprasPaginadas = () => {
-    const filtradas = obtenerComprasFiltradas();
-    const inicio = (paginacionCompras.paginaActual - 1) * paginacionCompras.itemsPorPagina;
-    const fin = inicio + paginacionCompras.itemsPorPagina;
-    return filtradas.slice(inicio, fin);
-  };
-
-  const obtenerCobrarPaginadas = () => {
-    const inicio = (paginacionCobrar.paginaActual - 1) * paginacionCobrar.itemsPorPagina;
-    const fin = inicio + paginacionCobrar.itemsPorPagina;
-    return cuentasPorCobrar.slice(inicio, fin);
-  };
-
+  // === FUNCIONES DE PAGINACIÓN ===
   const getTotalPaginasCompras = () => {
-    return Math.ceil(obtenerComprasFiltradas().length / paginacionCompras.itemsPorPagina);
+    const comprasFiltradas = aplicarFiltrosCompras(cuentasPorPagar);
+    return Math.ceil(comprasFiltradas.length / paginacionCompras.itemsPorPagina);
   };
 
   const getTotalPaginasCobrar = () => {
     return Math.ceil(cuentasPorCobrar.length / paginacionCobrar.itemsPorPagina);
   };
 
-  // === FUNCIONES DE UTILIDAD ===
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-CL', {
-      style: 'currency',
-      currency: 'CLP',
-      maximumFractionDigits: 0
-    }).format(amount || 0);
+  const getComprasPaginadas = () => {
+    const comprasFiltradas = aplicarFiltrosCompras(cuentasPorPagar);
+    const inicio = (paginacionCompras.paginaActual - 1) * paginacionCompras.itemsPorPagina;
+    const fin = inicio + paginacionCompras.itemsPorPagina;
+    return comprasFiltradas.slice(inicio, fin);
   };
 
-  // === COMPONENTES ===
-  const ComponentePaginacion = ({ paginacion, setPaginacion, totalPaginas, nombre }) => {
-    const paginasAMostrar = [];
-    const maxPaginas = 5;
-    
-    let inicio = Math.max(1, paginacion.paginaActual - Math.floor(maxPaginas / 2));
-    let fin = Math.min(totalPaginas, inicio + maxPaginas - 1);
-    
-    if (fin - inicio + 1 < maxPaginas) {
-      inicio = Math.max(1, fin - maxPaginas + 1);
-    }
-    
-    for (let i = inicio; i <= fin; i++) {
-      paginasAMostrar.push(i);
-    }
-
-    return (
-      <div className="flex items-center justify-between px-4 py-3 bg-white border-t">
-        <div className="text-sm text-gray-700">
-          Mostrando {((paginacion.paginaActual - 1) * paginacion.itemsPorPagina) + 1} a{' '}
-          {Math.min(paginacion.paginaActual * paginacion.itemsPorPagina, 
-                   nombre === 'compras' ? obtenerComprasFiltradas().length : cuentasPorCobrar.length)} de{' '}
-          {nombre === 'compras' ? obtenerComprasFiltradas().length : cuentasPorCobrar.length} registros
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: 1 }))}
-            disabled={paginacion.paginaActual === 1}
-            className="px-2 py-1 text-gray-500 hover:text-gray-700 disabled:opacity-50"
-          >
-            <ChevronLeft size={16} />
-          </button>
-          
-          {paginasAMostrar.map(pagina => (
-            <button
-              key={pagina}
-              onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: pagina }))}
-              className={`px-3 py-1 text-sm rounded ${
-                pagina === paginacion.paginaActual
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              {pagina}
-            </button>
-          ))}
-          
-          <button
-            onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: totalPaginas }))}
-            disabled={paginacion.paginaActual === totalPaginas}
-            className="px-2 py-1 text-gray-500 hover:text-gray-700 disabled:opacity-50"
-          >
-            <ChevronRight size={16} />
-          </button>
-        </div>
-      </div>
-    );
+  const getCuentasPorCobrarPaginadas = () => {
+    const inicio = (paginacionCobrar.paginaActual - 1) * paginacionCobrar.itemsPorPagina;
+    const fin = inicio + paginacionCobrar.itemsPorPagina;
+    return cuentasPorCobrar.slice(inicio, fin);
   };
 
-  const ControlesPrincipales = () => (
-    <div className="mb-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        {/* Botón Cuentas por Pagar */}
-        <button
-          onClick={cargarSolo2025}
-          disabled={loading}
-          className="flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+  // === COMPONENTES INTERNOS ===
+  const ComponentePaginacion = ({ paginacion, setPaginacion, totalPaginas, nombre }) => (
+    <div className="flex items-center justify-between bg-white px-4 py-3 border-t border-gray-200">
+      <div className="flex items-center">
+        <span className="text-sm text-gray-700">
+          Página {paginacion.paginaActual} de {totalPaginas}
+        </span>
+        <select
+          className="ml-4 rounded border-gray-300 text-sm"
+          value={paginacion.itemsPorPagina}
+          onChange={(e) => setPaginacion(prev => ({
+            ...prev,
+            itemsPorPagina: parseInt(e.target.value),
+            paginaActual: 1
+          }))}
         >
-          <AlertCircle size={16} />
-          <div className="text-left">
-            <div className="text-sm font-medium">Cuentas por Pagar</div>
-            <div className="text-xs opacity-90">Facturas 2025</div>
-          </div>
+          <option value={25}>25 por página</option>
+          <option value={50}>50 por página</option>
+          <option value={100}>100 por página</option>
+        </select>
+      </div>
+      <div className="flex items-center space-x-2">
+        <button
+          onClick={() => setPaginacion(prev => ({
+            ...prev,
+            paginaActual: Math.max(1, prev.paginaActual - 1)
+          }))}
+          disabled={paginacion.paginaActual === 1}
+          className="p-2 rounded text-gray-400 hover:text-gray-600 disabled:opacity-50"
+        >
+          <ChevronLeft size={20} />
         </button>
-
-        {/* Botón Cuentas por Cobrar */}
         <button
-          onClick={cargarSoloCuentasPorCobrar}
-          disabled={loading}
-          className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+          onClick={() => setPaginacion(prev => ({
+            ...prev,
+            paginaActual: Math.min(totalPaginas, prev.paginaActual + 1)
+          }))}
+          disabled={paginacion.paginaActual === totalPaginas}
+          className="p-2 rounded text-gray-400 hover:text-gray-600 disabled:opacity-50"
         >
-          <TrendingUp size={16} />
-          <div className="text-left">
-            <div className="text-sm font-medium">Cuentas por Cobrar</div>
-            <div className="text-xs opacity-90">Facturas pendientes</div>
-          </div>
-        </button>
-
-        {/* Botón Saldos Bancarios */}
-        <button
-          onClick={cargarSoloSaldos}
-          disabled={loading}
-          className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        >
-          <Wallet size={16} />
-          <div className="text-left">
-            <div className="text-sm font-medium">Saldos Bancarios</div>
-            <div className="text-xs opacity-90">Cuentas corrientes</div>
-          </div>
-        </button>
-
-        {/* Botón Cargar Todo */}
-        <button
-          onClick={cargarTodosDatos}
-          disabled={loading}
-          className="flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
-        >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          <div className="text-left">
-            <div className="text-sm font-medium">Cargar Todo</div>
-            <div className="text-xs opacity-90">Proceso completo</div>
-          </div>
+          <ChevronRight size={20} />
         </button>
       </div>
-
-      {/* Estado de conectividad */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {loading ? (
-            <>
-              <RefreshCw className="animate-spin text-blue-500" size={16} />
-              <span className="text-sm text-blue-600">Cargando...</span>
-            </>
-          ) : errors.length === 0 ? (
-            <>
-              <CheckCircle className="text-green-500" size={16} />
-              <span className="text-sm text-green-600">✅ API Chipax conectada</span>
-            </>
-          ) : (
-            <>
-              <AlertCircle className="text-red-500" size={16} />
-              <span className="text-sm text-red-600">⚠️ Verificar conectividad</span>
-            </>
-          )}
-        </div>
-
-        <button
-          onClick={verificarConectividad}
-          disabled={loading}
-          className="text-sm text-gray-600 hover:text-gray-800 underline"
-        >
-          Verificar conexión
-        </button>
-      </div>
-
-      {errors.length > 0 && (
-        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-          <div className="text-sm text-red-600">
-            {errors.map((error, index) => (
-              <div key={index}>• {error}</div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 
   const EstadisticasGenerales = () => {
-    const totalSaldos = saldosBancarios.reduce((sum, cuenta) => sum + (cuenta.saldoCalculado || 0), 0);
-    
-    // ✅ CORRECCIÓN: Sumar correctamente las cuentas por cobrar
-    const totalPorCobrar = cuentasPorCobrar.reduce((sum, cuenta) => sum + (cuenta.saldo || cuenta.monto || 0), 0);
-    
-    // Total de facturas cargadas
-    const totalPorPagar = cuentasPorPagar.reduce((sum, cuenta) => sum + (cuenta.monto || 0), 0);
-    
-    // Información sobre el filtro activo
-    const facturas2025 = cuentasPorPagar.filter(c => new Date(c.fecha).getFullYear() === 2025);
-    const añoMostrado = facturas2025.length === cuentasPorPagar.length ? '2025' : 'Múltiples años';
+    const totalSaldos = saldosBancarios.reduce((sum, cuenta) => sum + cuenta.saldo, 0);
+    const totalPorCobrar = cuentasPorCobrar.reduce((sum, cuenta) => sum + cuenta.saldo, 0);
+    const totalPorPagar = cuentasPorPagar.reduce((sum, cuenta) => sum + cuenta.monto, 0);
+    const liquidezNeta = totalSaldos + totalPorCobrar - totalPorPagar;
 
     return (
-      <div className="space-y-4">
-        {/* Indicador de datos cargados */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <Wallet className="text-blue-600" size={16} />
-              <span className="text-blue-800">
-                Saldos: {saldosBancarios.length > 0 ? `${saldosBancarios.length} cuentas` : 'Sin cargar'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="text-blue-600" size={16} />
-              <span className="text-blue-800">
-                Por Cobrar: {cuentasPorCobrar.length > 0 ? `${cuentasPorCobrar.length} facturas` : 'Sin cargar'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <AlertCircle className="text-blue-600" size={16} />
-              <span className="text-blue-800">
-                Por Pagar: {cuentasPorPagar.length > 0 ? `${cuentasPorPagar.length} facturas ${añoMostrado}` : 'Sin cargar'}
-              </span>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <Wallet className="h-8 w-8 text-blue-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Saldos Bancarios</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalSaldos)}</p>
+              <p className="text-sm text-gray-500">{saldosBancarios.length} cuentas</p>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <div className="flex items-center">
-              <div className="p-3 bg-blue-100 rounded-full">
-                <Wallet className="text-blue-600" size={24} />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Saldos Bancarios</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {saldosBancarios.length > 0 ? formatCurrency(totalSaldos) : 'Sin datos'}
-                </p>
-                {saldosBancarios.length > 0 && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {saldosBancarios.length} cuentas
-                  </p>
-                )}
-              </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <TrendingUp className="h-8 w-8 text-green-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Por Cobrar</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalPorCobrar)}</p>
+              <p className="text-sm text-gray-500">{cuentasPorCobrar.length} facturas</p>
             </div>
           </div>
+        </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <div className="flex items-center">
-              <div className="p-3 bg-green-100 rounded-full">
-                <TrendingUp className="text-green-600" size={24} />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Por Cobrar</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {cuentasPorCobrar.length > 0 ? formatCurrency(totalPorCobrar) : 'Sin datos'}
-                </p>
-                {cuentasPorCobrar.length > 0 && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {cuentasPorCobrar.length} facturas
-                  </p>
-                )}
-              </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <AlertCircle className="h-8 w-8 text-red-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Por Pagar</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalPorPagar)}</p>
+              <p className="text-sm text-gray-500">{cuentasPorPagar.length} facturas</p>
             </div>
           </div>
+        </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <div className="flex items-center">
-              <div className="p-3 bg-red-100 rounded-full">
-                <AlertCircle className="text-red-600" size={24} />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">
-                  Por Pagar {añoMostrado === '2025' ? '(2025)' : ''}
-                </p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {cuentasPorPagar.length > 0 ? formatCurrency(totalPorPagar) : 'Sin datos'}
-                </p>
-                {cuentasPorPagar.length > 0 && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {cuentasPorPagar.length} facturas
-                  </p>
-                )}
-              </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <DollarSign className={`h-8 w-8 ${liquidezNeta >= 0 ? 'text-green-600' : 'text-red-600'}`} />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Liquidez Neta</p>
+              <p className={`text-2xl font-bold ${liquidezNeta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatCurrency(liquidezNeta)}
+              </p>
+              <p className="text-sm text-gray-500">Disponible proyectado</p>
             </div>
           </div>
         </div>
@@ -526,121 +290,135 @@ const datos = await chipaxService.obtenerSaldosBancarios();
   };
 
   const ResumenFacturas2025 = () => {
-    const facturas2025 = cuentasPorPagar.filter(c => new Date(c.fecha).getFullYear() === 2025);
-    
-    if (facturas2025.length === 0) {
-      return null;
-    }
+    const facturas2025 = cuentasPorPagar.filter(compra => {
+      const fecha = new Date(compra.fecha);
+      return fecha.getFullYear() === 2025;
+    });
 
-    const estadisticas = {
-      total: facturas2025.length,
-      // ✅ CORRECCIÓN: Estados desconocidos son pendientes de aprobación
-      pendientesAprobacion: facturas2025.filter(f => 
-        f.estado === 'Pendiente Aprobación' || f.estado === 'Estado Desconocido'
-      ).length,
-      aceptadas: facturas2025.filter(f => f.estado === 'Aceptado').length,
-      pagadasRealmente: facturas2025.filter(f => f.estado === 'Pagado Realmente').length,
-      montoTotal: facturas2025.reduce((sum, f) => sum + (f.montoTotal || 0), 0)
-    };
+    const montoTotal2025 = facturas2025.reduce((sum, factura) => sum + factura.monto, 0);
 
     return (
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <div className="flex items-center gap-2 mb-4">
-          <PieChart className="text-blue-500" size={20} />
-          <h3 className="text-lg font-semibold">Resumen Facturas 2025</h3>
-          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-            {estadisticas.total} facturas
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          <div className="text-center p-3 bg-blue-50 rounded-lg">
-            <div className="text-2xl font-bold text-blue-900">{estadisticas.total}</div>
-            <div className="text-sm text-blue-700">Total 2025</div>
+      <div className="bg-white rounded-lg shadow p-6 mb-8">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          📊 Resumen Facturas 2025
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <p className="text-sm text-gray-600">Total Facturas 2025</p>
+            <p className="text-xl font-bold text-blue-600">{facturas2025.length}</p>
           </div>
-          <div className="text-center p-3 bg-orange-50 rounded-lg">
-            <div className="text-2xl font-bold text-orange-900">{estadisticas.pendientesAprobacion}</div>
-            <div className="text-sm text-orange-700">Pend. Aprobación</div>
+          <div>
+            <p className="text-sm text-gray-600">Monto Total 2025</p>
+            <p className="text-xl font-bold text-green-600">{formatCurrency(montoTotal2025)}</p>
           </div>
-          <div className="text-center p-3 bg-blue-50 rounded-lg">
-            <div className="text-2xl font-bold text-blue-900">{estadisticas.aceptadas}</div>
-            <div className="text-sm text-blue-700">Aceptadas</div>
-          </div>
-          <div className="text-center p-3 bg-green-50 rounded-lg">
-            <div className="text-2xl font-bold text-green-900">{estadisticas.pagadasRealmente}</div>
-            <div className="text-sm text-green-700">Pagadas</div>
-          </div>
-        </div>
-
-        <div className="text-center p-4 bg-gray-50 rounded-lg">
-          <div className="text-xl font-bold text-gray-900">
-            {formatCurrency(estadisticas.montoTotal)}
-          </div>
-          <div className="text-sm text-gray-600">
-            Monto total facturas 2025
-          </div>
-        </div>
-
-        {/* ✅ NOTA EXPLICATIVA sobre la corrección */}
-        <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="text-orange-600 mt-0.5" size={16} />
-            <div className="text-sm">
-              <p className="font-semibold text-orange-800 mb-1">
-                Estados Corregidos
-              </p>
-              <p className="text-orange-700">
-                Las facturas que aparecían como "Estado Desconocido" han sido reclasificadas 
-                como "Pendientes de Aprobación" según tu indicación.
-              </p>
-            </div>
+          <div>
+            <p className="text-sm text-gray-600">Promedio por Factura</p>
+            <p className="text-xl font-bold text-gray-600">
+              {facturas2025.length > 0 ? formatCurrency(montoTotal2025 / facturas2025.length) : '$0'}
+            </p>
           </div>
         </div>
       </div>
     );
   };
 
-  const TablaCompras = () => (
-    <div className="bg-white rounded-lg shadow-md">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-900">Cuentas por Pagar</h2>
-          <div className="flex items-center gap-4">
+  const FiltrosCompras = () => (
+    <div className="bg-gray-50 p-4 rounded-lg mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <label className="flex items-center">
             <input
-              type="text"
-              placeholder="Buscar por folio..."
-              value={filtroCompras.folioFiltro}
-              onChange={(e) => setFiltroCompras(prev => ({ ...prev, folioFiltro: e.target.value }))}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+              type="checkbox"
+              checked={filtroCompras.soloNoPagadas}
+              onChange={(e) => setFiltroCompras(prev => ({
+                ...prev,
+                soloNoPagadas: e.target.checked
+              }))}
+              className="rounded"
             />
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={filtroCompras.soloNoPagadas}
-                onChange={(e) => setFiltroCompras(prev => ({ ...prev, soloNoPagadas: e.target.checked }))}
-              />
-              Solo no pagadas
-            </label>
-          </div>
+            <span className="ml-2 text-sm">Solo no pagadas</span>
+          </label>
+        </div>
+        <div>
+          <input
+            type="date"
+            placeholder="Fecha inicio"
+            value={filtroCompras.fechaInicio}
+            onChange={(e) => setFiltroCompras(prev => ({
+              ...prev,
+              fechaInicio: e.target.value
+            }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+          />
+        </div>
+        <div>
+          <input
+            type="date"
+            placeholder="Fecha fin"
+            value={filtroCompras.fechaFin}
+            onChange={(e) => setFiltroCompras(prev => ({
+              ...prev,
+              fechaFin: e.target.value
+            }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+          />
+        </div>
+        <div>
+          <input
+            type="text"
+            placeholder="Buscar por folio..."
+            value={filtroCompras.folioFiltro}
+            onChange={(e) => setFiltroCompras(prev => ({
+              ...prev,
+              folioFiltro: e.target.value
+            }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+          />
         </div>
       </div>
+    </div>
+  );
+
+  const TablaCompras = () => (
+    <div className="bg-white rounded-lg shadow">
+      <div className="px-6 py-4 border-b border-gray-200">
+        <h3 className="text-lg font-medium text-gray-900">
+          💸 Cuentas por Pagar ({cuentasPorPagar.length})
+        </h3>
+      </div>
+      
       <div className="p-6">
+        <FiltrosCompras />
+        
         {cuentasPorPagar.length > 0 ? (
           <>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Folio</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proveedor</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monto</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Folio
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Proveedor
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Fecha
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Vencimiento
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Monto
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Estado
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {obtenerComprasPaginadas().map((compra, index) => (
-                    <tr key={index}>
+                  {getComprasPaginadas().map((compra, index) => (
+                    <tr key={compra.id || index} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {compra.folio}
                       </td>
@@ -648,23 +426,22 @@ const datos = await chipaxService.obtenerSaldosBancarios();
                         {compra.proveedor}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {compra.fecha}
+                        {formatDate(compra.fecha)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(compra.fechaVencimiento)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatCurrency(compra.monto)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          compra.estado === 'Pagado Realmente' ? 'bg-green-100 text-green-800' :
-                          compra.estado === 'Pendiente Aprobación' ? 'bg-orange-100 text-orange-800' :
-                          compra.estado === 'Estado Desconocido' ? 'bg-orange-100 text-orange-800' : // ✅ También naranja
-                          compra.estado === 'Aceptado' ? 'bg-blue-100 text-blue-800' :
-                          compra.estado === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-gray-100 text-gray-800'
+                          compra.estaPagado 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
                         }`}>
-                          {/* ✅ CORRECCIÓN: Mostrar "Pendiente Aprobación" para estados desconocidos */}
-                          {compra.estado === 'Estado Desconocido' ? 'Pendiente Aprobación' : compra.estado}
+                          {compra.estado}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatCurrency(compra.montoTotal)}
                       </td>
                     </tr>
                   ))}
@@ -687,10 +464,13 @@ const datos = await chipaxService.obtenerSaldosBancarios();
   );
 
   const TablaCobrar = () => (
-    <div className="bg-white rounded-lg shadow-md">
+    <div className="bg-white rounded-lg shadow">
       <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-xl font-semibold text-gray-900">Cuentas por Cobrar</h2>
+        <h3 className="text-lg font-medium text-gray-900">
+          💰 Cuentas por Cobrar ({cuentasPorCobrar.length})
+        </h3>
       </div>
+      
       <div className="p-6">
         {cuentasPorCobrar.length > 0 ? (
           <>
@@ -698,16 +478,26 @@ const datos = await chipaxService.obtenerSaldosBancarios();
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Folio</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vencimiento</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Saldo</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Folio
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Cliente
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Fecha Emisión
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Vencimiento
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Saldo
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {obtenerCobrarPaginadas().map((cuenta, index) => (
-                    <tr key={index}>
+                  {getCuentasPorCobrarPaginadas().map((cuenta, index) => (
+                    <tr key={cuenta.id || index} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {cuenta.folio}
                       </td>
@@ -715,10 +505,10 @@ const datos = await chipaxService.obtenerSaldosBancarios();
                         {cuenta.cliente}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {cuenta.fechaEmision}
+                        {formatDate(cuenta.fechaEmision)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {cuenta.fechaVencimiento || 'N/A'}
+                        {formatDate(cuenta.fechaVencimiento)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatCurrency(cuenta.saldo)}
@@ -780,63 +570,88 @@ const datos = await chipaxService.obtenerSaldosBancarios();
               }`}
             >
               <Bug size={16} className="inline mr-2" />
-              Debugger
+              Debug
             </button>
           </div>
         </div>
 
-        {/* Errores - Solo si hay errores */}
+        {/* Controles de carga de datos */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Cargar Datos</h3>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={cargarSaldosBancarios}
+              disabled={loading}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              <Wallet size={16} className="mr-2" />
+              Saldos Bancarios
+            </button>
+            
+            <button
+              onClick={cargarCuentasPorCobrar}
+              disabled={loading}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              <TrendingUp size={16} className="mr-2" />
+              Cuentas por Cobrar
+            </button>
+            
+            <button
+              onClick={cargarCuentasPorPagar}
+              disabled={loading}
+              className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+            >
+              <AlertCircle size={16} className="mr-2" />
+              Cuentas por Pagar
+            </button>
+            
+            <button
+              onClick={cargarTodosDatos}
+              disabled={loading}
+              className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+            >
+              {loading ? <RefreshCw size={16} className="mr-2 animate-spin" /> : <Database size={16} className="mr-2" />}
+              Cargar Todo
+            </button>
+          </div>
+        </div>
+
+        {/* Mostrar errores */}
         {errors.length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertCircle className="text-red-500" size={20} />
-              <h3 className="font-semibold text-red-700">Errores de Carga</h3>
-            </div>
-            <ul className="text-sm text-red-600 space-y-1">
+            <h4 className="text-red-800 font-medium mb-2">Errores encontrados:</h4>
+            <ul className="text-red-700 text-sm space-y-1">
               {errors.map((error, index) => (
                 <li key={index}>• {error}</li>
               ))}
             </ul>
-            
-            {/* ✅ Ayuda específica para errores CORS */}
-            {errors.some(error => error.includes('CORS')) && (
-              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
-                <div className="text-sm">
-                  <p className="font-semibold text-yellow-800 mb-1">
-                    💡 Solución para Error CORS:
-                  </p>
-                  <p className="text-yellow-700">
-                    Este error puede ocurrir desde el navegador. Considera usar un proxy 
-                    o configurar CORS en el servidor de Chipax. El dashboard funciona 
-                    correctamente desde localhost.
-                  </p>
-                </div>
-              </div>
-            )}
+            <button
+              onClick={() => setErrors([])}
+              className="mt-2 text-sm text-red-600 hover:text-red-800"
+            >
+              Limpiar errores
+            </button>
           </div>
         )}
 
-        {/* Contenido según pestaña activa */}
+        {/* Contenido según la pestaña activa */}
         {pestanaActiva === 'dashboard' && (
           <>
-            <ControlesPrincipales />
-            
-            {/* ✅ Mensaje de ayuda si no hay datos cargados */}
-            {saldosBancarios.length === 0 && cuentasPorCobrar.length === 0 && cuentasPorPagar.length === 0 && !loading && (
+            {/* Mostrar indicador de datos vacíos */}
+            {saldosBancarios.length === 0 && cuentasPorCobrar.length === 0 && cuentasPorPagar.length === 0 && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-yellow-100 rounded-full">
-                    <Database className="text-yellow-600" size={20} />
-                  </div>
+                <div className="flex items-start">
+                  <AlertCircle className="w-6 h-6 text-yellow-600 mt-1 mr-3" />
                   <div>
-                    <h3 className="text-lg font-semibold text-yellow-800 mb-2">
+                    <h3 className="text-lg font-medium text-yellow-800 mb-2">
                       🚀 ¡Bienvenido al Dashboard Financiero!
                     </h3>
                     <p className="text-yellow-700 mb-3">
                       Para comenzar, haz clic en los botones de arriba para cargar los datos que necesites:
                     </p>
                     <ul className="text-sm text-yellow-700 space-y-1">
-                      <li>• <strong>Cuentas por Pagar:</strong> Facturas de proveedores (2025)</li>
+                      <li>• <strong>Cuentas por Pagar:</strong> Facturas de proveedores</li>
                       <li>• <strong>Cuentas por Cobrar:</strong> Facturas de clientes pendientes</li>
                       <li>• <strong>Saldos Bancarios:</strong> Estado de cuentas corrientes</li>
                       <li>• <strong>Cargar Todo:</strong> Todos los módulos de una vez</li>
