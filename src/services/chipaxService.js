@@ -1,10 +1,10 @@
-// chipaxService.js - VERSIÓN COMPLETA CON MOVIMIENTOS BANCARIOS INTEGRADOS
+// chipaxService.js - VERSIÓN COMPLETA CON SALDOS BANCARIOS CORREGIDOS
 
 const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
 const APP_ID = process.env.REACT_APP_CHIPAX_APP_ID;
 const SECRET_KEY = process.env.REACT_APP_CHIPAX_SECRET_KEY;
 
-// Cache para el token (mantener igual que antes)
+// Cache para el token
 let tokenCache = {
   token: null,
   expiry: null,
@@ -40,8 +40,7 @@ const getChipaxToken = async () => {
 
 const refreshToken = async () => {
   console.log('🔐 Obteniendo nuevo token de Chipax...');
-  console.log('🔑 APP_ID:', APP_ID ? 
-    `${APP_ID.substring(0, 10)}...` : 'NO CONFIGURADO');
+  console.log('🔑 APP_ID:', APP_ID ? `${APP_ID.substring(0, 10)}...` : 'NO CONFIGURADO');
 
   try {
     const response = await fetch(`${API_BASE_URL}/login`, {
@@ -140,7 +139,7 @@ const fetchFromChipax = async (endpoint, options = {}) => {
 };
 
 /**
- * ✅ FUNCIÓN MEJORADA: Obtener datos paginados con más páginas
+ * ✅ FUNCIÓN PARA OBTENER DATOS PAGINADOS - Maneja diferentes estructuras de respuesta
  */
 const fetchAllPaginatedData = async (endpoint, options = {}) => {
   let allItems = [];
@@ -156,17 +155,24 @@ const fetchAllPaginatedData = async (endpoint, options = {}) => {
       const url = `${endpoint}${endpoint.includes('?') ? '&' : '?'}page=${currentPage}&limit=${limit}`;
       const response = await fetchFromChipax(url);
 
+      // Manejar diferentes estructuras de respuesta
+      let items = [];
       if (response && response.items && Array.isArray(response.items)) {
-        allItems.push(...response.items);
+        items = response.items;
+      } else if (response && response.docs && Array.isArray(response.docs)) {
+        items = response.docs;
+      } else if (Array.isArray(response)) {
+        items = response;
+      }
+
+      if (items.length > 0) {
+        allItems.push(...items);
         
-        if (response.items.length < limit) {
+        if (items.length < limit) {
           hasMoreData = false;
         } else {
           currentPage++;
         }
-      } else if (Array.isArray(response)) {
-        allItems.push(...response);
-        hasMoreData = false;
       } else {
         hasMoreData = false;
       }
@@ -190,324 +196,14 @@ const fetchAllPaginatedData = async (endpoint, options = {}) => {
 };
 
 /**
- * 🆕 FUNCIÓN MEJORADA: Obtener saldos bancarios usando cartolas Y movimientos bancarios
- */
-const obtenerSaldosBancariosConMovimientos = async () => {
-  console.log('🏦 Obteniendo saldos bancarios (MÉTODO MEJORADO: cartolas + movimientos)...');
-  
-  try {
-    // PASO 1: Saldos iniciales conocidos (actualizados al 2025)
-    const saldosIniciales = {
-      'Banco de Chile': { saldoInicial: 129969864, cuenta: '00-800-10734-09', cuentaId: null },
-      'banconexion2': { saldoInicial: 129969864, cuenta: '00-800-10734-09', cuentaId: null },
-      'Banco Santander': { saldoInicial: 0, cuenta: '0-000-7066661-8', cuentaId: null },
-      'santander': { saldoInicial: 0, cuenta: '0-000-7066661-8', cuentaId: null },
-      'Banco BCI': { saldoInicial: 178098, cuenta: '89107021', cuentaId: null },
-      'bci': { saldoInicial: 178098, cuenta: '89107021', cuentaId: null },
-      'Banco Internacional': { saldoInicial: 0, cuenta: 'generico', cuentaId: null },
-      'generico': { saldoInicial: 0, cuenta: '9117726', cuentaId: null },
-      'chipax_wallet': { saldoInicial: 0, cuenta: '0000000803', cuentaId: null }
-    };
-
-    // PASO 2: Obtener cuentas corrientes para mapear IDs
-    console.log('📋 Obteniendo cuentas corrientes...');
-    const cuentasResponse = await fetchAllPaginatedData('/cuentas-corrientes');
-    const cuentas = cuentasResponse.items;
-
-    if (!Array.isArray(cuentas) || cuentas.length === 0) {
-      console.warn('⚠️ No se pudieron obtener cuentas corrientes');
-      return [];
-    }
-
-    console.log(`✅ ${cuentas.length} cuentas corrientes obtenidas`);
-
-    // Mapear bancos con sus IDs de cuenta
-    cuentas.forEach(cuenta => {
-      const nombreBanco = cuenta.banco || cuenta.Banco || 'desconocido';
-      const numeroCuenta = cuenta.numero || cuenta.numeroCuenta || cuenta.nombre || '';
-      
-      const clavesBanco = Object.keys(saldosIniciales);
-      const claveBanco = clavesBanco.find(clave => 
-        nombreBanco.toLowerCase().includes(clave.toLowerCase()) ||
-        clave.toLowerCase().includes(nombreBanco.toLowerCase()) ||
-        saldosIniciales[clave].cuenta === numeroCuenta
-      );
-      
-      if (claveBanco) {
-        saldosIniciales[claveBanco].cuentaId = cuenta.id;
-        console.log(`🔗 Mapeado: ${claveBanco} → Cuenta ID ${cuenta.id} (${numeroCuenta})`);
-      }
-    });
-
-    // PASO 3: Obtener cartolas bancarias (método existente)
-    console.log('💰 Obteniendo cartolas bancarias...');
-    const cartolasResponse = await fetchAllPaginatedData('/flujo-caja/cartolas', { maxPages: 100 });
-    const cartolas = cartolasResponse.items || [];
-    console.log(`✅ ${cartolas.length} cartolas obtenidas`);
-
-    // PASO 4: 🆕 OBTENER MOVIMIENTOS BANCARIOS (NUEVA FUNCIONALIDAD)
-    console.log('🚀 Obteniendo movimientos bancarios adicionales...');
-    const movimientosResponse = await fetchAllPaginatedData('/movimientos', { maxPages: 50 });
-    let movimientosBancarios = [];
-    
-    if (movimientosResponse.items && Array.isArray(movimientosResponse.items)) {
-      // Filtrar solo movimientos bancarios y de 2025
-      movimientosBancarios = movimientosResponse.items.filter(mov => {
-        const esBancario = mov.tipo === 'bancario' || 
-                          mov.categoria === 'banco' ||
-                          mov.idCuentaCorriente ||
-                          (mov.descripcion && mov.descripcion.toLowerCase().includes('banco'));
-        
-        const esDe2025 = mov.fecha && mov.fecha.includes('2025');
-        
-        return esBancario && esDe2025;
-      });
-    }
-    
-    console.log(`✅ ${movimientosBancarios.length} movimientos bancarios de 2025 encontrados`);
-
-    // PASO 5: Procesar CARTOLAS (método existente mejorado)
-    const movimientosPorCuentaCartolas = {};
-    
-    cartolas.forEach(cartola => {
-      if (!cartola.fecha || !cartola.fecha.includes('2025')) return;
-      
-      const cuentaId = cartola.idCuentaCorriente || cartola.cuenta_id;
-      if (!cuentaId) return;
-
-      if (!movimientosPorCuentaCartolas[cuentaId]) {
-        movimientosPorCuentaCartolas[cuentaId] = {
-          ingresos: 0,
-          egresos: 0,
-          netMovimientos: 0,
-          ultimaFecha: null,
-          conteoCartolas: 0
-        };
-      }
-
-      const monto = parseFloat(cartola.monto) || 0;
-      const fechaCartola = new Date(cartola.fecha);
-
-      movimientosPorCuentaCartolas[cuentaId].conteoCartolas++;
-      movimientosPorCuentaCartolas[cuentaId].netMovimientos += monto;
-
-      if (monto > 0) {
-        movimientosPorCuentaCartolas[cuentaId].ingresos += monto;
-      } else {
-        movimientosPorCuentaCartolas[cuentaId].egresos += Math.abs(monto);
-      }
-
-      if (!movimientosPorCuentaCartolas[cuentaId].ultimaFecha || 
-          fechaCartola > movimientosPorCuentaCartolas[cuentaId].ultimaFecha) {
-        movimientosPorCuentaCartolas[cuentaId].ultimaFecha = fechaCartola;
-      }
-    });
-
-    // PASO 6: 🆕 PROCESAR MOVIMIENTOS BANCARIOS ADICIONALES
-    const movimientosPorCuentaAdicionales = {};
-    
-    movimientosBancarios.forEach(movimiento => {
-      const cuentaId = movimiento.idCuentaCorriente || movimiento.cuenta_id;
-      if (!cuentaId) return;
-
-      if (!movimientosPorCuentaAdicionales[cuentaId]) {
-        movimientosPorCuentaAdicionales[cuentaId] = {
-          ingresos: 0,
-          egresos: 0,
-          netMovimientos: 0,
-          ultimaFecha: null,
-          conteoMovimientos: 0
-        };
-      }
-
-      const monto = parseFloat(movimiento.monto || movimiento.valor || movimiento.amount) || 0;
-      const fechaMovimiento = new Date(movimiento.fecha);
-
-      movimientosPorCuentaAdicionales[cuentaId].conteoMovimientos++;
-      movimientosPorCuentaAdicionales[cuentaId].netMovimientos += monto;
-
-      if (monto > 0) {
-        movimientosPorCuentaAdicionales[cuentaId].ingresos += monto;
-      } else {
-        movimientosPorCuentaAdicionales[cuentaId].egresos += Math.abs(monto);
-      }
-
-      if (!movimientosPorCuentaAdicionales[cuentaId].ultimaFecha || 
-          fechaMovimiento > movimientosPorCuentaAdicionales[cuentaId].ultimaFecha) {
-        movimientosPorCuentaAdicionales[cuentaId].ultimaFecha = fechaMovimiento;
-      }
-    });
-
-    // PASO 7: 🆕 COMBINAR CARTOLAS Y MOVIMIENTOS BANCARIOS
-    const movimientosCombinados = {};
-    
-    // Primero agregar cartolas
-    Object.keys(movimientosPorCuentaCartolas).forEach(cuentaId => {
-      movimientosCombinados[cuentaId] = { ...movimientosPorCuentaCartolas[cuentaId] };
-    });
-    
-    // Luego agregar movimientos bancarios adicionales
-    Object.keys(movimientosPorCuentaAdicionales).forEach(cuentaId => {
-      if (movimientosCombinados[cuentaId]) {
-        // Combinar con datos existentes
-        const cartolas = movimientosCombinados[cuentaId];
-        const adicionales = movimientosPorCuentaAdicionales[cuentaId];
-        
-        movimientosCombinados[cuentaId] = {
-          ingresos: cartolas.ingresos + adicionales.ingresos,
-          egresos: cartolas.egresos + adicionales.egresos,
-          netMovimientos: cartolas.netMovimientos + adicionales.netMovimientos,
-          ultimaFecha: new Date(Math.max(
-            cartolas.ultimaFecha?.getTime() || 0,
-            adicionales.ultimaFecha?.getTime() || 0
-          )),
-          conteoCartolas: cartolas.conteoCartolas || 0,
-          conteoMovimientos: adicionales.conteoMovimientos || 0,
-          total: (cartolas.conteoCartolas || 0) + (adicionales.conteoMovimientos || 0)
-        };
-      } else {
-        // Solo movimientos bancarios para esta cuenta
-        movimientosCombinados[cuentaId] = {
-          ...movimientosPorCuentaAdicionales[cuentaId],
-          conteoCartolas: 0,
-          total: movimientosPorCuentaAdicionales[cuentaId].conteoMovimientos
-        };
-      }
-    });
-
-    // PASO 8: Calcular saldos finales con ambas fuentes
-    const cuentasConSaldosFinales = cuentas.map(cuenta => {
-      const nombreBanco = cuenta.banco || cuenta.Banco || 'desconocido';
-      const numeroCuenta = cuenta.numero || cuenta.numeroCuenta || cuenta.nombre || '';
-      
-      // Buscar saldo inicial
-      let saldoInicial = 0;
-      const clavesBanco = Object.keys(saldosIniciales);
-      const claveBanco = clavesBanco.find(clave => 
-        saldosIniciales[clave].cuentaId === cuenta.id ||
-        nombreBanco.toLowerCase().includes(clave.toLowerCase()) ||
-        clave.toLowerCase().includes(nombreBanco.toLowerCase()) ||
-        saldosIniciales[clave].cuenta === numeroCuenta
-      );
-      
-      if (claveBanco) {
-        saldoInicial = saldosIniciales[claveBanco].saldoInicial;
-      }
-
-      // Obtener movimientos combinados
-      const movimientos = movimientosCombinados[cuenta.id] || {
-        ingresos: 0,
-        egresos: 0,
-        netMovimientos: 0,
-        ultimaFecha: null,
-        conteoCartolas: 0,
-        conteoMovimientos: 0,
-        total: 0
-      };
-
-      // CALCULAR SALDO FINAL: Saldo inicial + movimientos netos combinados
-      const saldoFinal = saldoInicial + movimientos.netMovimientos;
-
-      return {
-        id: cuenta.id,
-        nombre: numeroCuenta,
-        banco: nombreBanco,
-        tipo: cuenta.tipo || 'Cuenta Corriente',
-        moneda: cuenta.moneda || 'CLP',
-        saldo: saldoFinal,
-        saldoCalculado: saldoFinal,
-        
-        // Información detallada para debugging
-        detalleCalculo: {
-          saldoInicial,
-          ingresos2025: movimientos.ingresos,
-          egresos2025: movimientos.egresos,
-          netMovimientos2025: movimientos.netMovimientos,
-          saldoFinal,
-          metodoCalculo: 'saldo_inicial_mas_cartolas_y_movimientos_bancarios',
-          ultimaFecha: movimientos.ultimaFecha?.toISOString() || null,
-          cartolasProce: movimientos.conteoCartolas,
-          movimientosBancarios: movimientos.conteoMovimientos,
-          totalTransacciones: movimientos.total,
-          claveBancoUsada: claveBanco
-        },
-        
-        ultimaActualizacion: movimientos.ultimaFecha?.toISOString() || new Date().toISOString(),
-        origenSaldo: 'saldo_inicial_mas_cartolas_y_movimientos_bancarios'
-      };
-    });
-
-    // PASO 9: Mostrar resumen detallado
-    const totalSaldos = cuentasConSaldosFinales.reduce((sum, cuenta) => sum + cuenta.saldo, 0);
-    
-    console.log('\n💰 RESUMEN DE SALDOS BANCARIOS (MÉTODO MEJORADO):');
-    console.log('================================');
-    console.log(`🔧 Método: Saldo inicial + cartolas + movimientos bancarios`);
-    console.log(`📊 Cartolas procesadas: ${cartolas.length}`);
-    console.log(`🚀 Movimientos bancarios: ${movimientosBancarios.length}`);
-    console.log(`🏦 Cuentas con movimientos: ${Object.keys(movimientosCombinados).length}`);
-    console.log('--------------------------------');
-    
-    cuentasConSaldosFinales.forEach(cuenta => {
-      const detalle = cuenta.detalleCalculo;
-      console.log(`🏦 ${cuenta.banco} (${cuenta.nombre}):`);
-      console.log(`   💰 Saldo inicial: $${detalle.saldoInicial.toLocaleString('es-CL')}`);
-      console.log(`   📈 Ingresos 2025: $${detalle.ingresos2025.toLocaleString('es-CL')}`);
-      console.log(`   📉 Egresos 2025:  $${detalle.egresos2025.toLocaleString('es-CL')}`);
-      console.log(`   🔄 Movimiento neto: $${detalle.netMovimientos2025.toLocaleString('es-CL')}`);
-      console.log(`   🎯 SALDO FINAL: $${cuenta.saldo.toLocaleString('es-CL')}`);
-      console.log(`   📅 Cartolas: ${detalle.cartolasProce}, Movimientos: ${detalle.movimientosBancarios}`);
-      console.log('');
-    });
-    
-    console.log('================================');
-    console.log(`💵 TOTAL SALDOS: $${totalSaldos.toLocaleString('es-CL')}`);
-    
-    // Comparar con saldos objetivo del 23-06-2025
-    const saldosObjetivo = {
-      'banconexion2': 10792511,  // Banco de Chile
-      'generico': 104838856,     // Banco Internacional
-      'bci': 0,                  // Banco BCI
-      'santander': 0             // Banco Santander
-    };
-    
-    const totalObjetivo = Object.values(saldosObjetivo).reduce((sum, saldo) => sum + saldo, 0);
-    console.log(`🎯 Total objetivo (23-06-2025): $${totalObjetivo.toLocaleString('es-CL')}`);
-    console.log(`✅ Diferencia: $${(totalSaldos - totalObjetivo).toLocaleString('es-CL')}`);
-    console.log(`📅 Calculado el: ${new Date().toLocaleString('es-CL')}`);
-
-    return cuentasConSaldosFinales;
-
-  } catch (error) {
-    console.error('❌ Error obteniendo saldos bancarios (método mejorado):', error);
-    
-    // Fallback: usar método original
-    console.log('🔄 Usando método original como fallback...');
-    return obtenerSaldosBancarios(); // Método original
-  }
-};
-
-/**
- * 📊 FUNCIÓN ORIGINAL: Obtener saldos bancarios usando solo cartolas
+ * 🆕 FUNCIÓN PRINCIPAL: Obtener saldos bancarios usando cartolas con objeto Saldo
+ * Esta es la implementación correcta que usa /flujo-caja/cartolas
  */
 const obtenerSaldosBancarios = async () => {
-  console.log('🏦 Obteniendo saldos bancarios: SALDO INICIAL + CARTOLAS 2025...');
-
+  console.log('🏦 Obteniendo saldos bancarios (MÉTODO CORREGIDO - CARTOLAS CON SALDO)...');
+  
   try {
-    // PASO 1: Saldos iniciales conocidos
-    const saldosIniciales = {
-      'Banco de Chile': { saldoInicial: 129969864, cuenta: '00-800-10734-09', cuentaId: null },
-      'banconexion2': { saldoInicial: 129969864, cuenta: '00-800-10734-09', cuentaId: null },
-      'Banco Santander': { saldoInicial: 0, cuenta: '0-000-7066661-8', cuentaId: null },
-      'santander': { saldoInicial: 0, cuenta: '0-000-7066661-8', cuentaId: null },
-      'Banco BCI': { saldoInicial: 178098, cuenta: '89107021', cuentaId: null },
-      'BCI': { saldoInicial: 178098, cuenta: '89107021', cuentaId: null },
-      'Banco Internacional': { saldoInicial: 0, cuenta: 'generico', cuentaId: null },
-      'generico': { saldoInicial: 0, cuenta: '9117726', cuentaId: null },
-      'chipax_wallet': { saldoInicial: 0, cuenta: '0000000803', cuentaId: null }
-    };
-
-    // PASO 2: Obtener cuentas corrientes para mapear IDs
+    // PASO 1: Obtener cuentas corrientes para mapeo
     console.log('📋 Obteniendo cuentas corrientes...');
     const cuentasResponse = await fetchAllPaginatedData('/cuentas-corrientes');
     const cuentas = cuentasResponse.items;
@@ -519,436 +215,202 @@ const obtenerSaldosBancarios = async () => {
 
     console.log(`✅ ${cuentas.length} cuentas corrientes obtenidas`);
 
-    // Mapear bancos con sus IDs de cuenta
-    cuentas.forEach(cuenta => {
-      const nombreBanco = cuenta.banco || cuenta.Banco || 'desconocido';
-      const numeroCuenta = cuenta.numero || cuenta.numeroCuenta || cuenta.nombre || '';
-      
-      const clavesBanco = Object.keys(saldosIniciales);
-      const claveBanco = clavesBanco.find(clave => 
-        nombreBanco.toLowerCase().includes(clave.toLowerCase()) ||
-        clave.toLowerCase().includes(nombreBanco.toLowerCase()) ||
-        saldosIniciales[clave].cuenta === numeroCuenta
-      );
-      
-      if (claveBanco) {
-        saldosIniciales[claveBanco].cuentaId = cuenta.id;
-        console.log(`🔗 Mapeado: ${claveBanco} → Cuenta ID ${cuenta.id} (${numeroCuenta})`);
-      }
-    });
-
-    // PASO 3: Obtener cartolas de 2025
-    console.log('💰 Obteniendo cartolas bancarias (extracción masiva)...');
-    const cartolasResponse = await fetchAllPaginatedData('/flujo-caja/cartolas', { maxPages: 500 });
+    // PASO 2: Obtener cartolas con objeto Saldo
+    console.log('💰 Obteniendo cartolas con saldos...');
+    const cartolasResponse = await fetchAllPaginatedData('/flujo-caja/cartolas', { maxPages: 100 });
     const todasCartolas = cartolasResponse.items;
 
     if (!Array.isArray(todasCartolas) || todasCartolas.length === 0) {
-      console.warn('⚠️ No se pudieron obtener cartolas');
-      return crearCuentasConSaldosIniciales(cuentas, saldosIniciales);
+      console.warn('⚠️ No se obtuvieron cartolas');
+      return [];
     }
 
     console.log(`✅ ${todasCartolas.length} cartolas obtenidas`);
 
-    // Filtrar cartolas de 2025
-    const cartolas2025 = todasCartolas.filter(cartola => {
-      return cartola.fecha && cartola.fecha.includes('2025');
-    });
-
-    console.log(`📅 ${cartolas2025.length} cartolas de 2025 encontradas`);
-
-    // PASO 4: Procesar movimientos por cuenta
-    const movimientosPorCuenta = {};
+    // PASO 3: Encontrar cartolas más recientes con objeto Saldo por cuenta
+    console.log('🎯 Procesando cartolas más recientes con saldos...');
     
-    cartolas2025.forEach(cartola => {
-      const cuentaId = cartola.idCuentaCorriente || cartola.cuenta_id;
-      if (!cuentaId) return;
+    const saldosMasRecientesPorCuenta = {};
 
-      if (!movimientosPorCuenta[cuentaId]) {
-        movimientosPorCuenta[cuentaId] = {
-          ingresos: 0,
-          egresos: 0,
-          netMovimientos: 0,
-          ultimaFecha: null,
-          conteoCartolas: 0
-        };
-      }
+    todasCartolas.forEach(cartola => {
+      const cuentaId = cartola.cuenta_corriente_id;
+      const fecha = new Date(cartola.fecha);
+      
+      // Solo procesar cartolas que tienen objeto Saldo
+      if (!cuentaId || !cartola.Saldo) return;
 
-      const monto = parseFloat(cartola.monto) || 0;
-      const fechaCartola = new Date(cartola.fecha);
-
-      movimientosPorCuenta[cuentaId].conteoCartolas++;
-      movimientosPorCuenta[cuentaId].netMovimientos += monto;
-
-      if (monto > 0) {
-        movimientosPorCuenta[cuentaId].ingresos += monto;
-      } else {
-        movimientosPorCuenta[cuentaId].egresos += Math.abs(monto);
-      }
-
-      if (!movimientosPorCuenta[cuentaId].ultimaFecha || 
-          fechaCartola > movimientosPorCuenta[cuentaId].ultimaFecha) {
-        movimientosPorCuenta[cuentaId].ultimaFecha = fechaCartola;
+      // Mantener solo la cartola más reciente por cuenta
+      if (!saldosMasRecientesPorCuenta[cuentaId] || 
+          fecha > new Date(saldosMasRecientesPorCuenta[cuentaId].fecha)) {
+        saldosMasRecientesPorCuenta[cuentaId] = cartola;
       }
     });
 
-    console.log(`📊 Movimientos calculados para ${Object.keys(movimientosPorCuenta).length} cuentas`);
+    console.log(`📊 Saldos encontrados para ${Object.keys(saldosMasRecientesPorCuenta).length} cuentas`);
 
-    // PASO 5: Crear array final con saldo actual
-    const cuentasConSaldosFinales = cuentas.map(cuenta => {
+    // PASO 4: Crear array final con saldos actuales
+    const cuentasConSaldosActuales = cuentas.map(cuenta => {
       const nombreBanco = cuenta.banco || cuenta.Banco || 'desconocido';
-      const numeroCuenta = cuenta.numero || cuenta.numeroCuenta || cuenta.nombre || '';
+      const numeroCuenta = cuenta.numeroCuenta || cuenta.numero || cuenta.nombre || '';
       
-      // Buscar saldo inicial
-      let saldoInicial = 0;
-      const clavesBanco = Object.keys(saldosIniciales);
-      const claveBanco = clavesBanco.find(clave => 
-        saldosIniciales[clave].cuentaId === cuenta.id ||
-        nombreBanco.toLowerCase().includes(clave.toLowerCase()) ||
-        clave.toLowerCase().includes(nombreBanco.toLowerCase()) ||
-        saldosIniciales[clave].cuenta === numeroCuenta
-      );
+      // Obtener cartola más reciente para esta cuenta
+      const cartolaReciente = saldosMasRecientesPorCuenta[cuenta.id];
       
-      if (claveBanco) {
-        saldoInicial = saldosIniciales[claveBanco].saldoInicial;
-      }
-
-      // Obtener movimientos de 2025
-      const movimientos = movimientosPorCuenta[cuenta.id] || {
-        ingresos: 0,
-        egresos: 0,
-        netMovimientos: 0,
-        ultimaFecha: null,
-        conteoCartolas: 0
+      let saldoFinal = 0;
+      let detalleCalculo = {
+        tieneCartola: false,
+        fechaUltimaCartola: null,
+        debe: 0,
+        haber: 0,
+        saldo_deudor: 0,
+        saldo_acreedor: 0,
+        metodoCalculo: 'sin_cartola'
       };
 
-      // CALCULAR SALDO FINAL: Solo usar los movimientos netos (las cartolas ya contienen el saldo completo)
-      const saldoFinal = movimientos.netMovimientos;
+      if (cartolaReciente && cartolaReciente.Saldo) {
+        const saldo = cartolaReciente.Saldo;
+        
+        // Usar el método más común: haber - debe (saldo positivo en bancos)
+        // Ajustar según tus necesidades específicas
+        saldoFinal = saldo.haber - saldo.debe;
+        
+        detalleCalculo = {
+          tieneCartola: true,
+          fechaUltimaCartola: cartolaReciente.fecha,
+          debe: saldo.debe,
+          haber: saldo.haber,
+          saldo_deudor: saldo.saldo_deudor,
+          saldo_acreedor: saldo.saldo_acreedor,
+          metodoCalculo: 'haber_menos_debe',
+          descripcionCartola: cartolaReciente.descripcion || 'Sin descripción'
+        };
+      }
 
       return {
         id: cuenta.id,
         nombre: numeroCuenta,
         banco: nombreBanco,
-        tipo: cuenta.tipo || 'Cuenta Corriente',
-        moneda: cuenta.moneda || 'CLP',
+        tipo: cuenta.TipoCuentaCorriente?.tipoCuenta || 'Cuenta Corriente',
+        moneda: cuenta.Moneda?.moneda || 'CLP',
         saldo: saldoFinal,
-        saldoCalculado: saldoFinal, // Para compatibilidad
+        saldoCalculado: saldoFinal,
         
         // Información detallada para debugging
-        detalleCalculo: {
-          saldoInicial,
-          ingresos2025: movimientos.ingresos,
-          egresos2025: movimientos.egresos,
-          netMovimientos2025: movimientos.netMovimientos,
-          saldoFinal,
-          metodoCalculo: 'solo_movimientos_netos_2025',
-          ultimaFecha: movimientos.ultimaFecha?.toISOString() || null,
-          cartolasProce25: movimientos.conteoCartolas,
-          claveBancoUsada: claveBanco
-        },
+        detalleCalculo,
         
-        ultimaActualizacion: movimientos.ultimaFecha?.toISOString() || new Date().toISOString(),
-        origenSaldo: 'solo_movimientos_netos_2025'
+        ultimaActualizacion: cartolaReciente?.fecha || new Date().toISOString(),
+        origenSaldo: 'cartola_con_objeto_saldo'
       };
     });
 
-    // PASO 6: Mostrar resumen detallado
-    const totalSaldos = cuentasConSaldosFinales.reduce((sum, cuenta) => sum + cuenta.saldo, 0);
+    // PASO 5: Mostrar resumen detallado
+    const totalSaldos = cuentasConSaldosActuales.reduce((sum, cuenta) => sum + cuenta.saldo, 0);
     
-    console.log('\n💰 RESUMEN DE SALDOS BANCARIOS:');
-    console.log('================================');
-    console.log(`🔧 Método: Solo movimientos netos de cartolas 2025 (sin saldo inicial)`);
-    console.log(`📊 Cartolas 2025 procesadas: ${cartolas2025.length}`);
-    console.log(`🏦 Cuentas con movimientos: ${Object.keys(movimientosPorCuenta).length}`);
+    console.log('\n💰 RESUMEN DE SALDOS BANCARIOS (MÉTODO CORREGIDO):');
+    console.log('=================================================');
+    console.log(`🔧 Método: Cartolas más recientes con objeto Saldo`);
+    console.log(`📊 Cartolas procesadas: ${todasCartolas.length}`);
+    console.log(`🏦 Cuentas con saldos: ${Object.keys(saldosMasRecientesPorCuenta).length}`);
     console.log('--------------------------------');
     
-    cuentasConSaldosFinales.forEach(cuenta => {
+    cuentasConSaldosActuales.forEach(cuenta => {
       const detalle = cuenta.detalleCalculo;
       console.log(`🏦 ${cuenta.banco} (${cuenta.nombre}):`);
-      console.log(`   💰 Saldo inicial: $${detalle.saldoInicial.toLocaleString('es-CL')}`);
-      console.log(`   📈 Ingresos 2025: $${detalle.ingresos2025.toLocaleString('es-CL')}`);
-      console.log(`   📉 Egresos 2025:  $${detalle.egresos2025.toLocaleString('es-CL')}`);
-      console.log(`   🔄 Movimiento neto: $${detalle.netMovimientos2025.toLocaleString('es-CL')}`);
-      console.log(`   🎯 SALDO FINAL: $${cuenta.saldo.toLocaleString('es-CL')}`);
-      console.log(`   📅 Cartolas: ${detalle.cartolasProce25}`);
+      
+      if (detalle.tieneCartola) {
+        console.log(`   📅 Última cartola: ${detalle.fechaUltimaCartola}`);
+        console.log(`   💰 Debe: $${detalle.debe.toLocaleString('es-CL')}`);
+        console.log(`   💰 Haber: $${detalle.haber.toLocaleString('es-CL')}`);
+        console.log(`   🎯 SALDO FINAL: $${cuenta.saldo.toLocaleString('es-CL')}`);
+        console.log(`   📝 Descripción: ${detalle.descripcionCartola}`);
+      } else {
+        console.log(`   ❌ Sin cartolas disponibles`);
+      }
       console.log('');
     });
     
     console.log('================================');
     console.log(`💵 TOTAL SALDOS: $${totalSaldos.toLocaleString('es-CL')}`);
-    console.log(`🎯 Objetivo esperado: $165.872.421`);
-    console.log(`✅ Diferencia: $${(totalSaldos - 165872421).toLocaleString('es-CL')}`);
     console.log(`📅 Calculado el: ${new Date().toLocaleString('es-CL')}`);
-
-    return cuentasConSaldosFinales;
+    console.log(`✅ ${cuentasConSaldosActuales.length} saldos procesados`);
+    
+    return cuentasConSaldosActuales;
 
   } catch (error) {
     console.error('❌ Error obteniendo saldos bancarios:', error);
-    
-    // Fallback: usar solo saldos iniciales
-    try {
-      const cuentasResponse = await fetchAllPaginatedData('/cuentas-corrientes');
-      return crearCuentasConSaldosIniciales(cuentasResponse.items, {
-        'Banco de Chile': { saldoInicial: 61033565, cuenta: '00-800-10734-09' },
-        'banconexion2': { saldoInicial: 61033565, cuenta: '00-800-10734-09' },
-        'Banco Santander': { saldoInicial: 0, cuenta: '0-000-7066661-8' },
-        'santander': { saldoInicial: 0, cuenta: '0-000-7066661-8' },
-        'Banco BCI': { saldoInicial: 0, cuenta: '89107021' },
-        'BCI': { saldoInicial: 0, cuenta: '89107021' },
-        'Banco Internacional': { saldoInicial: 104838856, cuenta: 'generico' },
-        'generico': { saldoInicial: 104838856, cuenta: '9117726' },
-        'chipax_wallet': { saldoInicial: 0, cuenta: '0000000803' }
-      });
-    } catch (fallbackError) {
-      console.error('❌ Error en fallback:', fallbackError);
-      return [];
-    }
+    throw error;
   }
 };
 
 /**
- * 🔄 FUNCIÓN AUXILIAR: Crear cuentas solo con saldos iniciales
+ * ✅ FUNCIÓN: Obtener compras (cuentas por pagar)
  */
-function crearCuentasConSaldosIniciales(cuentas, saldosConocidos) {
-  console.log('🔄 Usando solo saldos conocidos (fallback)...');
+const obtenerCompras = async () => {
+  console.log('💸 Obteniendo compras (cuentas por pagar)...');
   
-  return cuentas.map(cuenta => {
-    const nombreBanco = cuenta.banco || cuenta.Banco || 'desconocido';
-    const numeroCuenta = cuenta.numero || cuenta.numeroCuenta || cuenta.nombre || '';
-    
-    // Buscar saldo conocido
-    let saldoFinal = 0;
-    const clavesBanco = Object.keys(saldosConocidos);
-    const claveBanco = clavesBanco.find(clave => 
-      nombreBanco.toLowerCase().includes(clave.toLowerCase()) ||
-      clave.toLowerCase().includes(nombreBanco.toLowerCase()) ||
-      saldosConocidos[clave].cuenta === numeroCuenta
+  try {
+    const response = await fetchAllPaginatedData('/compras', { maxPages: 50 });
+    console.log(`✅ ${response.items.length} compras obtenidas`);
+    return response.items;
+  } catch (error) {
+    console.error('❌ Error obteniendo compras:', error);
+    throw error;
+  }
+};
+
+/**
+ * ✅ FUNCIÓN: Obtener DTEs por cobrar
+ */
+const obtenerDtesPorCobrar = async () => {
+  console.log('💰 Obteniendo DTEs por cobrar...');
+  
+  try {
+    const response = await fetchAllPaginatedData('/dtes', { maxPages: 50 });
+    const dtes = response.items.filter(dte => 
+      dte.enviado === 1 && 
+      !dte.anulado && 
+      (dte.eventoReceptor !== 'D' || !dte.eventoReceptor)
     );
     
-    if (claveBanco) {
-      saldoFinal = saldosConocidos[claveBanco].saldoInicial;
-    }
-
-    return {
-      id: cuenta.id,
-      nombre: numeroCuenta,
-      banco: nombreBanco,
-      tipo: cuenta.tipo || 'Cuenta Corriente',
-      moneda: cuenta.moneda || 'CLP',
-      saldo: saldoFinal,
-      saldoCalculado: saldoFinal,
-      
-      detalleCalculo: {
-        saldoInicial: saldoFinal,
-        metodoCalculo: 'solo_saldo_conocido',
-        claveBancoUsada: claveBanco
-      },
-      
-      ultimaActualizacion: new Date().toISOString(),
-      origenSaldo: 'fallback_saldos_conocidos'
-    };
-  });
-}
-
-/**
- * ✅ FUNCIÓN MEGA-OPTIMIZADA: Para procesar TODAS las facturas hasta encontrar las más recientes
- */
-const obtenerCuentasPorPagar = async () => {
-  console.log('💸 Obteniendo compras (MEGA-PROCESAMIENTO para llegar a 2024-2025)...');
-
-  try {
-    let allCompras = [];
-    let currentPage = 1;
-    let hasMoreData = true;
-    const limit = 50;
-    
-    // ✅ MEGA AUMENTO: Para procesar todas las facturas necesarias
-    const maxPages = 800; // 800 páginas = 40,000 facturas máximo
-    
-    console.log(`🚀 MEGA-PROCESAMIENTO: hasta ${maxPages} páginas (${maxPages * limit} facturas)`);
-    console.log(`⏱️ Estimado: ~${Math.ceil(maxPages * 0.5)} minutos`);
-
-    let paginasConDatos = 0;
-    let ultimaFechaEncontrada = null;
-
-    while (hasMoreData && currentPage <= maxPages) {
-      try {
-        const compras = await fetchFromChipax(`/compras?page=${currentPage}&limit=${limit}`);
-
-        if (compras && compras.items && Array.isArray(compras.items)) {
-          if (compras.items.length > 0) {
-            allCompras.push(...compras.items);
-            paginasConDatos++;
-
-            // ✅ CRITERIO DE PARADA: Verificar fechas para llegar a 2024
-            const fechasEnPagina = compras.items
-              .map(c => c.fechaEmision || c.fecha_emision || c.fecha || '')
-              .filter(f => f)
-              .sort();
-
-            if (fechasEnPagina.length > 0) {
-              const fechaMasAntigua = fechasEnPagina[0];
-              ultimaFechaEncontrada = fechaMasAntigua;
-              
-              // Log cada 50 páginas
-              if (currentPage % 50 === 0) {
-                console.log(`📄 Página ${currentPage}: ${allCompras.length} compras | Fecha más antigua: ${fechaMasAntigua}`);
-              }
-
-              // ✅ PARAR cuando llegamos a 2024 o antes
-              if (fechaMasAntigua.includes('2024') || fechaMasAntigua.includes('2023')) {
-                console.log(`🎯 ¡ALCANZAMOS 2024! Fecha encontrada: ${fechaMasAntigua}`);
-                console.log(`📊 Total procesado: ${allCompras.length} facturas en ${currentPage} páginas`);
-                hasMoreData = false;
-                break;
-              }
-            }
-          }
-
-          if (compras.items.length < limit) {
-            hasMoreData = false;
-          } else {
-            currentPage++;
-          }
-        } else if (Array.isArray(compras)) {
-          allCompras.push(...compras);
-          hasMoreData = false;
-        } else {
-          hasMoreData = false;
-        }
-
-        // Pausa para evitar rate limiting
-        await new Promise(resolve => setTimeout(resolve, 200));
-
-      } catch (error) {
-        console.error(`❌ Error página ${currentPage}:`, error);
-        if (error.message.includes('429') || error.message.includes('Too Many Requests')) {
-          console.warn('⚠️ Rate limit detectado, pausando 10 segundos...');
-          await new Promise(resolve => setTimeout(resolve, 10000));
-        } else {
-          hasMoreData = false;
-        }
-      }
-    }
-
-    console.log(`✅ MEGA-PROCESAMIENTO COMPLETO:`);
-    console.log(`📊 Total facturas obtenidas: ${allCompras.length}`);
-    console.log(`📄 Páginas procesadas: ${currentPage}`);
-    console.log(`📅 Última fecha encontrada: ${ultimaFechaEncontrada || 'N/A'}`);
-
-    return allCompras;
-
+    console.log(`✅ ${dtes.length} DTEs por cobrar obtenidos (de ${response.items.length} total)`);
+    return dtes;
   } catch (error) {
-    console.error('❌ Error obteniendo cuentas por pagar:', error);
-    return [];
+    console.error('❌ Error obteniendo DTEs por cobrar:', error);
+    throw error;
   }
 };
 
 /**
- * ✅ FUNCIÓN MEGA-OPTIMIZADA: Para obtener TODOS los DTEs necesarios
+ * ✅ FUNCIÓN: Verificar conectividad
  */
-const obtenerCuentasPorCobrar = async () => {
-  console.log('📋 Obteniendo DTEs (MEGA-PROCESAMIENTO para llegar a 2024-2025)...');
-
+const verificarConectividad = async () => {
+  console.log('Verificando conectividad con Chipax...');
+  
   try {
-    let allDtes = [];
-    let currentPage = 1;
-    let hasMoreData = true;
-    const limit = 50;
-    
-    // ✅ MEGA AUMENTO: Para procesar todos los DTEs necesarios
-    const maxPages = 800; // 800 páginas = 40,000 DTEs máximo
-    
-    console.log(`🚀 MEGA-PROCESAMIENTO DTEs: hasta ${maxPages} páginas (${maxPages * limit} DTEs)`);
-    console.log(`⏱️ Estimado: ~${Math.ceil(maxPages * 0.5)} minutos`);
-
-    let ultimaFechaEncontrada = null;
-
-    while (hasMoreData && currentPage <= maxPages) {
-      try {
-        const dtes = await fetchFromChipax(`/dtes?page=${currentPage}&limit=${limit}`);
-
-        if (dtes && dtes.items && Array.isArray(dtes.items)) {
-          if (dtes.items.length > 0) {
-            allDtes.push(...dtes.items);
-
-            // ✅ CRITERIO DE PARADA: Verificar fechas para llegar a 2024
-            const fechasEnPagina = dtes.items
-              .map(d => d.fechaEmision || d.fecha_emision || d.fecha || '')
-              .filter(f => f)
-              .sort();
-
-            if (fechasEnPagina.length > 0) {
-              const fechaMasAntigua = fechasEnPagina[0];
-              ultimaFechaEncontrada = fechaMasAntigua;
-              
-              // Log cada 50 páginas
-              if (currentPage % 50 === 0) {
-                console.log(`📄 Página ${currentPage}: ${allDtes.length} DTEs | Fecha más antigua: ${fechaMasAntigua}`);
-              }
-
-              // ✅ PARAR cuando llegamos a 2024 o antes
-              if (fechaMasAntigua.includes('2024') || fechaMasAntigua.includes('2023')) {
-                console.log(`🎯 ¡ALCANZAMOS 2024 EN DTEs! Fecha encontrada: ${fechaMasAntigua}`);
-                console.log(`📊 Total DTEs procesados: ${allDtes.length} en ${currentPage} páginas`);
-                hasMoreData = false;
-                break;
-              }
-            }
-          }
-
-          if (dtes.items.length < limit) {
-            hasMoreData = false;
-          } else {
-            currentPage++;
-          }
-        } else {
-          hasMoreData = false;
-        }
-
-        // Pausa para evitar rate limiting
-        await new Promise(resolve => setTimeout(resolve, 200));
-
-      } catch (error) {
-        console.error(`❌ Error página ${currentPage}:`, error);
-        if (error.message.includes('429') || error.message.includes('Too Many Requests')) {
-          console.warn('⚠️ Rate limit detectado, pausando 10 segundos...');
-          await new Promise(resolve => setTimeout(resolve, 10000));
-        } else {
-          hasMoreData = false;
-        }
-      }
-    }
-
-    console.log(`✅ ${allDtes.length} DTEs obtenidos`);
-    return allDtes;
-
+    const token = await getChipaxToken();
+    console.log('✅ Conectividad con Chipax verificada');
+    return true;
   } catch (error) {
-    console.error('❌ Error obteniendo cuentas por cobrar:', error);
-    return [];
+    console.error('❌ Error de conectividad:', error);
+    return false;
   }
 };
 
-// ============================================================================
-// EXPORTACIONES
-// ============================================================================
+// Exportar funciones
 const chipaxService = {
-  getChipaxToken,
+  // Funciones principales
+  obtenerSaldosBancarios,
+  obtenerCompras,
+  obtenerDtesPorCobrar,
+  
+  // Funciones auxiliares
+  verificarConectividad,
   fetchFromChipax,
   fetchAllPaginatedData,
-  obtenerSaldosBancarios,
-  obtenerSaldosBancariosConMovimientos, // 🆕 NUEVA FUNCIÓN MEJORADA
-  obtenerCuentasPorCobrar,
-  obtenerCuentasPorPagar,
+  getChipaxToken,
+  
+  // Para debugging
+  refreshToken
 };
 
 export default chipaxService;
-
-export {
-  getChipaxToken,
-  fetchFromChipax,
-  fetchAllPaginatedData,
-  obtenerSaldosBancarios,
-  obtenerSaldosBancariosConMovimientos, // 🆕 NUEVA FUNCIÓN MEJORADA
-  obtenerCuentasPorCobrar,
-  obtenerCuentasPorPagar,
-};
