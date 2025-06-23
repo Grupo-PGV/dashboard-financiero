@@ -47,7 +47,7 @@ const DashboardFinancieroIntegrado = () => {
   const cargarSaldosBancarios = async () => {
     try {
       console.log('🏦 Cargando saldos bancarios...');
-      const datos = await chipaxService.obtenerSaldosBancarios();
+      const datos = await chipaxService.obtenerSaldosBancariosConMovimientos();
       
       if (Array.isArray(datos)) {
         setSaldosBancarios(datos);
