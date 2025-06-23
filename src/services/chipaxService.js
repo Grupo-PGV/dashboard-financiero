@@ -1,4 +1,4 @@
-// chipaxService.js - VERSIÓN CON SALDO INICIAL + CARTOLAS 2025
+// chipaxService.js - VERSIÓN COMPLETA CON MOVIMIENTOS BANCARIOS INTEGRADOS
 
 const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
 const APP_ID = process.env.REACT_APP_CHIPAX_APP_ID;
@@ -140,90 +140,361 @@ const fetchFromChipax = async (endpoint, options = {}) => {
 };
 
 /**
- * ✅ NUEVA FUNCIÓN: Obtener datos paginados con más páginas
+ * ✅ FUNCIÓN MEJORADA: Obtener datos paginados con más páginas
  */
 const fetchAllPaginatedData = async (endpoint, options = {}) => {
   let allItems = [];
   let currentPage = 1;
   let hasMoreData = true;
   const limit = options.limit || 50;
-  const maxPages = options.maxPages || 200; // AUMENTADO para obtener más cartolas
+  const maxPages = options.maxPages || 200;
 
   console.log(`📊 Obteniendo datos paginados de ${endpoint} (hasta ${maxPages} páginas)...`);
 
   while (hasMoreData && currentPage <= maxPages) {
     try {
       const url = `${endpoint}${endpoint.includes('?') ? '&' : '?'}page=${currentPage}&limit=${limit}`;
-      const response = await fetchFromChipax(url, { maxRetries: 3 });
+      const response = await fetchFromChipax(url);
 
-      let pageItems = [];
-      
-      // Manejar diferentes estructuras de respuesta (incluyendo docs)
-      if (Array.isArray(response)) {
-        pageItems = response;
-      } else if (response.items && Array.isArray(response.items)) {
-        pageItems = response.items;
-      } else if (response.data && Array.isArray(response.data)) {
-        pageItems = response.data;
-      } else if (response.docs && Array.isArray(response.docs)) {
-        pageItems = response.docs;
-      }
-
-      if (pageItems.length > 0) {
-        allItems.push(...pageItems);
+      if (response && response.items && Array.isArray(response.items)) {
+        allItems.push(...response.items);
         
-        // Log de progreso cada 20 páginas
-        if (currentPage % 20 === 0) {
-          console.log(`📄 Página ${currentPage}: ${allItems.length} items totales`);
-        }
-
-        // Si recibimos menos items que el límite, probablemente es la última página
-        if (pageItems.length < limit) {
+        if (response.items.length < limit) {
           hasMoreData = false;
         } else {
           currentPage++;
         }
+      } else if (Array.isArray(response)) {
+        allItems.push(...response);
+        hasMoreData = false;
       } else {
         hasMoreData = false;
       }
 
-      // Pausa pequeña para evitar rate limiting
-      await new Promise(resolve => setTimeout(resolve, 150));
+      // Pausa para evitar rate limiting
+      await new Promise(resolve => setTimeout(resolve, 200));
 
     } catch (error) {
-      console.error(`❌ Error en página ${currentPage}:`, error);
-      
-      if (error.message.includes('429') || error.message.includes('rate limit')) {
-        console.warn('⚠️ Rate limit detectado, pausando 5 segundos...');
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        // No incrementar currentPage para reintentar
+      console.error(`❌ Error página ${currentPage}:`, error);
+      if (error.message.includes('429') || error.message.includes('Too Many Requests')) {
+        console.warn('⚠️ Rate limit detectado, pausando 10 segundos...');
+        await new Promise(resolve => setTimeout(resolve, 10000));
       } else {
-        hasMoreData = false; // Terminar en otros errores
+        hasMoreData = false;
       }
     }
   }
 
   console.log(`✅ Total obtenido de ${endpoint}: ${allItems.length} items`);
-
-  return {
-    items: allItems,
-    totalItems: allItems.length,
-    paginationInfo: {
-      totalPages: currentPage - 1,
-      itemsPerPage: limit,
-      lastPage: currentPage - 1
-    }
-  };
+  return { items: allItems, total: allItems.length };
 };
 
 /**
- * 🏦 FUNCIÓN PRINCIPAL: Saldo inicial + movimientos de cartolas 2025
+ * 🆕 FUNCIÓN MEJORADA: Obtener saldos bancarios usando cartolas Y movimientos bancarios
+ */
+const obtenerSaldosBancariosConMovimientos = async () => {
+  console.log('🏦 Obteniendo saldos bancarios (MÉTODO MEJORADO: cartolas + movimientos)...');
+  
+  try {
+    // PASO 1: Saldos iniciales conocidos (actualizados al 2025)
+    const saldosIniciales = {
+      'Banco de Chile': { saldoInicial: 129969864, cuenta: '00-800-10734-09', cuentaId: null },
+      'banconexion2': { saldoInicial: 129969864, cuenta: '00-800-10734-09', cuentaId: null },
+      'Banco Santander': { saldoInicial: 0, cuenta: '0-000-7066661-8', cuentaId: null },
+      'santander': { saldoInicial: 0, cuenta: '0-000-7066661-8', cuentaId: null },
+      'Banco BCI': { saldoInicial: 178098, cuenta: '89107021', cuentaId: null },
+      'bci': { saldoInicial: 178098, cuenta: '89107021', cuentaId: null },
+      'Banco Internacional': { saldoInicial: 0, cuenta: 'generico', cuentaId: null },
+      'generico': { saldoInicial: 0, cuenta: '9117726', cuentaId: null },
+      'chipax_wallet': { saldoInicial: 0, cuenta: '0000000803', cuentaId: null }
+    };
+
+    // PASO 2: Obtener cuentas corrientes para mapear IDs
+    console.log('📋 Obteniendo cuentas corrientes...');
+    const cuentasResponse = await fetchAllPaginatedData('/cuentas-corrientes');
+    const cuentas = cuentasResponse.items;
+
+    if (!Array.isArray(cuentas) || cuentas.length === 0) {
+      console.warn('⚠️ No se pudieron obtener cuentas corrientes');
+      return [];
+    }
+
+    console.log(`✅ ${cuentas.length} cuentas corrientes obtenidas`);
+
+    // Mapear bancos con sus IDs de cuenta
+    cuentas.forEach(cuenta => {
+      const nombreBanco = cuenta.banco || cuenta.Banco || 'desconocido';
+      const numeroCuenta = cuenta.numero || cuenta.numeroCuenta || cuenta.nombre || '';
+      
+      const clavesBanco = Object.keys(saldosIniciales);
+      const claveBanco = clavesBanco.find(clave => 
+        nombreBanco.toLowerCase().includes(clave.toLowerCase()) ||
+        clave.toLowerCase().includes(nombreBanco.toLowerCase()) ||
+        saldosIniciales[clave].cuenta === numeroCuenta
+      );
+      
+      if (claveBanco) {
+        saldosIniciales[claveBanco].cuentaId = cuenta.id;
+        console.log(`🔗 Mapeado: ${claveBanco} → Cuenta ID ${cuenta.id} (${numeroCuenta})`);
+      }
+    });
+
+    // PASO 3: Obtener cartolas bancarias (método existente)
+    console.log('💰 Obteniendo cartolas bancarias...');
+    const cartolasResponse = await fetchAllPaginatedData('/flujo-caja/cartolas', { maxPages: 100 });
+    const cartolas = cartolasResponse.items || [];
+    console.log(`✅ ${cartolas.length} cartolas obtenidas`);
+
+    // PASO 4: 🆕 OBTENER MOVIMIENTOS BANCARIOS (NUEVA FUNCIONALIDAD)
+    console.log('🚀 Obteniendo movimientos bancarios adicionales...');
+    const movimientosResponse = await fetchAllPaginatedData('/movimientos', { maxPages: 50 });
+    let movimientosBancarios = [];
+    
+    if (movimientosResponse.items && Array.isArray(movimientosResponse.items)) {
+      // Filtrar solo movimientos bancarios y de 2025
+      movimientosBancarios = movimientosResponse.items.filter(mov => {
+        const esBancario = mov.tipo === 'bancario' || 
+                          mov.categoria === 'banco' ||
+                          mov.idCuentaCorriente ||
+                          (mov.descripcion && mov.descripcion.toLowerCase().includes('banco'));
+        
+        const esDe2025 = mov.fecha && mov.fecha.includes('2025');
+        
+        return esBancario && esDe2025;
+      });
+    }
+    
+    console.log(`✅ ${movimientosBancarios.length} movimientos bancarios de 2025 encontrados`);
+
+    // PASO 5: Procesar CARTOLAS (método existente mejorado)
+    const movimientosPorCuentaCartolas = {};
+    
+    cartolas.forEach(cartola => {
+      if (!cartola.fecha || !cartola.fecha.includes('2025')) return;
+      
+      const cuentaId = cartola.idCuentaCorriente || cartola.cuenta_id;
+      if (!cuentaId) return;
+
+      if (!movimientosPorCuentaCartolas[cuentaId]) {
+        movimientosPorCuentaCartolas[cuentaId] = {
+          ingresos: 0,
+          egresos: 0,
+          netMovimientos: 0,
+          ultimaFecha: null,
+          conteoCartolas: 0
+        };
+      }
+
+      const monto = parseFloat(cartola.monto) || 0;
+      const fechaCartola = new Date(cartola.fecha);
+
+      movimientosPorCuentaCartolas[cuentaId].conteoCartolas++;
+      movimientosPorCuentaCartolas[cuentaId].netMovimientos += monto;
+
+      if (monto > 0) {
+        movimientosPorCuentaCartolas[cuentaId].ingresos += monto;
+      } else {
+        movimientosPorCuentaCartolas[cuentaId].egresos += Math.abs(monto);
+      }
+
+      if (!movimientosPorCuentaCartolas[cuentaId].ultimaFecha || 
+          fechaCartola > movimientosPorCuentaCartolas[cuentaId].ultimaFecha) {
+        movimientosPorCuentaCartolas[cuentaId].ultimaFecha = fechaCartola;
+      }
+    });
+
+    // PASO 6: 🆕 PROCESAR MOVIMIENTOS BANCARIOS ADICIONALES
+    const movimientosPorCuentaAdicionales = {};
+    
+    movimientosBancarios.forEach(movimiento => {
+      const cuentaId = movimiento.idCuentaCorriente || movimiento.cuenta_id;
+      if (!cuentaId) return;
+
+      if (!movimientosPorCuentaAdicionales[cuentaId]) {
+        movimientosPorCuentaAdicionales[cuentaId] = {
+          ingresos: 0,
+          egresos: 0,
+          netMovimientos: 0,
+          ultimaFecha: null,
+          conteoMovimientos: 0
+        };
+      }
+
+      const monto = parseFloat(movimiento.monto || movimiento.valor || movimiento.amount) || 0;
+      const fechaMovimiento = new Date(movimiento.fecha);
+
+      movimientosPorCuentaAdicionales[cuentaId].conteoMovimientos++;
+      movimientosPorCuentaAdicionales[cuentaId].netMovimientos += monto;
+
+      if (monto > 0) {
+        movimientosPorCuentaAdicionales[cuentaId].ingresos += monto;
+      } else {
+        movimientosPorCuentaAdicionales[cuentaId].egresos += Math.abs(monto);
+      }
+
+      if (!movimientosPorCuentaAdicionales[cuentaId].ultimaFecha || 
+          fechaMovimiento > movimientosPorCuentaAdicionales[cuentaId].ultimaFecha) {
+        movimientosPorCuentaAdicionales[cuentaId].ultimaFecha = fechaMovimiento;
+      }
+    });
+
+    // PASO 7: 🆕 COMBINAR CARTOLAS Y MOVIMIENTOS BANCARIOS
+    const movimientosCombinados = {};
+    
+    // Primero agregar cartolas
+    Object.keys(movimientosPorCuentaCartolas).forEach(cuentaId => {
+      movimientosCombinados[cuentaId] = { ...movimientosPorCuentaCartolas[cuentaId] };
+    });
+    
+    // Luego agregar movimientos bancarios adicionales
+    Object.keys(movimientosPorCuentaAdicionales).forEach(cuentaId => {
+      if (movimientosCombinados[cuentaId]) {
+        // Combinar con datos existentes
+        const cartolas = movimientosCombinados[cuentaId];
+        const adicionales = movimientosPorCuentaAdicionales[cuentaId];
+        
+        movimientosCombinados[cuentaId] = {
+          ingresos: cartolas.ingresos + adicionales.ingresos,
+          egresos: cartolas.egresos + adicionales.egresos,
+          netMovimientos: cartolas.netMovimientos + adicionales.netMovimientos,
+          ultimaFecha: new Date(Math.max(
+            cartolas.ultimaFecha?.getTime() || 0,
+            adicionales.ultimaFecha?.getTime() || 0
+          )),
+          conteoCartolas: cartolas.conteoCartolas || 0,
+          conteoMovimientos: adicionales.conteoMovimientos || 0,
+          total: (cartolas.conteoCartolas || 0) + (adicionales.conteoMovimientos || 0)
+        };
+      } else {
+        // Solo movimientos bancarios para esta cuenta
+        movimientosCombinados[cuentaId] = {
+          ...movimientosPorCuentaAdicionales[cuentaId],
+          conteoCartolas: 0,
+          total: movimientosPorCuentaAdicionales[cuentaId].conteoMovimientos
+        };
+      }
+    });
+
+    // PASO 8: Calcular saldos finales con ambas fuentes
+    const cuentasConSaldosFinales = cuentas.map(cuenta => {
+      const nombreBanco = cuenta.banco || cuenta.Banco || 'desconocido';
+      const numeroCuenta = cuenta.numero || cuenta.numeroCuenta || cuenta.nombre || '';
+      
+      // Buscar saldo inicial
+      let saldoInicial = 0;
+      const clavesBanco = Object.keys(saldosIniciales);
+      const claveBanco = clavesBanco.find(clave => 
+        saldosIniciales[clave].cuentaId === cuenta.id ||
+        nombreBanco.toLowerCase().includes(clave.toLowerCase()) ||
+        clave.toLowerCase().includes(nombreBanco.toLowerCase()) ||
+        saldosIniciales[clave].cuenta === numeroCuenta
+      );
+      
+      if (claveBanco) {
+        saldoInicial = saldosIniciales[claveBanco].saldoInicial;
+      }
+
+      // Obtener movimientos combinados
+      const movimientos = movimientosCombinados[cuenta.id] || {
+        ingresos: 0,
+        egresos: 0,
+        netMovimientos: 0,
+        ultimaFecha: null,
+        conteoCartolas: 0,
+        conteoMovimientos: 0,
+        total: 0
+      };
+
+      // CALCULAR SALDO FINAL: Saldo inicial + movimientos netos combinados
+      const saldoFinal = saldoInicial + movimientos.netMovimientos;
+
+      return {
+        id: cuenta.id,
+        nombre: numeroCuenta,
+        banco: nombreBanco,
+        tipo: cuenta.tipo || 'Cuenta Corriente',
+        moneda: cuenta.moneda || 'CLP',
+        saldo: saldoFinal,
+        saldoCalculado: saldoFinal,
+        
+        // Información detallada para debugging
+        detalleCalculo: {
+          saldoInicial,
+          ingresos2025: movimientos.ingresos,
+          egresos2025: movimientos.egresos,
+          netMovimientos2025: movimientos.netMovimientos,
+          saldoFinal,
+          metodoCalculo: 'saldo_inicial_mas_cartolas_y_movimientos_bancarios',
+          ultimaFecha: movimientos.ultimaFecha?.toISOString() || null,
+          cartolasProce: movimientos.conteoCartolas,
+          movimientosBancarios: movimientos.conteoMovimientos,
+          totalTransacciones: movimientos.total,
+          claveBancoUsada: claveBanco
+        },
+        
+        ultimaActualizacion: movimientos.ultimaFecha?.toISOString() || new Date().toISOString(),
+        origenSaldo: 'saldo_inicial_mas_cartolas_y_movimientos_bancarios'
+      };
+    });
+
+    // PASO 9: Mostrar resumen detallado
+    const totalSaldos = cuentasConSaldosFinales.reduce((sum, cuenta) => sum + cuenta.saldo, 0);
+    
+    console.log('\n💰 RESUMEN DE SALDOS BANCARIOS (MÉTODO MEJORADO):');
+    console.log('================================');
+    console.log(`🔧 Método: Saldo inicial + cartolas + movimientos bancarios`);
+    console.log(`📊 Cartolas procesadas: ${cartolas.length}`);
+    console.log(`🚀 Movimientos bancarios: ${movimientosBancarios.length}`);
+    console.log(`🏦 Cuentas con movimientos: ${Object.keys(movimientosCombinados).length}`);
+    console.log('--------------------------------');
+    
+    cuentasConSaldosFinales.forEach(cuenta => {
+      const detalle = cuenta.detalleCalculo;
+      console.log(`🏦 ${cuenta.banco} (${cuenta.nombre}):`);
+      console.log(`   💰 Saldo inicial: $${detalle.saldoInicial.toLocaleString('es-CL')}`);
+      console.log(`   📈 Ingresos 2025: $${detalle.ingresos2025.toLocaleString('es-CL')}`);
+      console.log(`   📉 Egresos 2025:  $${detalle.egresos2025.toLocaleString('es-CL')}`);
+      console.log(`   🔄 Movimiento neto: $${detalle.netMovimientos2025.toLocaleString('es-CL')}`);
+      console.log(`   🎯 SALDO FINAL: $${cuenta.saldo.toLocaleString('es-CL')}`);
+      console.log(`   📅 Cartolas: ${detalle.cartolasProce}, Movimientos: ${detalle.movimientosBancarios}`);
+      console.log('');
+    });
+    
+    console.log('================================');
+    console.log(`💵 TOTAL SALDOS: $${totalSaldos.toLocaleString('es-CL')}`);
+    
+    // Comparar con saldos objetivo del 23-06-2025
+    const saldosObjetivo = {
+      'banconexion2': 10792511,  // Banco de Chile
+      'generico': 104838856,     // Banco Internacional
+      'bci': 0,                  // Banco BCI
+      'santander': 0             // Banco Santander
+    };
+    
+    const totalObjetivo = Object.values(saldosObjetivo).reduce((sum, saldo) => sum + saldo, 0);
+    console.log(`🎯 Total objetivo (23-06-2025): $${totalObjetivo.toLocaleString('es-CL')}`);
+    console.log(`✅ Diferencia: $${(totalSaldos - totalObjetivo).toLocaleString('es-CL')}`);
+    console.log(`📅 Calculado el: ${new Date().toLocaleString('es-CL')}`);
+
+    return cuentasConSaldosFinales;
+
+  } catch (error) {
+    console.error('❌ Error obteniendo saldos bancarios (método mejorado):', error);
+    
+    // Fallback: usar método original
+    console.log('🔄 Usando método original como fallback...');
+    return obtenerSaldosBancarios(); // Método original
+  }
+};
+
+/**
+ * 📊 FUNCIÓN ORIGINAL: Obtener saldos bancarios usando solo cartolas
  */
 const obtenerSaldosBancarios = async () => {
   console.log('🏦 Obteniendo saldos bancarios: SALDO INICIAL + CARTOLAS 2025...');
 
   try {
-    // PASO 1: Definir saldos iniciales conocidos al 31-12-2024
+    // PASO 1: Saldos iniciales conocidos
     const saldosIniciales = {
       'Banco de Chile': { saldoInicial: 129969864, cuenta: '00-800-10734-09', cuentaId: null },
       'banconexion2': { saldoInicial: 129969864, cuenta: '00-800-10734-09', cuentaId: null },
@@ -266,32 +537,30 @@ const obtenerSaldosBancarios = async () => {
       }
     });
 
-    // PASO 3: Obtener MUCHAS más cartolas de 2025
+    // PASO 3: Obtener cartolas de 2025
     console.log('💰 Obteniendo cartolas bancarias (extracción masiva)...');
-    const cartolasResponse = await fetchAllPaginatedData('/flujo-caja/cartolas', { maxPages: 500 }); // MUCHO MÁS
+    const cartolasResponse = await fetchAllPaginatedData('/flujo-caja/cartolas', { maxPages: 500 });
     const todasCartolas = cartolasResponse.items;
 
     if (!Array.isArray(todasCartolas) || todasCartolas.length === 0) {
-      console.warn('⚠️ No se pudieron obtener cartolas, usando solo saldos iniciales');
+      console.warn('⚠️ No se pudieron obtener cartolas');
       return crearCuentasConSaldosIniciales(cuentas, saldosIniciales);
     }
 
     console.log(`✅ ${todasCartolas.length} cartolas obtenidas`);
 
-    // PASO 4: Filtrar solo cartolas de 2025
+    // Filtrar cartolas de 2025
     const cartolas2025 = todasCartolas.filter(cartola => {
-      const fecha = new Date(cartola.fecha);
-      return fecha.getFullYear() === 2025;
+      return cartola.fecha && cartola.fecha.includes('2025');
     });
 
     console.log(`📅 ${cartolas2025.length} cartolas de 2025 encontradas`);
 
-    // PASO 5: Calcular movimientos netos por cuenta desde enero 2025
+    // PASO 4: Procesar movimientos por cuenta
     const movimientosPorCuenta = {};
-
+    
     cartolas2025.forEach(cartola => {
-      const cuentaId = cartola.cuenta_corriente_id;
-      
+      const cuentaId = cartola.idCuentaCorriente || cartola.cuenta_id;
       if (!cuentaId) return;
 
       if (!movimientosPorCuenta[cuentaId]) {
@@ -304,40 +573,27 @@ const obtenerSaldosBancarios = async () => {
         };
       }
 
-      movimientosPorCuenta[cuentaId].conteoCartolas++;
+      const monto = parseFloat(cartola.monto) || 0;
+      const fechaCartola = new Date(cartola.fecha);
 
-      // Analizar movimientos en la cartola
-      if (cartola.Saldos && Array.isArray(cartola.Saldos)) {
-        cartola.Saldos.forEach(saldo => {
-          // Determinar si es ingreso o egreso
-          const debe = parseFloat(saldo.debe || 0);
-          const haber = parseFloat(saldo.haber || 0);
-          
-          if (haber > 0) {
-            movimientosPorCuenta[cuentaId].ingresos += haber;
-          }
-          if (debe > 0) {
-            movimientosPorCuenta[cuentaId].egresos += debe;
-          }
-        });
+      movimientosPorCuenta[cuentaId].conteoCartolas++;
+      movimientosPorCuenta[cuentaId].netMovimientos += monto;
+
+      if (monto > 0) {
+        movimientosPorCuenta[cuentaId].ingresos += monto;
+      } else {
+        movimientosPorCuenta[cuentaId].egresos += Math.abs(monto);
       }
 
-      // Actualizar fecha más reciente
-      const fechaCartola = new Date(cartola.fecha);
-      if (!movimientosPorCuenta[cuentaId].ultimaFecha || fechaCartola > movimientosPorCuenta[cuentaId].ultimaFecha) {
+      if (!movimientosPorCuenta[cuentaId].ultimaFecha || 
+          fechaCartola > movimientosPorCuenta[cuentaId].ultimaFecha) {
         movimientosPorCuenta[cuentaId].ultimaFecha = fechaCartola;
       }
     });
 
-    // Calcular movimientos netos
-    Object.keys(movimientosPorCuenta).forEach(cuentaId => {
-      const cuenta = movimientosPorCuenta[cuentaId];
-      cuenta.netMovimientos = cuenta.ingresos - cuenta.egresos;
-    });
-
     console.log(`📊 Movimientos calculados para ${Object.keys(movimientosPorCuenta).length} cuentas`);
 
-    // PASO 6: Combinar saldo inicial + movimientos netos para obtener saldo actual
+    // PASO 5: Crear array final con saldo actual
     const cuentasConSaldosFinales = cuentas.map(cuenta => {
       const nombreBanco = cuenta.banco || cuenta.Banco || 'desconocido';
       const numeroCuenta = cuenta.numero || cuenta.numeroCuenta || cuenta.nombre || '';
@@ -395,7 +651,7 @@ const obtenerSaldosBancarios = async () => {
       };
     });
 
-    // PASO 7: Mostrar resumen detallado
+    // PASO 6: Mostrar resumen detallado
     const totalSaldos = cuentasConSaldosFinales.reduce((sum, cuenta) => sum + cuenta.saldo, 0);
     
     console.log('\n💰 RESUMEN DE SALDOS BANCARIOS:');
@@ -495,7 +751,6 @@ function crearCuentasConSaldosIniciales(cuentas, saldosConocidos) {
 
 /**
  * ✅ FUNCIÓN MEGA-OPTIMIZADA: Para procesar TODAS las facturas hasta encontrar las más recientes
- * OBJETIVO: Llegar a 2024-2025
  */
 const obtenerCuentasPorPagar = async () => {
   console.log('💸 Obteniendo compras (MEGA-PROCESAMIENTO para llegar a 2024-2025)...');
@@ -510,131 +765,75 @@ const obtenerCuentasPorPagar = async () => {
     const maxPages = 800; // 800 páginas = 40,000 facturas máximo
     
     console.log(`🚀 MEGA-PROCESAMIENTO: hasta ${maxPages} páginas (${maxPages * limit} facturas)`);
-    console.log(`⏱️ Estimado: ~${Math.ceil(maxPages * 0.4 / 60)} minutos con optimizaciones`);
-    console.log(`🎯 OBJETIVO: Encontrar facturas de 2024-2025\n`);
+    console.log(`⏱️ Estimado: ~${Math.ceil(maxPages * 0.5)} minutos`);
 
-    let consecutiveErrors = 0;
-    const maxConsecutiveErrors = 5;
-    let lastProgressReport = 0;
+    let paginasConDatos = 0;
+    let ultimaFechaEncontrada = null;
 
-    while (hasMoreData && currentPage <= maxPages && consecutiveErrors < maxConsecutiveErrors) {
+    while (hasMoreData && currentPage <= maxPages) {
       try {
-        // ✅ PAUSA OPTIMIZADA: Rápida pero segura
-        let pausaMs = 150; // Pausa base más rápida
-        if (currentPage > 200) pausaMs = 200;  // Ligeramente más lento después de 200
-        if (currentPage > 500) pausaMs = 300;  // Más cuidadoso en páginas altas
-        
-        // ✅ LOG OPTIMIZADO: Solo cada 25 páginas para no saturar
-        if (currentPage % 25 === 0) {
-          console.log(`📄 Página ${currentPage}/${maxPages} (${allCompras.length} facturas | pausa: ${pausaMs}ms)`);
-        }
-        
-        const url = `/compras?limit=${limit}&page=${currentPage}`;
-        const data = await fetchFromChipax(url, { maxRetries: 3, retryDelay: 1000 });
-        
-        let pageItems = [];
-        if (Array.isArray(data)) {
-          pageItems = data;
-        } else if (data.items && Array.isArray(data.items)) {
-          pageItems = data.items;
-        }
+        const compras = await fetchFromChipax(`/compras?page=${currentPage}&limit=${limit}`);
 
-        if (pageItems && pageItems.length > 0) {
-          allCompras.push(...pageItems);
-          consecutiveErrors = 0; // Reset counter en éxito
-          
-          // ✅ ANÁLISIS DE FECHAS: Verificar si estamos llegando a 2024-2025
-          if (pageItems.length > 0) {
-            const fechas = pageItems
-              .map(item => item.fechaEmision || item.fecha_emision || item.fecha || '')
-              .filter(fecha => fecha && fecha.length > 0)
-              .map(fecha => new Date(fecha))
-              .filter(fecha => !isNaN(fecha.getTime()));
-            
-            if (fechas.length > 0) {
-              const fechaMasReciente = new Date(Math.max(...fechas));
-              const diasDesdeMasReciente = Math.floor((new Date() - fechaMasReciente) / (1000 * 60 * 60 * 24));
+        if (compras && compras.items && Array.isArray(compras.items)) {
+          if (compras.items.length > 0) {
+            allCompras.push(...compras.items);
+            paginasConDatos++;
+
+            // ✅ CRITERIO DE PARADA: Verificar fechas para llegar a 2024
+            const fechasEnPagina = compras.items
+              .map(c => c.fechaEmision || c.fecha_emision || c.fecha || '')
+              .filter(f => f)
+              .sort();
+
+            if (fechasEnPagina.length > 0) {
+              const fechaMasAntigua = fechasEnPagina[0];
+              ultimaFechaEncontrada = fechaMasAntigua;
               
-              // ✅ LOG INTELIGENTE: Solo cuando hay cambios significativos
+              // Log cada 50 páginas
               if (currentPage % 50 === 0) {
-                console.log(`📅 Fecha más reciente: ${fechaMasReciente.toLocaleDateString()} (${diasDesdeMasReciente} días) ${fechaMasReciente.getFullYear() >= 2024 ? '✅ ALCANZADO' : `📈 Año ${fechaMasReciente.getFullYear()}`}\n`);
+                console.log(`📄 Página ${currentPage}: ${allCompras.length} compras | Fecha más antigua: ${fechaMasAntigua}`);
               }
-              
-              // ✅ DETECCIÓN DE ÉXITO: Facturas de 2024-2025
-              if (fechaMasReciente.getFullYear() >= 2024) {
-                console.log(`🎉 ¡OBJETIVO ALCANZADO! Facturas de ${fechaMasReciente.getFullYear()} encontradas`);
-                
-                // Continuar un poco más para asegurar que tenemos las más recientes
-                if (diasDesdeMasReciente <= 180) { // Si son de los últimos 6 meses
-                  console.log(`🎯 Facturas muy recientes encontradas. Procesando 50 páginas más para completitud...`);
-                  maxPages = Math.min(maxPages, currentPage + 50);
-                }
-              }
-              
-              // ✅ OPTIMIZACIÓN: Si vamos muy lentos, acelerar
-              if (fechaMasReciente.getFullYear() < 2023 && currentPage > 300) {
-                console.log(`⚡ Acelerando búsqueda - aún en ${fechaMasReciente.getFullYear()}`);
-                pausaMs = Math.max(100, pausaMs - 50); // Reducir pausa
+
+              // ✅ PARAR cuando llegamos a 2024 o antes
+              if (fechaMasAntigua.includes('2024') || fechaMasAntigua.includes('2023')) {
+                console.log(`🎯 ¡ALCANZAMOS 2024! Fecha encontrada: ${fechaMasAntigua}`);
+                console.log(`📊 Total procesado: ${allCompras.length} facturas en ${currentPage} páginas`);
+                hasMoreData = false;
+                break;
               }
             }
           }
-          
-          if (pageItems.length < limit) {
-            console.log(`📄 Última página disponible (${pageItems.length} items < ${limit})`);
+
+          if (compras.items.length < limit) {
             hasMoreData = false;
           } else {
             currentPage++;
           }
+        } else if (Array.isArray(compras)) {
+          allCompras.push(...compras);
+          hasMoreData = false;
         } else {
-          console.log(`📄 Página ${currentPage} vacía - fin de datos`);
           hasMoreData = false;
         }
 
-        // ✅ PAUSA INTELIGENTE
-        await new Promise(resolve => setTimeout(resolve, pausaMs));
+        // Pausa para evitar rate limiting
+        await new Promise(resolve => setTimeout(resolve, 200));
 
       } catch (error) {
-        consecutiveErrors++;
-        console.error(`❌ Error página ${currentPage} (${consecutiveErrors}/${maxConsecutiveErrors}): ${error.message}`);
-        
+        console.error(`❌ Error página ${currentPage}:`, error);
         if (error.message.includes('429') || error.message.includes('Too Many Requests')) {
-          console.warn(`⚠️ Rate limit - pausa de 15 segundos...`);
-          await new Promise(resolve => setTimeout(resolve, 15000));
-          consecutiveErrors = Math.max(0, consecutiveErrors - 1); // Reducir contador tras espera
-        } else if (consecutiveErrors >= maxConsecutiveErrors) {
-          console.warn(`⚠️ Demasiados errores. Finalizando con ${allCompras.length} facturas obtenidas.`);
-          hasMoreData = false;
+          console.warn('⚠️ Rate limit detectado, pausando 10 segundos...');
+          await new Promise(resolve => setTimeout(resolve, 10000));
         } else {
-          // ✅ PEQUEÑA PAUSA antes de reintentar
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          currentPage++; // Continuar con la siguiente página
+          hasMoreData = false;
         }
       }
     }
 
-    console.log(`\n🏁 PROCESAMIENTO COMPLETADO:`);
-    console.log(`📄 Páginas procesadas: ${currentPage - 1}`);
+    console.log(`✅ MEGA-PROCESAMIENTO COMPLETO:`);
     console.log(`📊 Total facturas obtenidas: ${allCompras.length}`);
-    
-    // ✅ ANÁLISIS FINAL: Mostrar distribución por años
-    const facturasPorAno = {};
-    allCompras.forEach(factura => {
-      const fecha = factura.fechaEmision || factura.fecha_emision || factura.fecha || '';
-      if (fecha) {
-        const year = new Date(fecha).getFullYear();
-        if (!isNaN(year)) {
-          facturasPorAno[year] = (facturasPorAno[year] || 0) + 1;
-        }
-      }
-    });
-    
-    console.log('\n📅 DISTRIBUCIÓN POR AÑOS:');
-    Object.keys(facturasPorAno)
-      .sort((a, b) => b - a) // Ordenar por año descendente
-      .slice(0, 5) // Mostrar solo los 5 años más recientes
-      .forEach(year => {
-        console.log(`${year}: ${facturasPorAno[year]} facturas`);
-      });
+    console.log(`📄 Páginas procesadas: ${currentPage}`);
+    console.log(`📅 Última fecha encontrada: ${ultimaFechaEncontrada || 'N/A'}`);
 
     return allCompras;
 
@@ -645,36 +844,59 @@ const obtenerCuentasPorPagar = async () => {
 };
 
 /**
- * ✅ FUNCIÓN ORIGINAL: Obtener cuentas por cobrar (SIN CAMBIOS)
+ * ✅ FUNCIÓN MEGA-OPTIMIZADA: Para obtener TODOS los DTEs necesarios
  */
 const obtenerCuentasPorCobrar = async () => {
-  console.log('📊 Obteniendo DTEs (facturas de venta)...');
+  console.log('📋 Obteniendo DTEs (MEGA-PROCESAMIENTO para llegar a 2024-2025)...');
 
   try {
     let allDtes = [];
     let currentPage = 1;
     let hasMoreData = true;
     const limit = 50;
-    const maxPages = 100; // Límite razonable
+    
+    // ✅ MEGA AUMENTO: Para procesar todos los DTEs necesarios
+    const maxPages = 800; // 800 páginas = 40,000 DTEs máximo
+    
+    console.log(`🚀 MEGA-PROCESAMIENTO DTEs: hasta ${maxPages} páginas (${maxPages * limit} DTEs)`);
+    console.log(`⏱️ Estimado: ~${Math.ceil(maxPages * 0.5)} minutos`);
+
+    let ultimaFechaEncontrada = null;
 
     while (hasMoreData && currentPage <= maxPages) {
       try {
-        const url = `/dtes?limit=${limit}&page=${currentPage}`;
-        console.log(`📄 Obteniendo página ${currentPage} de DTEs...`);
-        
-        const data = await fetchFromChipax(url, { maxRetries: 3, retryDelay: 1000 });
-        
-        let pageItems = [];
-        if (Array.isArray(data)) {
-          pageItems = data;
-        } else if (data.items && Array.isArray(data.items)) {
-          pageItems = data.items;
-        }
+        const dtes = await fetchFromChipax(`/dtes?page=${currentPage}&limit=${limit}`);
 
-        if (pageItems && pageItems.length > 0) {
-          allDtes.push(...pageItems);
-          
-          if (pageItems.length < limit) {
+        if (dtes && dtes.items && Array.isArray(dtes.items)) {
+          if (dtes.items.length > 0) {
+            allDtes.push(...dtes.items);
+
+            // ✅ CRITERIO DE PARADA: Verificar fechas para llegar a 2024
+            const fechasEnPagina = dtes.items
+              .map(d => d.fechaEmision || d.fecha_emision || d.fecha || '')
+              .filter(f => f)
+              .sort();
+
+            if (fechasEnPagina.length > 0) {
+              const fechaMasAntigua = fechasEnPagina[0];
+              ultimaFechaEncontrada = fechaMasAntigua;
+              
+              // Log cada 50 páginas
+              if (currentPage % 50 === 0) {
+                console.log(`📄 Página ${currentPage}: ${allDtes.length} DTEs | Fecha más antigua: ${fechaMasAntigua}`);
+              }
+
+              // ✅ PARAR cuando llegamos a 2024 o antes
+              if (fechaMasAntigua.includes('2024') || fechaMasAntigua.includes('2023')) {
+                console.log(`🎯 ¡ALCANZAMOS 2024 EN DTEs! Fecha encontrada: ${fechaMasAntigua}`);
+                console.log(`📊 Total DTEs procesados: ${allDtes.length} en ${currentPage} páginas`);
+                hasMoreData = false;
+                break;
+              }
+            }
+          }
+
+          if (dtes.items.length < limit) {
             hasMoreData = false;
           } else {
             currentPage++;
@@ -706,12 +928,15 @@ const obtenerCuentasPorCobrar = async () => {
   }
 };
 
-// Exportaciones
+// ============================================================================
+// EXPORTACIONES
+// ============================================================================
 const chipaxService = {
   getChipaxToken,
   fetchFromChipax,
   fetchAllPaginatedData,
   obtenerSaldosBancarios,
+  obtenerSaldosBancariosConMovimientos, // 🆕 NUEVA FUNCIÓN MEJORADA
   obtenerCuentasPorCobrar,
   obtenerCuentasPorPagar,
 };
@@ -723,6 +948,7 @@ export {
   fetchFromChipax,
   fetchAllPaginatedData,
   obtenerSaldosBancarios,
+  obtenerSaldosBancariosConMovimientos, // 🆕 NUEVA FUNCIÓN MEJORADA
   obtenerCuentasPorCobrar,
   obtenerCuentasPorPagar,
 };
