@@ -44,24 +44,22 @@ const DashboardFinancieroIntegrado = () => {
   });
 
   // === FUNCIONES DE CARGA ===
-  const cargarSaldosBancarios = async () => {
-    try {
-      console.log('🏦 Cargando saldos bancarios...');
-      const datos = await chipaxService.obtenerSaldosBancariosConMovimientos();
-      
-      if (Array.isArray(datos)) {
-        setSaldosBancarios(datos);
-        console.log(`✅ ${datos.length} saldos cargados`);
-      } else {
-        console.warn('⚠️ Saldos no es array, usando array vacío');
-        setSaldosBancarios([]);
-      }
-    } catch (error) {
-      console.error('❌ Error cargando saldos:', error);
+const datos = await chipaxService.obtenerSaldosBancarios();
+    
+    // ✅ CORREGIDO: Los datos ya vienen como array directo
+    if (Array.isArray(datos) && datos.length > 0) {
+      setSaldosBancarios(datos);
+      console.log('✅ Saldos bancarios cargados:', datos.length);
+    } else {
+      console.warn('⚠️ No se obtuvieron saldos bancarios');
       setSaldosBancarios([]);
-      setErrors(prev => [...prev, `Saldos: ${error.message}`]);
     }
-  };
+  } catch (error) {
+    console.error('❌ Error cargando saldos:', error);
+    setErrors(prev => [...prev, `Error cargando saldos: ${error.message}`]);
+  }
+};
+
 
   const cargarCuentasPorCobrar = async () => {
     try {
