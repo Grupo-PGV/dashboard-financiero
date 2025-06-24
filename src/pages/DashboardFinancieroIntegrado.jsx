@@ -1,4 +1,4 @@
-// DashboardFinancieroIntegrado.jsx - VERSIÓN CORREGIDA PARA NETLIFY
+// DashboardFinancieroIntegrado.jsx - VERSIÓN FINAL CORREGIDA
 import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, Calendar, Wallet, PieChart, TrendingUp, 
@@ -997,41 +997,14 @@ const DashboardFinancieroIntegrado = () => {
               🔧 Debugger Compras
             </button>
           </div>
-
-          {/* Info CORS si hay errores */}
-          {errors.some(error => error.includes('CORS')) && (
-            <div className="mt-6">
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0">
-                    <AlertCircle className="h-5 w-5 text-orange-400" />
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-orange-800">
-                      ⚠️ Error de CORS - Configuración necesaria
-                    </h3>
-                    <p className="mt-2 text-sm text-orange-700">
-                      La aplicación no puede conectar directamente con la API de Chipax desde el navegador 
-                      debido a restricciones CORS. Para probar en desarrollo:
-                    </p>
-                    <ol className="mt-2 text-sm text-orange-700 list-decimal list-inside space-y-1">
-                      <li>Abre Chrome con: <code className="bg-orange-100 px-1 rounded">--disable-web-security --user-data-dir=/tmp/chrome_dev</code></li>
-                      <li>O usa un proxy CORS como <code className="bg-orange-100 px-1 rounded">cors-anywhere</code></li>
-                      <li>En producción necesitarás un backend proxy</li>
-                    </ol>
-                  </div>
-                </div>
-              </div>
-            </div>
-            )}
-        )}
+        </div>
 
         {/* Contenido según pestaña activa */}
         {pestanaActiva === 'dashboard' && (
           <>
             <ControlesPrincipales />
             
-            {/* ✅ Mensaje de ayuda si no hay datos cargados */}
+            {/* Mensaje de ayuda si no hay datos cargados */}
             {saldosBancarios.length === 0 && cuentasPorCobrar.length === 0 && cuentasPorPagar.length === 0 && !loading && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
                 <div className="flex items-start gap-3">
