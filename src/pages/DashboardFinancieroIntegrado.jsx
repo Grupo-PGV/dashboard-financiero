@@ -44,7 +44,7 @@ const DashboardFinancieroIntegrado = () => {
     itemsPorPagina: 50
   });
 
-  // === FUNCIONES DE CARGA ===
+  // === FUNCIONES DE CARGA CORREGIDAS ===
   const cargarSaldosBancarios = async () => {
     try {
       console.log('🏦 Cargando saldos bancarios...');
@@ -84,23 +84,46 @@ const DashboardFinancieroIntegrado = () => {
     }
   };
 
+  // ✅ FUNCIÓN CORREGIDA: cargarCuentasPorPagar
   const cargarCuentasPorPagar = async () => {
     try {
       console.log('💸 Cargando cuentas por pagar...');
       const compras = await chipaxService.obtenerCuentasPorPagar();
       
-      if (Array.isArray(compras)) {
-        // ✅ FILTRAR SOLO 2025 por defecto
-        const compras2025 = compras.filter(compra => {
-          const fecha = compra.fechaEmision || compra.fecha_emision || compra.fecha || '';
-          return fecha.includes('2025');
+      console.log('🔧 DEBUG RESPUESTA DEL SERVICIO:');
+      console.log(`📊 Tipo: ${typeof compras}`);
+      console.log(`📊 Es array: ${Array.isArray(compras)}`);
+      console.log(`📊 Longitud: ${compras ? compras.length : 'undefined'}`);
+      
+      if (Array.isArray(compras) && compras.length > 0) {
+        // ✅ NO FILTRAR por año todavía, usar todas las facturas que encontramos
+        console.log('📋 Procesando facturas encontradas...');
+        console.log('📋 Muestra de fechas encontradas:');
+        compras.slice(0, 5).forEach((compra, i) => {
+          const fechaEmision = compra.fechaEmision || compra.fecha_emision || 'Sin fecha';
+          console.log(`  ${i + 1}. Folio ${compra.folio}: ${fechaEmision} - ${compra.razonSocial}`);
         });
         
-        const cuentasAdaptadas = adaptarCuentasPorPagar(compras2025);
+        const cuentasAdaptadas = adaptarCuentasPorPagar(compras);
         setCuentasPorPagar(cuentasAdaptadas);
-        console.log(`✅ ${cuentasAdaptadas.length} facturas de 2025 cargadas por defecto`);
+        console.log(`✅ ${cuentasAdaptadas.length} facturas cargadas y adaptadas`);
+        
+        // ✅ Mostrar análisis por año
+        const porAño = {};
+        cuentasAdaptadas.forEach(cuenta => {
+          const año = new Date(cuenta.fecha).getFullYear();
+          porAño[año] = (porAño[año] || 0) + 1;
+        });
+        
+        console.log('📊 DISTRIBUCIÓN POR AÑO:');
+        Object.entries(porAño)
+          .sort((a, b) => parseInt(b[0]) - parseInt(a[0]))
+          .forEach(([año, cantidad]) => {
+            console.log(`   ${año}: ${cantidad} facturas`);
+          });
+        
       } else {
-        console.warn('⚠️ Compras no es array');
+        console.warn('⚠️ No se recibieron facturas del servicio');
         setCuentasPorPagar([]);
       }
     } catch (error) {
@@ -110,31 +133,97 @@ const DashboardFinancieroIntegrado = () => {
     }
   };
 
-  const cargarSolo2025 = async () => {
+  // ✅ NUEVA FUNCIÓN: Cargar facturas recientes
+  const cargarFacturasRecientes = async () => {
     try {
       setLoading(true);
       setErrors([]);
-      console.log('🚀 Cargando SOLO facturas de 2025...');
+      console.log('🚀 Cargando facturas más recientes...');
+      
+      const compras = await chipaxService.obtenerCuentasPorPagar();
+      
+      if (Array.isArray(compras) && compras.length > 0) {
+        // Buscar las facturas más recientes (últimos 6 meses)
+        const seisMesesAtras = new Date();
+        seisMesesAtras.setMonth(seisMesesAtras.getMonth() - 6);
+        
+        const facturasRecientes = compras.filter(compra => {
+          const fechaEmision = new Date(compra.fechaEmision || compra.fecha_emision || '1900-01-01');
+          return fechaEmision >= seisMesesAtras;
+        });
+        
+        console.log(`📊 Encontradas ${facturasRecientes.length} facturas de los últimos 6 meses`);
+        
+        if (facturasRecientes.length > 0) {
+          const cuentasAdaptadas = adaptarCuentasPorPagar(facturasRecientes);
+          setCuentasPorPagar(cuentasAdaptadas);
+          console.log(`✅ ${cuentasAdaptadas.length} facturas recientes cargadas`);
+          
+          // Mostrar las 5 más recientes
+          console.log('📋 LAS 5 FACTURAS MÁS RECIENTES ENCONTRADAS:');
+          cuentasAdaptadas
+            .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+            .slice(0, 5)
+            .forEach((factura, i) => {
+              const diasHace = Math.floor((new Date() - new Date(factura.fecha)) / (1000 * 60 * 60 * 24));
+              console.log(`  ${i + 1}. Folio ${factura.folio}: ${factura.fecha} (hace ${diasHace} días) - ${factura.proveedor}`);
+            });
+        } else {
+          console.log('📊 Usando todas las facturas disponibles (no hay facturas recientes)');
+          const cuentasAdaptadas = adaptarCuentasPorPagar(compras);
+          setCuentasPorPagar(cuentasAdaptadas);
+        }
+      } else {
+        console.warn('⚠️ No se recibieron facturas del servicio');
+        setCuentasPorPagar([]);
+      }
+    } catch (error) {
+      console.error('❌ Error cargando facturas recientes:', error);
+      setErrors(prev => [...prev, `Facturas recientes: ${error.message}`]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ FUNCIÓN MODIFICADA: cargarFacturasPorAño
+  const cargarFacturasPorAño = async (año = 2025) => {
+    try {
+      setLoading(true);
+      setErrors([]);
+      console.log(`🚀 Buscando facturas del año ${año}...`);
       
       const compras = await chipaxService.obtenerCuentasPorPagar();
       
       if (Array.isArray(compras)) {
-        // Filtrar solo 2025
-        const compras2025 = compras.filter(compra => {
+        // Filtrar por año específico
+        const comprasDelAño = compras.filter(compra => {
           const fecha = compra.fechaEmision || compra.fecha_emision || compra.fecha || '';
-          return fecha.includes('2025');
+          return fecha.includes(año.toString());
         });
         
-        const cuentasAdaptadas = adaptarCuentasPorPagar(compras2025);
-        setCuentasPorPagar(cuentasAdaptadas);
-        console.log(`✅ ${cuentasAdaptadas.length} facturas de 2025 cargadas`);
+        console.log(`📊 Encontradas ${comprasDelAño.length} facturas del año ${año}`);
+        
+        if (comprasDelAño.length > 0) {
+          const cuentasAdaptadas = adaptarCuentasPorPagar(comprasDelAño);
+          setCuentasPorPagar(cuentasAdaptadas);
+          console.log(`✅ ${cuentasAdaptadas.length} facturas del ${año} cargadas`);
+        } else {
+          console.log(`⚠️ No se encontraron facturas del año ${año}`);
+          console.log('🔍 Probando con facturas recientes...');
+          await cargarFacturasRecientes();
+        }
       }
     } catch (error) {
-      console.error('❌ Error cargando facturas 2025:', error);
-      setErrors(prev => [...prev, `Facturas 2025: ${error.message}`]);
+      console.error(`❌ Error cargando facturas del ${año}:`, error);
+      setErrors(prev => [...prev, `Facturas ${año}: ${error.message}`]);
     } finally {
       setLoading(false);
     }
+  };
+
+  // ✅ FUNCIÓN RENOMBRADA: cargarSolo2025 ahora llama a cargarFacturasPorAño
+  const cargarSolo2025 = async () => {
+    await cargarFacturasPorAño(2025);
   };
 
   // ✅ FUNCIONES ESPECÍFICAS para cada módulo
@@ -289,12 +378,12 @@ const DashboardFinancieroIntegrado = () => {
           Mostrando {((paginacion.paginaActual - 1) * paginacion.itemsPorPagina) + 1} a{' '}
           {Math.min(paginacion.paginaActual * paginacion.itemsPorPagina, 
                    nombre === 'compras' ? obtenerComprasFiltradas().length : cuentasPorCobrar.length)} de{' '}
-          {nombre === 'compras' ? obtenerComprasFiltradas().length : cuentasPorCobrar.length} registros
+          {nombre === 'compras' ? obtenerComprasFiltradas().length : cuentasPorCobrar.length} resultados
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center space-x-2">
           <button
-            onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: 1 }))}
+            onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: Math.max(1, prev.paginaActual - 1) }))}
             disabled={paginacion.paginaActual === 1}
             className="px-2 py-1 text-gray-500 hover:text-gray-700 disabled:opacity-50"
           >
@@ -305,8 +394,8 @@ const DashboardFinancieroIntegrado = () => {
             <button
               key={pagina}
               onClick={() => setPaginacion(prev => ({ ...prev, paginaActual: pagina }))}
-              className={`px-3 py-1 text-sm rounded ${
-                pagina === paginacion.paginaActual
+              className={`px-3 py-1 rounded text-sm ${
+                paginacion.paginaActual === pagina
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
@@ -327,8 +416,10 @@ const DashboardFinancieroIntegrado = () => {
     );
   };
 
+  // ✅ CONTROLES PRINCIPALES MODIFICADOS con botones adicionales
   const ControlesPrincipales = () => (
     <div className="mb-6">
+      {/* Primera fila de botones principales */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         {/* Botón Cuentas por Pagar */}
         <button
@@ -382,6 +473,65 @@ const DashboardFinancieroIntegrado = () => {
           </div>
         </button>
       </div>
+
+      {/* ✅ SEGUNDA FILA DE BOTONES NUEVOS */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button
+          onClick={cargarFacturasRecientes}
+          disabled={loading}
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+        >
+          <Clock size={16} className="inline mr-2" />
+          Cargar Facturas Recientes (6 meses)
+        </button>
+        
+        <button
+          onClick={() => cargarFacturasPorAño(2025)}
+          disabled={loading}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+        >
+          <Calendar size={16} className="inline mr-2" />
+          Buscar Facturas 2025
+        </button>
+        
+        <button
+          onClick={() => cargarFacturasPorAño(2024)}
+          disabled={loading}
+          className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 disabled:opacity-50"
+        >
+          <Calendar size={16} className="inline mr-2" />
+          Cargar Facturas 2024
+        </button>
+        
+        <button
+          onClick={cargarCuentasPorPagar}
+          disabled={loading}
+          className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 disabled:opacity-50"
+        >
+          <Database size={16} className="inline mr-2" />
+          Cargar Todas las Facturas
+        </button>
+      </div>
+      
+      {/* ✅ INFORMACIÓN DE LAS FACTURAS CARGADAS */}
+      {cuentasPorPagar.length > 0 && (
+        <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded mb-4">
+          <strong>📊 Facturas cargadas:</strong> {cuentasPorPagar.length} facturas
+          {cuentasPorPagar.length > 0 && (
+            <>
+              <br />
+              <strong>📅 Rango de fechas:</strong> {
+                (() => {
+                  const fechas = cuentasPorPagar.map(c => new Date(c.fecha)).sort((a, b) => a - b);
+                  const primera = fechas[0].toISOString().split('T')[0];
+                  const ultima = fechas[fechas.length - 1].toISOString().split('T')[0];
+                  return `${primera} → ${ultima}`;
+                })()
+              }
+            </>
+          )}
+        </div>
+      )}
 
       {/* Estado de conectividad */}
       <div className="flex items-center justify-between">
@@ -509,15 +659,13 @@ const DashboardFinancieroIntegrado = () => {
                 <AlertCircle className="text-red-600" size={24} />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">
-                  Por Pagar {añoMostrado === '2025' ? '(2025)' : ''}
-                </p>
+                <p className="text-sm font-medium text-gray-600">Por Pagar</p>
                 <p className="text-2xl font-semibold text-gray-900">
                   {cuentasPorPagar.length > 0 ? formatCurrency(totalPorPagar) : 'Sin datos'}
                 </p>
                 {cuentasPorPagar.length > 0 && (
                   <p className="text-xs text-gray-500 mt-1">
-                    {cuentasPorPagar.length} facturas
+                    {cuentasPorPagar.length} facturas {añoMostrado}
                   </p>
                 )}
               </div>
@@ -529,301 +677,349 @@ const DashboardFinancieroIntegrado = () => {
   };
 
   const ResumenFacturas2025 = () => {
+    if (cuentasPorPagar.length === 0) return null;
+
     const facturas2025 = cuentasPorPagar.filter(c => new Date(c.fecha).getFullYear() === 2025);
     
     if (facturas2025.length === 0) {
-      return null;
+      // Mostrar información sobre el año que sí hay facturas
+      const añosDisponibles = [...new Set(cuentasPorPagar.map(c => new Date(c.fecha).getFullYear()))]
+        .sort((a, b) => b - a);
+      
+      return (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <h3 className="font-semibold text-yellow-800 mb-2">📅 Facturas cargadas por año:</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            {añosDisponibles.map(año => {
+              const facturasDel_año = cuentasPorPagar.filter(c => new Date(c.fecha).getFullYear() === año);
+              const montoDel_año = facturasDel_año.reduce((sum, c) => sum + (c.monto || 0), 0);
+              
+              return (
+                <div key={año} className="text-center p-2 bg-white rounded">
+                  <div className="font-medium text-gray-800">{año}</div>
+                  <div className="text-xs text-gray-600">{facturasDel_año.length} facturas</div>
+                  <div className="text-xs text-gray-600">{formatCurrency(montoDel_año)}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
     }
 
-    const estadisticas = {
-      total: facturas2025.length,
-      // ✅ CORRECCIÓN: Estados desconocidos son pendientes de aprobación
-      pendientesAprobacion: facturas2025.filter(f => 
-        f.estado === 'Pendiente Aprobación' || f.estado === 'Estado Desconocido'
-      ).length,
-      aceptadas: facturas2025.filter(f => f.estado === 'Aceptado').length,
-      pagadasRealmente: facturas2025.filter(f => f.estado === 'Pagado Realmente').length,
-      montoTotal: facturas2025.reduce((sum, f) => sum + (f.montoTotal || 0), 0)
-    };
+    const totalMonto2025 = facturas2025.reduce((sum, cuenta) => sum + (cuenta.monto || 0), 0);
+    const facturasPendientes = facturas2025.filter(c => c.estado !== 'Pagado' && !c.estaPagado);
+    const facturasPagadas = facturas2025.filter(c => c.estado === 'Pagado' || c.estaPagado);
 
     return (
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <div className="flex items-center gap-2 mb-4">
-          <PieChart className="text-blue-500" size={20} />
-          <h3 className="text-lg font-semibold">Resumen Facturas 2025</h3>
-          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-            {estadisticas.total} facturas
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          <div className="text-center p-3 bg-blue-50 rounded-lg">
-            <div className="text-2xl font-bold text-blue-900">{estadisticas.total}</div>
-            <div className="text-sm text-blue-700">Total 2025</div>
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+        <h3 className="font-semibold text-green-800 mb-3">📊 Resumen Facturas 2025</h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-700">{facturas2025.length}</div>
+            <div className="text-green-600">Total facturas</div>
           </div>
-          <div className="text-center p-3 bg-orange-50 rounded-lg">
-            <div className="text-2xl font-bold text-orange-900">{estadisticas.pendientesAprobacion}</div>
-            <div className="text-sm text-orange-700">Pend. Aprobación</div>
+          <div className="text-center">
+            <div className="text-lg font-semibold text-green-700">{formatCurrency(totalMonto2025)}</div>
+            <div className="text-green-600">Monto total</div>
           </div>
-          <div className="text-center p-3 bg-blue-50 rounded-lg">
-            <div className="text-2xl font-bold text-blue-900">{estadisticas.aceptadas}</div>
-            <div className="text-sm text-blue-700">Aceptadas</div>
+          <div className="text-center">
+            <div className="text-lg font-semibold text-orange-700">{facturasPendientes.length}</div>
+            <div className="text-orange-600">Pendientes</div>
           </div>
-          <div className="text-center p-3 bg-green-50 rounded-lg">
-            <div className="text-2xl font-bold text-green-900">{estadisticas.pagadasRealmente}</div>
-            <div className="text-sm text-green-700">Pagadas</div>
-          </div>
-        </div>
-
-        <div className="text-center p-4 bg-gray-50 rounded-lg">
-          <div className="text-xl font-bold text-gray-900">
-            {formatCurrency(estadisticas.montoTotal)}
-          </div>
-          <div className="text-sm text-gray-600">
-            Monto total facturas 2025
-          </div>
-        </div>
-
-        {/* ✅ NOTA EXPLICATIVA sobre la corrección */}
-        <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="text-orange-600 mt-0.5" size={16} />
-            <div className="text-sm">
-              <p className="font-semibold text-orange-800 mb-1">
-                Estados Corregidos
-              </p>
-              <p className="text-orange-700">
-                Las facturas que aparecían como "Estado Desconocido" han sido reclasificadas 
-                como "Pendientes de Aprobación" según tu indicación.
-              </p>
-            </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold text-blue-700">{facturasPagadas.length}</div>
+            <div className="text-blue-600">Pagadas</div>
           </div>
         </div>
       </div>
     );
   };
 
-  const TablaCompras = () => (
-    <div className="bg-white rounded-lg shadow-md">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-900">Cuentas por Pagar</h2>
-          <div className="flex items-center gap-4">
-            <input
-              type="text"
-              placeholder="Buscar por folio..."
-              value={filtroCompras.folioFiltro}
-              onChange={(e) => setFiltroCompras(prev => ({ ...prev, folioFiltro: e.target.value }))}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-            />
-            <label className="flex items-center gap-2 text-sm">
+  const TablaCompras = () => {
+    const comprasPaginadas = obtenerComprasPaginadas();
+    const totalPaginas = getTotalPaginasCompras();
+
+    if (cuentasPorPagar.length === 0) {
+      return (
+        <div className="bg-white rounded-lg shadow-md p-6 text-center">
+          <AlertCircle className="mx-auto text-gray-400 mb-4" size={48} />
+          <h3 className="text-lg font-medium text-gray-600 mb-2">Sin facturas de compra</h3>
+          <p className="text-gray-500">Haz clic en "Cuentas por Pagar" para cargar las facturas</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-white rounded-lg shadow-md">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-800">💸 Cuentas por Pagar</h2>
+            <div className="text-sm text-gray-600">
+              {obtenerComprasFiltradas().length} facturas
+            </div>
+          </div>
+
+          {/* Filtros */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <Search size={14} className="inline mr-1" />
+                Buscar por folio
+              </label>
               <input
-                type="checkbox"
-                checked={filtroCompras.soloNoPagadas}
-                onChange={(e) => setFiltroCompras(prev => ({ ...prev, soloNoPagadas: e.target.checked }))}
+                type="text"
+                placeholder="Número de folio..."
+                value={filtroCompras.folioFiltro}
+                onChange={(e) => setFiltroCompras(prev => ({ ...prev, folioFiltro: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
               />
-              Solo no pagadas
-            </label>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha desde</label>
+              <input
+                type="date"
+                value={filtroCompras.fechaInicio}
+                onChange={(e) => setFiltroCompras(prev => ({ ...prev, fechaInicio: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha hasta</label>
+              <input
+                type="date"
+                value={filtroCompras.fechaFin}
+                onChange={(e) => setFiltroCompras(prev => ({ ...prev, fechaFin: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+              />
+            </div>
+            
+            <div className="flex items-end">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={filtroCompras.soloNoPagadas}
+                  onChange={(e) => setFiltroCompras(prev => ({ ...prev, soloNoPagadas: e.target.checked }))}
+                  className="mr-2"
+                />
+                <span className="text-sm text-gray-700">Solo no pagadas</span>
+              </label>
+            </div>
           </div>
         </div>
-      </div>
-      <div className="p-6">
-        {cuentasPorPagar.length > 0 ? (
-          <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Folio</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proveedor</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monto</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {obtenerComprasPaginadas().map((compra, index) => (
-                    <tr key={index}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {compra.folio}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {compra.proveedor}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {compra.fecha}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          compra.estado === 'Pagado Realmente' ? 'bg-green-100 text-green-800' :
-                          compra.estado === 'Pendiente Aprobación' ? 'bg-orange-100 text-orange-800' :
-                          compra.estado === 'Estado Desconocido' ? 'bg-orange-100 text-orange-800' : // ✅ También naranja
-                          compra.estado === 'Aceptado' ? 'bg-blue-100 text-blue-800' :
-                          compra.estado === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {/* ✅ CORRECCIÓN: Mostrar "Pendiente Aprobación" para estados desconocidos */}
-                          {compra.estado === 'Estado Desconocido' ? 'Pendiente Aprobación' : compra.estado}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatCurrency(compra.montoTotal)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            
-            <ComponentePaginacion 
-              paginacion={paginacionCompras}
-              setPaginacion={setPaginacionCompras}
-              totalPaginas={getTotalPaginasCompras()}
-              nombre="compras"
-            />
-          </>
-        ) : (
-          <p className="text-gray-500">No hay datos de cuentas por pagar disponibles.</p>
+
+        {/* Tabla */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Folio</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {comprasPaginadas.map((cuenta, index) => (
+                <tr key={cuenta.id || index} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    {cuenta.folio}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    <div className="max-w-xs truncate" title={cuenta.proveedor}>
+                      {cuenta.proveedor}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {cuenta.fecha}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                    {formatCurrency(cuenta.monto)}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                      cuenta.estaPagado
+                        ? 'bg-green-100 text-green-800'
+                        : cuenta.estaAnulado
+                        ? 'bg-gray-100 text-gray-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {cuenta.estado}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {totalPaginas > 1 && (
+          <ComponentePaginacion
+            paginacion={paginacionCompras}
+            setPaginacion={setPaginacionCompras}
+            totalPaginas={totalPaginas}
+            nombre="compras"
+          />
         )}
       </div>
-    </div>
-  );
+    );
+  };
 
-  const TablaCobrar = () => (
-    <div className="bg-white rounded-lg shadow-md">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-xl font-semibold text-gray-900">Cuentas por Cobrar</h2>
-      </div>
-      <div className="p-6">
-        {cuentasPorCobrar.length > 0 ? (
-          <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Folio</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vencimiento</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Saldo</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {obtenerCobrarPaginadas().map((cuenta, index) => (
-                    <tr key={index}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {cuenta.folio}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {cuenta.cliente}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {cuenta.fechaEmision}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {cuenta.fechaVencimiento || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatCurrency(cuenta.saldo)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+  const TablaCobrar = () => {
+    const cobrarPaginadas = obtenerCobrarPaginadas();
+    const totalPaginas = getTotalPaginasCobrar();
+
+    if (cuentasPorCobrar.length === 0) {
+      return (
+        <div className="bg-white rounded-lg shadow-md p-6 text-center">
+          <TrendingUp className="mx-auto text-gray-400 mb-4" size={48} />
+          <h3 className="text-lg font-medium text-gray-600 mb-2">Sin facturas por cobrar</h3>
+          <p className="text-gray-500">Haz clic en "Cuentas por Cobrar" para cargar las facturas</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-white rounded-lg shadow-md">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-800">📈 Cuentas por Cobrar</h2>
+            <div className="text-sm text-gray-600">
+              {cuentasPorCobrar.length} facturas
             </div>
-            
-            <ComponentePaginacion 
-              paginacion={paginacionCobrar}
-              setPaginacion={setPaginacionCobrar}
-              totalPaginas={getTotalPaginasCobrar()}
-              nombre="cobrar"
-            />
-          </>
-        ) : (
-          <p className="text-gray-500">No hay datos de cuentas por cobrar disponibles.</p>
-        )}
-      </div>
-    </div>
-  );
-
-  // === RENDER PRINCIPAL ===
-  return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Dashboard Financiero Integrado
-            </h1>
-            <p className="text-gray-600 mt-1">
-              Gestión completa de flujo de caja con datos de Chipax
-            </p>
           </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Folio</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Saldo</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {cobrarPaginadas.map((cuenta, index) => (
+                <tr key={cuenta.id || index} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    {cuenta.folio}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    <div className="max-w-xs truncate" title={cuenta.cliente}>
+                      {cuenta.cliente}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {cuenta.fecha}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                    {formatCurrency(cuenta.monto)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                    {formatCurrency(cuenta.saldo)}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                      cuenta.estaPagado
+                        ? 'bg-green-100 text-green-800'
+                        : cuenta.estaVencido
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {cuenta.estado}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {totalPaginas > 1 && (
+          <ComponentePaginacion
+            paginacion={paginacionCobrar}
+            setPaginacion={setPaginacionCobrar}
+            totalPaginas={totalPaginas}
+            nombre="cobrar"
+          />
+        )}
+      </div>
+    );
+  };
+
+  // === RENDERIZADO PRINCIPAL ===
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Header con pestañas */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">
+            📊 Dashboard Financiero Integrado - Chipax
+          </h1>
           
-          {/* Navegación de pestañas */}
-          <div className="flex gap-2">
+          {/* Pestañas de navegación */}
+          <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
             <button
               onClick={() => setPestanaActiva('dashboard')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 pestanaActiva === 'dashboard'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <PieChart size={16} className="inline mr-2" />
-              Dashboard
+              📊 Dashboard Principal
             </button>
             <button
               onClick={() => setPestanaActiva('saldos')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 pestanaActiva === 'saldos'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Wallet size={16} className="inline mr-2" />
-              Saldos Explorer
+              🏦 Explorador Saldos
             </button>
             <button
               onClick={() => setPestanaActiva('debugger')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 pestanaActiva === 'debugger'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Bug size={16} className="inline mr-2" />
-              Debugger
+              🔧 Debugger Compras
             </button>
           </div>
-        </div>
 
-        {/* Errores - Solo si hay errores */}
-        {errors.length > 0 && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertCircle className="text-red-500" size={20} />
-              <h3 className="font-semibold text-red-700">Errores de Carga</h3>
-            </div>
-            <ul className="text-sm text-red-600 space-y-1">
-              {errors.map((error, index) => (
-                <li key={index}>• {error}</li>
-              ))}
-            </ul>
-            
-            {/* ✅ Ayuda específica para errores CORS */}
-            {errors.some(error => error.includes('CORS')) && (
-              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
-                <div className="text-sm">
-                  <p className="font-semibold text-yellow-800 mb-1">
-                    💡 Solución para Error CORS:
-                  </p>
-                  <p className="text-yellow-700">
-                    Este error puede ocurrir desde el navegador. Considera usar un proxy 
-                    o configurar CORS en el servidor de Chipax. El dashboard funciona 
-                    correctamente desde localhost.
-                  </p>
+          {/* Info CORS si hay errores */}
+          {errors.some(error => error.includes('CORS')) && (
+            <div className="mt-6">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <AlertCircle className="h-5 w-5 text-orange-400" />
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-orange-800">
+                      ⚠️ Error de CORS - Configuración necesaria
+                    </h3>
+                    <p className="mt-2 text-sm text-orange-700">
+                      La aplicación no puede conectar directamente con la API de Chipax desde el navegador 
+                      debido a restricciones CORS. Para probar en desarrollo:
+                    </p>
+                    <ol className="mt-2 text-sm text-orange-700 list-decimal list-inside space-y-1">
+                      <li>Abre Chrome con: <code className="bg-orange-100 px-1 rounded">--disable-web-security --user-data-dir=/tmp/chrome_dev</code></li>
+                      <li>O usa un proxy CORS como <code className="bg-orange-100 px-1 rounded">cors-anywhere</code></li>
+                      <li>En producción necesitarás un backend proxy</li>
+                    </ol>
+                  </div>
                 </div>
               </div>
             )}
