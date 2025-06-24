@@ -1022,6 +1022,7 @@ const DashboardFinancieroIntegrado = () => {
                   </div>
                 </div>
               </div>
+            </div>
             )}
         )}
 
