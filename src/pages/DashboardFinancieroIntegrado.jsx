@@ -1023,7 +1023,6 @@ const DashboardFinancieroIntegrado = () => {
                 </div>
               </div>
             )}
-          </div>
         )}
 
         {/* Contenido según pestaña activa */}
