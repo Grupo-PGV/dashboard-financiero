@@ -1,4 +1,4 @@
-// ===================================================================
+/ ===================================================================
 // 🔧 CHIPAX ADAPTER COMPLETO - VERSIÓN FINAL CON ESTADOS CORREGIDOS
 // ===================================================================
 // chipaxAdapter.js - Adaptador completo para normalizar datos de Chipax API
