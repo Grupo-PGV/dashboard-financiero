@@ -148,18 +148,19 @@ const obtenerCuentasPorPagar = async () => {
 
   try {
     let allCompras = [];
-    let currentPage = 1;
+    let currentPage = 94; // ✅ OPTIMIZACIÓN: Comenzar desde página 94 donde están las facturas de 2025
     let hasMoreData = true;
     const limit = 50;
     
-    // ✅ NUEVA LÓGICA: Sin límite fijo de páginas
+    // ✅ NUEVA LÓGICA: Sin límite fijo de páginas, optimizada desde página 94
     let facturasMuyRecientesEncontradas = false;
     let facturasSinCambiosCount = 0;
-    const maxFacturasSinCambios = 5; // Si 5 páginas seguidas no tienen mejores fechas, parar
+    const maxFacturasSinCambios = 3; // Reducido a 3 ya que las facturas recientes están cerca
     
     const hoy = new Date();
-    let mejorFechaEncontrada = new Date('1900-01-01');
+    let mejorFechaEncontrada = new Date('2025-01-01'); // Empezar desde 2025
     
+    console.log(`🚀 BÚSQUEDA OPTIMIZADA: Comenzando desde página 94 (facturas 2025)`);
     console.log(`🔍 Buscando facturas hasta encontrar las de hoy: ${hoy.toISOString().split('T')[0]}...`);
 
     while (hasMoreData && !facturasMuyRecientesEncontradas) {
@@ -207,8 +208,8 @@ const obtenerCuentasPorPagar = async () => {
               break;
             }
             
-            // ✅ CRITERIO DE PARADA: Facturas de la última semana con suficientes datos
-            if (diasDesdeMasReciente <= 7 && allCompras.length >= 1000) {
+            // ✅ CRITERIO DE PARADA: Facturas de la última semana con menos datos necesarios
+            if (diasDesdeMasReciente <= 7 && allCompras.length >= 500) { // Reducido de 1000 a 500
               console.log(`🎯 Facturas de la última semana encontradas con ${allCompras.length} facturas totales`);
               facturasMuyRecientesEncontradas = true;
               break;
@@ -223,8 +224,8 @@ const obtenerCuentasPorPagar = async () => {
               console.log(`⚠️ Página ${currentPage}: Sin mejora en fechas (${facturasSinCambiosCount}/${maxFacturasSinCambios})`);
             }
             
-            // ✅ CRITERIO DE PARADA: Muchas páginas sin mejora en fechas
-            if (facturasSinCambiosCount >= maxFacturasSinCambios && allCompras.length >= 2000) {
+            // ✅ CRITERIO DE PARADA: Menos páginas sin mejora porque empezamos cerca de las recientes
+            if (facturasSinCambiosCount >= maxFacturasSinCambios && allCompras.length >= 1000) { // Reducido umbral
               console.log(`🛑 Parada por falta de progreso: ${facturasSinCambiosCount} páginas sin mejores fechas`);
               break;
             }
@@ -243,12 +244,12 @@ const obtenerCuentasPorPagar = async () => {
           hasMoreData = false;
         }
 
-        // ✅ PAUSA MÁS CORTA para procesar más rápido
-        await new Promise(resolve => setTimeout(resolve, 50));
+        // ✅ PAUSA MUY CORTA para procesar rápidamente desde página 94
+        await new Promise(resolve => setTimeout(resolve, 25)); // Reducido de 50ms a 25ms
 
-        // ✅ CRITERIO DE SEGURIDAD: Máximo absoluto para evitar bucles infinitos
-        if (currentPage > 500) { // 500 páginas = 25,000 facturas
-          console.log(`🛑 Límite de seguridad alcanzado: ${currentPage} páginas`);
+        // ✅ CRITERIO DE SEGURIDAD: Límite más conservador ya que empezamos desde página 94
+        if (currentPage > 200) { // Límite más bajo: de página 94 a 200 = 106 páginas = 5,300 facturas
+          console.log(`🛑 Límite de seguridad alcanzado: ${currentPage} páginas (desde página 94)`);
           break;
         }
 
@@ -258,12 +259,13 @@ const obtenerCuentasPorPagar = async () => {
       }
     }
 
-    console.log(`📊 RESUMEN DE BÚSQUEDA:`);
-    console.log(`   📄 Páginas procesadas: ${currentPage - 1}`);
+    console.log(`📊 RESUMEN DE BÚSQUEDA OPTIMIZADA:`);
+    console.log(`   🚀 Página inicial: 94 (facturas 2025)`);
+    console.log(`   📄 Páginas procesadas: ${currentPage - 94} (desde página 94 hasta ${currentPage - 1})`);
     console.log(`   📋 Total facturas obtenidas: ${allCompras.length}`);
     console.log(`   📅 Mejor fecha encontrada: ${mejorFechaEncontrada.toISOString().split('T')[0]}`);
     console.log(`   🎯 Facturas recientes encontradas: ${facturasMuyRecientesEncontradas ? 'SÍ' : 'NO'}`);
-
+    console.log(`   ⚡ Tiempo aproximado ahorrado: ${(94 - 1) * 50}ms por no procesar páginas 1-93`);
     if (allCompras.length === 0) {
       console.warn('⚠️ No se obtuvieron compras de la API');
       return [];
