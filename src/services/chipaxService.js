@@ -148,19 +148,19 @@ const obtenerCuentasPorPagar = async () => {
 
   try {
     let allCompras = [];
-    let currentPage = 94; // ✅ OPTIMIZACIÓN: Comenzar desde página 94 donde están las facturas de 2025
+    let currentPage = 117; // ✅ CORRECCIÓN: Comenzar desde página 117 donde están las facturas de diciembre 2024
     let hasMoreData = true;
     const limit = 50;
     
-    // ✅ NUEVA LÓGICA: Sin límite fijo de páginas, optimizada desde página 94
+    // ✅ NUEVA LÓGICA: Sin límite fijo de páginas, optimizada desde página 117
     let facturasMuyRecientesEncontradas = false;
     let facturasSinCambiosCount = 0;
     const maxFacturasSinCambios = 3; // Reducido a 3 ya que las facturas recientes están cerca
     
     const hoy = new Date();
-    let mejorFechaEncontrada = new Date('2025-01-01'); // Empezar desde 2025
+    let mejorFechaEncontrada = new Date('2024-12-27'); // Empezar desde la fecha que ya sabemos existe
     
-    console.log(`🚀 BÚSQUEDA OPTIMIZADA: Comenzando desde página 94 (facturas 2025)`);
+    console.log(`🚀 BÚSQUEDA CORREGIDA: Comenzando desde página 117 (facturas diciembre 2024)`);
     console.log(`🔍 Buscando facturas hasta encontrar las de hoy: ${hoy.toISOString().split('T')[0]}...`);
 
     while (hasMoreData && !facturasMuyRecientesEncontradas) {
@@ -247,9 +247,9 @@ const obtenerCuentasPorPagar = async () => {
         // ✅ PAUSA MUY CORTA para procesar rápidamente desde página 94
         await new Promise(resolve => setTimeout(resolve, 25)); // Reducido de 50ms a 25ms
 
-        // ✅ CRITERIO DE SEGURIDAD: Límite más conservador ya que empezamos desde página 94
-        if (currentPage > 200) { // Límite más bajo: de página 94 a 200 = 106 páginas = 5,300 facturas
-          console.log(`🛑 Límite de seguridad alcanzado: ${currentPage} páginas (desde página 94)`);
+        // ✅ CRITERIO DE SEGURIDAD: Límite más conservador ya que empezamos desde página 117
+        if (currentPage > 150) { // Límite: de página 117 a 150 = 33 páginas = 1,650 facturas
+          console.log(`🛑 Límite de seguridad alcanzado: ${currentPage} páginas (desde página 117)`);
           break;
         }
 
@@ -259,13 +259,13 @@ const obtenerCuentasPorPagar = async () => {
       }
     }
 
-    console.log(`📊 RESUMEN DE BÚSQUEDA OPTIMIZADA:`);
-    console.log(`   🚀 Página inicial: 94 (facturas 2025)`);
-    console.log(`   📄 Páginas procesadas: ${currentPage - 94} (desde página 94 hasta ${currentPage - 1})`);
+    console.log(`📊 RESUMEN DE BÚSQUEDA CORREGIDA:`);
+    console.log(`   🚀 Página inicial: 117 (facturas diciembre 2024)`);
+    console.log(`   📄 Páginas procesadas: ${currentPage - 117} (desde página 117 hasta ${currentPage - 1})`);
     console.log(`   📋 Total facturas obtenidas: ${allCompras.length}`);
     console.log(`   📅 Mejor fecha encontrada: ${mejorFechaEncontrada.toISOString().split('T')[0]}`);
     console.log(`   🎯 Facturas recientes encontradas: ${facturasMuyRecientesEncontradas ? 'SÍ' : 'NO'}`);
-    console.log(`   ⚡ Tiempo aproximado ahorrado: ${(94 - 1) * 50}ms por no procesar páginas 1-93`);
+    console.log(`   ⚡ Tiempo aproximado ahorrado: ${(117 - 1) * 25}ms por no procesar páginas 1-116`);
     if (allCompras.length === 0) {
       console.warn('⚠️ No se obtuvieron compras de la API');
       return [];
@@ -352,13 +352,31 @@ const obtenerCuentasPorPagar = async () => {
       });
     }
 
-    return comprasRecientes;
+    } catch (error) {
+      console.error('❌ Error obteniendo compras:', error);
+      return [];
+    }
+  };
 
-  } catch (error) {
-    console.error('❌ Error obteniendo compras:', error);
-    return [];
-  }
-};
+  // ✅ AGREGAR: Función adicional para debugging el problema de adaptación
+  const debugearProblemaAdaptacion = (comprasRecientes) => {
+    console.log('🔧 DEBUG ADAPTACIÓN:');
+    console.log(`📊 Tipo de datos: ${typeof comprasRecientes}`);
+    console.log(`📊 Es array: ${Array.isArray(comprasRecientes)}`);
+    console.log(`📊 Longitud: ${comprasRecientes ? comprasRecientes.length : 'undefined'}`);
+    
+    if (comprasRecientes && comprasRecientes.length > 0) {
+      console.log('📋 Muestra de primera factura:');
+      console.log(comprasRecientes[0]);
+      console.log('📋 Campos disponibles:');
+      console.log(Object.keys(comprasRecientes[0]));
+    }
+    
+    return comprasRecientes;
+  };
+
+  // ✅ FUNCIÓN MODIFICADA: Retornar resultado con debugging
+  return debugearProblemaAdaptacion(comprasRecientes);
 
 /**
  * ✅ FUNCIÓN ORIGINAL: Obtener DTEs por cobrar (SIN CAMBIOS)
