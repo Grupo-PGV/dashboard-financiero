@@ -1071,8 +1071,10 @@ const DashboardFinancieroIntegrado = () => {
         )}
 
         {pestanaActiva === 'debugger' && (
-          <ChipaxComprasDebugger />
-        )}
+  <div>
+    <ChipaxComprasDebugger />
+  </div>
+)}
       </div>
     </div>
   );
