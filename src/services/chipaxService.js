@@ -1,84 +1,99 @@
-// chipaxService.js - Servicio para interactuar con la API de Chipax
+// chipaxService.js - VERSIÓN CORREGIDA: Regresando a la configuración que funcionaba
 
-/**
- * ✅ FUNCIÓN: Obtener token de autenticación de Chipax
- */
+const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
+const APP_ID = process.env.REACT_APP_CHIPAX_APP_ID;
+const SECRET_KEY = process.env.REACT_APP_CHIPAX_SECRET_KEY;
+
+// ✅ CORRECCIÓN #1: Usar el mismo cache que funcionaba antes
+let tokenCache = {
+  token: null,
+  expiry: null,
+  isRefreshing: false,
+  refreshPromise: null
+};
+
+// ✅ CORRECCIÓN #2: Función de autenticación IDÉNTICA a la que funcionaba
 const getChipaxToken = async () => {
-  // Cache del token en memoria
-  if (!getChipaxToken.tokenCache) {
-    getChipaxToken.tokenCache = { token: null, expiry: null };
+  if (tokenCache.isRefreshing && tokenCache.refreshPromise) {
+    console.log('🔄 Esperando refresh de token en curso...');
+    return await tokenCache.refreshPromise;
   }
 
-  // Verificar si tenemos un token válido en cache
-  if (getChipaxToken.tokenCache.token && getChipaxToken.tokenCache.expiry > Date.now()) {
+  const now = Date.now();
+  const tokenMargin = 5 * 60 * 1000;
+  
+  if (tokenCache.token && tokenCache.expiry && now < (tokenCache.expiry - tokenMargin)) {
     console.log('🔑 Usando token válido en cache');
-    return getChipaxToken.tokenCache.token;
+    return tokenCache.token;
   }
 
+  tokenCache.isRefreshing = true;
+  tokenCache.refreshPromise = refreshToken();
+  
+  try {
+    const newToken = await tokenCache.refreshPromise;
+    return newToken;
+  } finally {
+    tokenCache.isRefreshing = false;
+    tokenCache.refreshPromise = null;
+  }
+};
+
+// ✅ CORRECCIÓN #3: Función refreshToken IDÉNTICA a la que funcionaba
+const refreshToken = async () => {
   console.log('🔐 Obteniendo nuevo token de Chipax...');
-  
-  const appId = process.env.REACT_APP_CHIPAX_APP_ID;
-  const secretKey = process.env.REACT_APP_CHIPAX_SECRET_KEY;
-  
-  console.log('🔑 APP_ID:', appId ? `${appId.substring(0, 12)}...` : 'NO DEFINIDO');
-
-  if (!appId || !secretKey) {
-    throw new Error('Variables de entorno REACT_APP_CHIPAX_APP_ID y REACT_APP_CHIPAX_SECRET_KEY no están definidas');
-  }
+  console.log('🔑 APP_ID:', APP_ID ? 
+    `${APP_ID.substring(0, 10)}...` : 'NO CONFIGURADO');
 
   try {
-    const response = await fetch('https://api.chipax.com/auth/app/', {
+    // ✅ CLAVE: Usar el endpoint /login que SÍ funcionaba
+    const response = await fetch(`${API_BASE_URL}/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
       body: JSON.stringify({
-        app_id: appId,
-        secret_key: secretKey
+        app_id: APP_ID,
+        secret_key: SECRET_KEY
       })
     });
 
     console.log('📡 Respuesta status:', response.status);
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
     }
 
     const data = await response.json();
-    const token = data.token;
-
+    // ✅ CLAVE: Buscar token en múltiples campos como funcionaba antes
+    const token = data.access_token || data.token || data.jwt || data.accessToken;
+    
     if (!token) {
-      throw new Error('No se recibió token en la respuesta');
+      console.error('🔍 DEBUG - Estructura de respuesta:', Object.keys(data));
+      throw new Error('No se encontró access_token en la respuesta');
     }
 
-    // Guardar en cache (expirar en 50 minutos)
-    getChipaxToken.tokenCache.token = token;
-    getChipaxToken.tokenCache.expiry = Date.now() + (50 * 60 * 1000);
-
+    tokenCache.token = token;
+    tokenCache.expiry = Date.now() + (50 * 60 * 1000);
+    
     console.log('🔐 Token guardado exitosamente');
     console.log('🔐 Token longitud:', token.length, 'caracteres');
-
+    
     return token;
 
   } catch (error) {
-    // Limpiar cache en caso de error
-    getChipaxToken.tokenCache.token = null;
-    getChipaxToken.tokenCache.expiry = null;
-    
     console.error('❌ Error obteniendo token:', error);
+    tokenCache.token = null;
+    tokenCache.expiry = null;
     throw new Error(`Error de autenticación: ${error.message}`);
   }
 };
 
-/**
- * ✅ FUNCIÓN: Realizar peticiones a la API de Chipax con reintentos
- */
+// ✅ CORRECCIÓN #4: fetchFromChipax IDÉNTICO al que funcionaba
 const fetchFromChipax = async (endpoint, options = {}) => {
   const { maxRetries = 2, retryDelay = 1000 } = options;
-  const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
-
+  
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
     try {
       const token = await getChipaxToken();
@@ -87,26 +102,22 @@ const fetchFromChipax = async (endpoint, options = {}) => {
       console.log(`🔐 Token para ${endpoint}: ${token.substring(0, 20)}... (intento ${attempt})`);
 
       const response = await fetch(url, {
-        method: 'GET',
         headers: {
           'Authorization': `JWT ${token}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          ...options.headers
-        },
-        ...options
+          'Accept': 'application/json'
+        }
       });
 
       console.log(`📡 Status de ${endpoint}: ${response.status}`);
 
-      // Si es 401, limpiar cache del token y reintentar
-      if (response.status === 401 && attempt <= maxRetries) {
+      if (response.status === 401) {
         console.log('🔄 Token expirado, limpiando cache...');
-        getChipaxToken.tokenCache.token = null;
-        getChipaxToken.tokenCache.expiry = null;
+        tokenCache.token = null;
+        tokenCache.expiry = null;
         
         if (attempt <= maxRetries) {
-          console.log(`🔄 Reintentando con nuevo token en ${retryDelay}ms...`);
+          console.log(`🔄 Reintentando en ${retryDelay}ms...`);
           await new Promise(resolve => setTimeout(resolve, retryDelay));
           continue;
         }
@@ -134,21 +145,21 @@ const fetchFromChipax = async (endpoint, options = {}) => {
 };
 
 /**
- * ✅ FUNCIÓN CORREGIDA: Obtener compras optimizada desde página 117
+ * ✅ FUNCIÓN: Obtener compras (USANDO la lógica optimizada que funcionaba)
  */
 const obtenerCuentasPorPagar = async () => {
   console.log('💸 Obteniendo compras (BÚSQUEDA OPTIMIZADA desde página 117)...');
 
   try {
     let allCompras = [];
-    let currentPage = 117; // ✅ CORRECCIÓN: Comenzar desde página 117 donde están las facturas de diciembre 2024
+    let currentPage = 117; // ✅ Comenzar desde página 117 donde están las facturas de diciembre 2024
     let hasMoreData = true;
     const limit = 50;
     
-    // ✅ NUEVA LÓGICA: Sin límite fijo de páginas, optimizada desde página 117
+    // ✅ CONFIGURACIÓN OPTIMIZADA: Procesar las páginas necesarias
     let facturasMuyRecientesEncontradas = false;
     let facturasSinCambiosCount = 0;
-    const maxFacturasSinCambios = 3; // Reducido a 3 ya que las facturas recientes están cerca
+    const maxFacturasSinCambios = 3;
     
     const hoy = new Date();
     let mejorFechaEncontrada = new Date('2024-12-27'); // Empezar desde la fecha que ya sabemos existe
@@ -174,77 +185,53 @@ const obtenerCuentasPorPagar = async () => {
 
         if (pageItems.length > 0) {
           allCompras.push(...pageItems);
+          console.log(`✅ Página ${currentPage}: ${pageItems.length} items (total: ${allCompras.length})`);
           
-          // ✅ VERIFICAR FECHAS DE ESTA PÁGINA
-          const fechasEstasPagina = pageItems
-            .map(item => {
-              // Priorizar fecha de emisión sobre fecha de recepción para buscar las más recientes
-              return item.fechaEmision || 
-                     item.fecha_emision || 
-                     item.fechaRecepcion || 
-                     item.fecha_recepcion || 
-                     item.created;
-            })
+          // Verificar fechas para decidir si seguir
+          const fechasRecepcion = pageItems
+            .map(item => item.fechaRecepcion || item.fecha_recepcion || item.created)
             .filter(fecha => fecha)
             .map(fecha => new Date(fecha));
           
-          if (fechasEstasPagina.length > 0) {
-            const fechaMasRecienteEstaPagina = new Date(Math.max(...fechasEstasPagina));
-            const diasDesdeMasReciente = Math.floor((hoy - fechaMasRecienteEstaPagina) / (1000 * 60 * 60 * 24));
+          if (fechasRecepcion.length > 0) {
+            const fechaMasReciente = new Date(Math.max(...fechasRecepcion));
+            const fechaMasAntigua = new Date(Math.min(...fechasRecepcion));
             
-            console.log(`📊 Página ${currentPage}: ${pageItems.length} facturas, más reciente hace ${diasDesdeMasReciente} días (${fechaMasRecienteEstaPagina.toISOString().split('T')[0]})`);
-            
-            // ✅ CRITERIO DE PARADA: Facturas del día actual o muy recientes
-            if (diasDesdeMasReciente <= 1) {
-              console.log(`🎯 ¡ENCONTRADAS! Facturas del día actual o de ayer en página ${currentPage}`);
-              facturasMuyRecientesEncontradas = true;
-              break;
-            }
-            
-            // ✅ CRITERIO DE PARADA: Facturas de la última semana con suficientes datos
-            if (diasDesdeMasReciente <= 7 && allCompras.length >= 500) { // Reducido de 1000 a 500
-              console.log(`🎯 Facturas de la última semana encontradas con ${allCompras.length} facturas totales`);
-              facturasMuyRecientesEncontradas = true;
-              break;
-            }
-            
-            // ✅ VERIFICAR PROGRESO: Si las fechas no mejoran, contar páginas sin cambios
-            if (fechaMasRecienteEstaPagina > mejorFechaEncontrada) {
-              mejorFechaEncontrada = fechaMasRecienteEstaPagina;
-              facturasSinCambiosCount = 0; // Resetear contador
+            if (fechaMasReciente > mejorFechaEncontrada) {
+              mejorFechaEncontrada = fechaMasReciente;
+              facturasSinCambiosCount = 0;
             } else {
               facturasSinCambiosCount++;
-              console.log(`⚠️ Página ${currentPage}: Sin mejora en fechas (${facturasSinCambiosCount}/${maxFacturasSinCambios})`);
             }
             
-            // ✅ CRITERIO DE PARADA: Menos páginas sin mejora porque empezamos cerca de las recientes
-            if (facturasSinCambiosCount >= maxFacturasSinCambios && allCompras.length >= 1000) { // Reducido umbral
-              console.log(`🛑 Parada por falta de progreso: ${facturasSinCambiosCount} páginas sin mejores fechas`);
-              break;
+            const diasDesdeMasReciente = Math.floor((hoy - fechaMasReciente) / (1000 * 60 * 60 * 24));
+            
+            console.log(`📅 Página ${currentPage}: ${fechaMasAntigua.toISOString().split('T')[0]} → ${fechaMasReciente.toISOString().split('T')[0]} (hace ${diasDesdeMasReciente} días)`);
+            
+            // ✅ CONDICIÓN DE PARADA: Facturas muy recientes o suficientes datos
+            if (diasDesdeMasReciente <= 30) {
+              console.log(`🎯 ¡EXCELENTE! Encontradas facturas recientes (hace ${diasDesdeMasReciente} días)`);
+              facturasMuyRecientesEncontradas = true;
+            } else if (facturasSinCambiosCount >= maxFacturasSinCambios) {
+              console.log(`⏰ Parando: ${maxFacturasSinCambios} páginas sin mejora en fechas`);
+              facturasMuyRecientesEncontradas = true;
+            } else if (allCompras.length >= 3000) {
+              console.log(`📊 Parando: Suficientes datos recolectados (${allCompras.length} facturas)`);
+              facturasMuyRecientesEncontradas = true;
             }
           }
           
-          // ✅ VERIFICAR SI HAY MÁS PÁGINAS
           if (pageItems.length < limit) {
-            console.log(`🏁 Última página alcanzada (${pageItems.length} < ${limit} items)`);
             hasMoreData = false;
           } else {
             currentPage++;
           }
-          
         } else {
-          console.log(`🏁 Página vacía encontrada en página ${currentPage}`);
           hasMoreData = false;
         }
 
-        // ✅ PAUSA MUY CORTA para procesar rápidamente desde página 117
-        await new Promise(resolve => setTimeout(resolve, 25)); // Reducido de 50ms a 25ms
-
-        // ✅ CRITERIO DE SEGURIDAD: Límite más conservador ya que empezamos desde página 117
-        if (currentPage > 150) { // Límite: de página 117 a 150 = 33 páginas = 1,650 facturas
-          console.log(`🛑 Límite de seguridad alcanzado: ${currentPage} páginas (desde página 117)`);
-          break;
-        }
+        // Pausa breve para no sobrecargar la API
+        await new Promise(resolve => setTimeout(resolve, 50));
 
       } catch (error) {
         console.error(`❌ Error en página ${currentPage}:`, error);
@@ -253,65 +240,64 @@ const obtenerCuentasPorPagar = async () => {
     }
 
     console.log(`📊 RESUMEN DE BÚSQUEDA CORREGIDA:`);
-    console.log(`   🚀 Página inicial: 117 (facturas diciembre 2024)`);
-    console.log(`   📄 Páginas procesadas: ${currentPage - 117} (desde página 117 hasta ${currentPage - 1})`);
-    console.log(`   📋 Total facturas obtenidas: ${allCompras.length}`);
-    console.log(`   📅 Mejor fecha encontrada: ${mejorFechaEncontrada.toISOString().split('T')[0]}`);
-    console.log(`   🎯 Facturas recientes encontradas: ${facturasMuyRecientesEncontradas ? 'SÍ' : 'NO'}`);
-    console.log(`   ⚡ Tiempo aproximado ahorrado: ${(117 - 1) * 25}ms por no procesar páginas 1-116`);
+    console.log(`    🚀 Página inicial: 117 (facturas diciembre 2024)`);
+    console.log(`    📄 Páginas procesadas: ${currentPage - 117} (desde página 117 hasta ${currentPage - 1})`);
+    console.log(`    📋 Total facturas obtenidas: ${allCompras.length}`);
+    console.log(`    📅 Mejor fecha encontrada: ${mejorFechaEncontrada.toISOString().split('T')[0]}`);
+    console.log(`    🎯 Facturas recientes encontradas: ${facturasMuyRecientesEncontradas ? 'SÍ' : 'NO'}`);
+    console.log(`    ⚡ Tiempo aproximado ahorrado: ${(117 - 1) * 25}ms por no procesar páginas 1-116`);
 
     if (allCompras.length === 0) {
       console.warn('⚠️ No se obtuvieron compras de la API');
       return [];
     }
 
-    // ✅ ORDENAMIENTO MEJORADO: Priorizar fecha de emisión, luego recepción
-    console.log('🔄 Ordenando compras por fecha (EMISIÓN prioritaria, luego RECEPCIÓN)...');
+    // ✅ ORDENAMIENTO por fecha de RECEPCIÓN (más recientes primero)
+    console.log('🔄 Ordenando compras por fecha de RECEPCIÓN (más recientes primero)...');
     
     allCompras.sort((a, b) => {
-      // Priorizar fecha de emisión para encontrar las más recientes
       const fechaA = new Date(
-        a.fechaEmision || 
-        a.fecha_emision || 
         a.fechaRecepcion || 
         a.fecha_recepcion || 
         a.created || 
+        a.fechaEmision || 
+        a.fecha_emision || 
+        a.fecha || 
         '1900-01-01'
       );
       
       const fechaB = new Date(
-        b.fechaEmision || 
-        b.fecha_emision || 
         b.fechaRecepcion || 
         b.fecha_recepcion || 
         b.created || 
+        b.fechaEmision || 
+        b.fecha_emision || 
+        b.fecha || 
         '1900-01-01'
       );
       
       return fechaB - fechaA; // Descendente (más recientes primero)
     });
 
-    // ✅ TOMAR MÁS FACTURAS RECIENTES para análisis
-    const comprasRecientes = allCompras.slice(0, Math.min(1000, allCompras.length));
+    // Tomar las más recientes
+    const comprasRecientes = allCompras.slice(0, 500);
 
-    // ✅ DEBUG: Verificar el rango de fechas final
+    // Debug: verificar el rango de fechas
     if (comprasRecientes.length > 0) {
       const primeraCompra = comprasRecientes[0];
       const ultimaCompra = comprasRecientes[comprasRecientes.length - 1];
       
-      const fechaMasReciente = primeraCompra.fechaEmision || 
-                              primeraCompra.fecha_emision || 
-                              primeraCompra.fechaRecepcion || 
-                              primeraCompra.fecha_recepcion || 
-                              primeraCompra.created;
+      const fechaRecepcionReciente = primeraCompra.fechaRecepcion || 
+                                     primeraCompra.fecha_recepcion || 
+                                     primeraCompra.created ||
+                                     primeraCompra.fechaEmision;
                                      
-      const fechaMasAntigua = ultimaCompra.fechaEmision || 
-                             ultimaCompra.fecha_emision || 
-                             ultimaCompra.fechaRecepcion || 
-                             ultimaCompra.fecha_recepcion || 
-                             ultimaCompra.created;
+      const fechaRecepcionAntigua = ultimaCompra.fechaRecepcion || 
+                                   ultimaCompra.fecha_recepcion || 
+                                   ultimaCompra.created ||
+                                   ultimaCompra.fechaEmision;
       
-      console.log('🔍 DEBUG: Primera compra (más reciente por emisión):');
+      console.log('🔍 DEBUG: Primera compra (más reciente por recepción):');
       console.log({
         id: primeraCompra.id,
         folio: primeraCompra.folio,
@@ -323,27 +309,20 @@ const obtenerCuentasPorPagar = async () => {
       });
 
       console.log(`✅ ${comprasRecientes.length} compras más recientes seleccionadas`);
-      console.log(`📅 Rango de fechas: ${fechaMasAntigua} → ${fechaMasReciente}`);
+      console.log(`📅 Rango de RECEPCIÓN: ${fechaRecepcionAntigua} → ${fechaRecepcionReciente}`);
 
-      // ✅ VERIFICACIÓN FINAL: ¿Encontramos facturas realmente recientes?
-      const fechaReciente = new Date(fechaMasReciente);
+      // Verificar si tenemos datos recientes
+      const fechaReciente = new Date(fechaRecepcionReciente);
+      const hoy = new Date();
       const diffDias = Math.floor((hoy - fechaReciente) / (1000 * 60 * 60 * 24));
       
-      if (diffDias <= 7) {
-        console.log(`🎉 ¡ÉXITO! Facturas muy recientes encontradas: última hace ${diffDias} días`);
-      } else if (diffDias <= 30) {
-        console.log(`✅ Facturas relativamente recientes: última hace ${diffDias} días`);
+      if (diffDias <= 30) {
+        console.log(`✅ ¡ÉXITO! Datos muy recientes: última factura recibida hace ${diffDias} días`);
+      } else if (diffDias <= 90) {
+        console.log(`✅ ÉXITO PARCIAL: Datos relativamente recientes hace ${diffDias} días`);
       } else {
-        console.warn(`⚠️ Las facturas más recientes son de hace ${diffDias} días. Puede que no haya facturas más nuevas en el sistema.`);
+        console.warn(`⚠️ ADVERTENCIA: La factura más reciente fue recibida hace ${diffDias} días (${fechaReciente.toISOString().split('T')[0]})`);
       }
-      
-      // ✅ MOSTRAR MUESTRA DE LAS FACTURAS MÁS RECIENTES
-      console.log('📋 LAS 5 FACTURAS MÁS RECIENTES:');
-      comprasRecientes.slice(0, 5).forEach((compra, i) => {
-        const fechaPrincipal = compra.fechaEmision || compra.fecha_emision || compra.fechaRecepcion || compra.fecha_recepcion;
-        const diasHace = Math.floor((hoy - new Date(fechaPrincipal)) / (1000 * 60 * 60 * 24));
-        console.log(`${i + 1}. Folio ${compra.folio}: ${fechaPrincipal} (hace ${diasHace} días) - ${compra.razonSocial}`);
-      });
     }
 
     return comprasRecientes;
@@ -355,7 +334,7 @@ const obtenerCuentasPorPagar = async () => {
 };
 
 /**
- * ✅ FUNCIÓN ORIGINAL: Obtener DTEs por cobrar (SIN CAMBIOS)
+ * ✅ FUNCIÓN: Obtener DTEs por cobrar (SIN CAMBIOS)
  */
 const obtenerCuentasPorCobrar = async () => {
   console.log('📋 Obteniendo DTEs por cobrar...');
@@ -394,7 +373,7 @@ const obtenerCuentasPorCobrar = async () => {
 };
 
 /**
- * ✅ FUNCIÓN ORIGINAL: Obtener saldos bancarios (SIN CAMBIOS)
+ * ✅ FUNCIÓN: Obtener saldos bancarios (SIN CAMBIOS)
  */
 const obtenerSaldosBancarios = async () => {
   console.log('🏦 Obteniendo saldos bancarios...');
@@ -465,7 +444,7 @@ const obtenerSaldosBancarios = async () => {
   }
 };
 
-// Exportaciones
+// ✅ EXPORTACIONES: Iguales a la versión que funcionaba
 const chipaxService = {
   getChipaxToken,
   fetchFromChipax,
