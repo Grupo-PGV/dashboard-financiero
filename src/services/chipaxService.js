@@ -1,94 +1,84 @@
-// chipaxService.js - VERSIÓN COMPLETA CORREGIDA para obtener facturas recientes
+// chipaxService.js - Servicio para interactuar con la API de Chipax
 
-const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
-const APP_ID = process.env.REACT_APP_CHIPAX_APP_ID;
-const SECRET_KEY = process.env.REACT_APP_CHIPAX_SECRET_KEY;
-
-// Cache para el token (mantener igual que antes)
-let tokenCache = {
-  token: null,
-  expiry: null,
-  isRefreshing: false,
-  refreshPromise: null
-};
-
+/**
+ * ✅ FUNCIÓN: Obtener token de autenticación de Chipax
+ */
 const getChipaxToken = async () => {
-  if (tokenCache.isRefreshing && tokenCache.refreshPromise) {
-    console.log('🔄 Esperando refresh de token en curso...');
-    return await tokenCache.refreshPromise;
+  // Cache del token en memoria
+  if (!getChipaxToken.tokenCache) {
+    getChipaxToken.tokenCache = { token: null, expiry: null };
   }
 
-  const now = Date.now();
-  const tokenMargin = 5 * 60 * 1000;
-  
-  if (tokenCache.token && tokenCache.expiry && now < (tokenCache.expiry - tokenMargin)) {
+  // Verificar si tenemos un token válido en cache
+  if (getChipaxToken.tokenCache.token && getChipaxToken.tokenCache.expiry > Date.now()) {
     console.log('🔑 Usando token válido en cache');
-    return tokenCache.token;
+    return getChipaxToken.tokenCache.token;
   }
 
-  tokenCache.isRefreshing = true;
-  tokenCache.refreshPromise = refreshToken();
-  
-  try {
-    const newToken = await tokenCache.refreshPromise;
-    return newToken;
-  } finally {
-    tokenCache.isRefreshing = false;
-    tokenCache.refreshPromise = null;
-  }
-};
-
-const refreshToken = async () => {
   console.log('🔐 Obteniendo nuevo token de Chipax...');
-  console.log('🔑 APP_ID:', APP_ID ? 
-    `${APP_ID.substring(0, 10)}...` : 'NO CONFIGURADO');
+  
+  const appId = process.env.REACT_APP_CHIPAX_APP_ID;
+  const secretKey = process.env.REACT_APP_CHIPAX_SECRET_KEY;
+  
+  console.log('🔑 APP_ID:', appId ? `${appId.substring(0, 12)}...` : 'NO DEFINIDO');
+
+  if (!appId || !secretKey) {
+    throw new Error('Variables de entorno REACT_APP_CHIPAX_APP_ID y REACT_APP_CHIPAX_SECRET_KEY no están definidas');
+  }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/login`, {
+    const response = await fetch('https://api.chipax.com/auth/app/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
       body: JSON.stringify({
-        app_id: APP_ID,
-        secret_key: SECRET_KEY
+        app_id: appId,
+        secret_key: secretKey
       })
     });
 
     console.log('📡 Respuesta status:', response.status);
 
     if (!response.ok) {
-      throw new Error(`Error ${response.status}: ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
-    const token = data.access_token || data.token || data.jwt || data.accessToken;
-    
+    const token = data.token;
+
     if (!token) {
-      console.error('🔍 DEBUG - Estructura de respuesta:', Object.keys(data));
-      throw new Error('No se encontró access_token en la respuesta');
+      throw new Error('No se recibió token en la respuesta');
     }
 
-    tokenCache.token = token;
-    tokenCache.expiry = Date.now() + (50 * 60 * 1000);
-    
+    // Guardar en cache (expirar en 50 minutos)
+    getChipaxToken.tokenCache.token = token;
+    getChipaxToken.tokenCache.expiry = Date.now() + (50 * 60 * 1000);
+
     console.log('🔐 Token guardado exitosamente');
     console.log('🔐 Token longitud:', token.length, 'caracteres');
-    
+
     return token;
 
   } catch (error) {
+    // Limpiar cache en caso de error
+    getChipaxToken.tokenCache.token = null;
+    getChipaxToken.tokenCache.expiry = null;
+    
     console.error('❌ Error obteniendo token:', error);
-    tokenCache.token = null;
-    tokenCache.expiry = null;
     throw new Error(`Error de autenticación: ${error.message}`);
   }
 };
 
+/**
+ * ✅ FUNCIÓN: Realizar peticiones a la API de Chipax con reintentos
+ */
 const fetchFromChipax = async (endpoint, options = {}) => {
   const { maxRetries = 2, retryDelay = 1000 } = options;
-  
+  const API_BASE_URL = process.env.REACT_APP_CHIPAX_API_URL || 'https://api.chipax.com/v2';
+
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
     try {
       const token = await getChipaxToken();
@@ -97,22 +87,26 @@ const fetchFromChipax = async (endpoint, options = {}) => {
       console.log(`🔐 Token para ${endpoint}: ${token.substring(0, 20)}... (intento ${attempt})`);
 
       const response = await fetch(url, {
+        method: 'GET',
         headers: {
           'Authorization': `JWT ${token}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
+          'Accept': 'application/json',
+          ...options.headers
+        },
+        ...options
       });
 
       console.log(`📡 Status de ${endpoint}: ${response.status}`);
 
-      if (response.status === 401) {
+      // Si es 401, limpiar cache del token y reintentar
+      if (response.status === 401 && attempt <= maxRetries) {
         console.log('🔄 Token expirado, limpiando cache...');
-        tokenCache.token = null;
-        tokenCache.expiry = null;
+        getChipaxToken.tokenCache.token = null;
+        getChipaxToken.tokenCache.expiry = null;
         
         if (attempt <= maxRetries) {
-          console.log(`🔄 Reintentando en ${retryDelay}ms...`);
+          console.log(`🔄 Reintentando con nuevo token en ${retryDelay}ms...`);
           await new Promise(resolve => setTimeout(resolve, retryDelay));
           continue;
         }
@@ -140,11 +134,10 @@ const fetchFromChipax = async (endpoint, options = {}) => {
 };
 
 /**
- * ✅ FUNCIÓN MODIFICADA: Buscar TODAS las compras hasta encontrar las más recientes
- * Esta función no tiene límite fijo y busca hasta encontrar facturas del día actual
+ * ✅ FUNCIÓN CORREGIDA: Obtener compras optimizada desde página 117
  */
 const obtenerCuentasPorPagar = async () => {
-  console.log('💸 Obteniendo compras (BÚSQUEDA SIN LÍMITE hasta encontrar facturas recientes)...');
+  console.log('💸 Obteniendo compras (BÚSQUEDA OPTIMIZADA desde página 117)...');
 
   try {
     let allCompras = [];
@@ -208,7 +201,7 @@ const obtenerCuentasPorPagar = async () => {
               break;
             }
             
-            // ✅ CRITERIO DE PARADA: Facturas de la última semana con menos datos necesarios
+            // ✅ CRITERIO DE PARADA: Facturas de la última semana con suficientes datos
             if (diasDesdeMasReciente <= 7 && allCompras.length >= 500) { // Reducido de 1000 a 500
               console.log(`🎯 Facturas de la última semana encontradas con ${allCompras.length} facturas totales`);
               facturasMuyRecientesEncontradas = true;
@@ -244,7 +237,7 @@ const obtenerCuentasPorPagar = async () => {
           hasMoreData = false;
         }
 
-        // ✅ PAUSA MUY CORTA para procesar rápidamente desde página 94
+        // ✅ PAUSA MUY CORTA para procesar rápidamente desde página 117
         await new Promise(resolve => setTimeout(resolve, 25)); // Reducido de 50ms a 25ms
 
         // ✅ CRITERIO DE SEGURIDAD: Límite más conservador ya que empezamos desde página 117
@@ -266,6 +259,7 @@ const obtenerCuentasPorPagar = async () => {
     console.log(`   📅 Mejor fecha encontrada: ${mejorFechaEncontrada.toISOString().split('T')[0]}`);
     console.log(`   🎯 Facturas recientes encontradas: ${facturasMuyRecientesEncontradas ? 'SÍ' : 'NO'}`);
     console.log(`   ⚡ Tiempo aproximado ahorrado: ${(117 - 1) * 25}ms por no procesar páginas 1-116`);
+
     if (allCompras.length === 0) {
       console.warn('⚠️ No se obtuvieron compras de la API');
       return [];
@@ -352,31 +346,13 @@ const obtenerCuentasPorPagar = async () => {
       });
     }
 
-    } catch (error) {
-      console.error('❌ Error obteniendo compras:', error);
-      return [];
-    }
-  };
-
-  // ✅ AGREGAR: Función adicional para debugging el problema de adaptación
-  const debugearProblemaAdaptacion = (comprasRecientes) => {
-    console.log('🔧 DEBUG ADAPTACIÓN:');
-    console.log(`📊 Tipo de datos: ${typeof comprasRecientes}`);
-    console.log(`📊 Es array: ${Array.isArray(comprasRecientes)}`);
-    console.log(`📊 Longitud: ${comprasRecientes ? comprasRecientes.length : 'undefined'}`);
-    
-    if (comprasRecientes && comprasRecientes.length > 0) {
-      console.log('📋 Muestra de primera factura:');
-      console.log(comprasRecientes[0]);
-      console.log('📋 Campos disponibles:');
-      console.log(Object.keys(comprasRecientes[0]));
-    }
-    
     return comprasRecientes;
-  };
 
-  // ✅ FUNCIÓN MODIFICADA: Retornar resultado con debugging
-  return debugearProblemaAdaptacion(comprasRecientes);
+  } catch (error) {
+    console.error('❌ Error obteniendo compras:', error);
+    return [];
+  }
+};
 
 /**
  * ✅ FUNCIÓN ORIGINAL: Obtener DTEs por cobrar (SIN CAMBIOS)
@@ -489,7 +465,7 @@ const obtenerSaldosBancarios = async () => {
   }
 };
 
-// Exportaciones - IGUAL QUE ANTES
+// Exportaciones
 const chipaxService = {
   getChipaxToken,
   fetchFromChipax,
