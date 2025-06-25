@@ -675,36 +675,80 @@ const obtenerSaldosBancarios = async () => {
     console.log(`📊 Cuentas con movimientos: ${cuentasConMovimientos.length}`);
     console.log(`💵 Saldo total: ${totalSaldos.toLocaleString('es-CL')}`);
     
-    // 📊 Debug detallado por cuenta con nueva información
-    console.log('🔍 DETALLE COMPLETO POR CUENTA:');
-    cuentasConSaldos.forEach(cuenta => {
+    // 📊 Debug detallado SEPARADO POR CUENTA CORRIENTE
+    console.log('\n🏦 ============================================');
+    console.log('📊 RESUMEN DETALLADO POR CUENTA CORRIENTE');
+    console.log('============================================\n');
+    
+    cuentasConSaldos.forEach((cuenta, index) => {
+      const nombreCuenta = `${cuenta.banco?.toUpperCase() || 'BANCO'} ${cuenta.numeroCuenta}`;
+      
+      console.log(`\n🏦 ${index + 1}. ${nombreCuenta}`);
+      console.log('─'.repeat(50));
+      
       if (cuenta.movimientosCount > 0) {
-        console.log(`\n🏦 ${cuenta.banco || 'BANCO'} ${cuenta.numeroCuenta}:`);
-        console.log(`   💰 Saldo calculado: ${cuenta.saldoCalculado.toLocaleString('es-CL')}`);
-        console.log(`   📈 Total abonos: ${cuenta.totalAbonos.toLocaleString('es-CL')}`);
-        console.log(`   📉 Total cargos: ${cuenta.totalCargos.toLocaleString('es-CL')}`);
-        console.log(`   📊 Movimientos: ${cuenta.movimientosCount}`);
-        console.log(`   📅 Último: ${cuenta.ultimaActualizacion} - ${cuenta.ultimoMovimiento?.descripcion || 'N/A'}`);
+        console.log(`💰 SALDO FINAL: ${cuenta.saldoCalculado.toLocaleString('es-CL')}`);
+        console.log(`📈 Total Abonos (ingresos): ${cuenta.totalAbonos.toLocaleString('es-CL')}`);
+        console.log(`📉 Total Cargos (egresos): ${cuenta.totalCargos.toLocaleString('es-CL')}`);
+        console.log(`📊 Total Movimientos: ${cuenta.movimientosCount}`);
+        console.log(`📅 Período: 2025-01-01 hasta ${cuenta.ultimaActualizacion}`);
         
-        // Verificación con saldo_acreedor si existe
-        if (cuenta.saldoInfo.verificacion.ultimoSaldoAcreedor !== null) {
-          console.log(`   🔍 Último saldo_acreedor: ${cuenta.saldoInfo.verificacion.ultimoSaldoAcreedor.toLocaleString('es-CL')}`);
-          console.log(`   🔍 Diferencia: ${(cuenta.saldoInfo.verificacion.diferenciaSaldos || 0).toLocaleString('es-CL')}`);
+        // Mostrar último movimiento
+        if (cuenta.ultimoMovimiento) {
+          console.log(`\n📝 ÚLTIMO MOVIMIENTO:`);
+          console.log(`   Fecha: ${cuenta.ultimoMovimiento.fecha}`);
+          console.log(`   Descripción: ${cuenta.ultimoMovimiento.descripcion}`);
+          if (cuenta.ultimoMovimiento.abono > 0) {
+            console.log(`   ✅ Abono: +${cuenta.ultimoMovimiento.abono.toLocaleString('es-CL')}`);
+          }
+          if (cuenta.ultimoMovimiento.cargo > 0) {
+            console.log(`   ❌ Cargo: -${cuenta.ultimoMovimiento.cargo.toLocaleString('es-CL')}`);
+          }
         }
         
         // Mostrar ejemplos de movimientos
+        console.log(`\n📋 EJEMPLOS DE MOVIMIENTOS:`);
         if (cuenta.saldoInfo.detalleDebug.ejemploAbono) {
           const ej = cuenta.saldoInfo.detalleDebug.ejemploAbono;
-          console.log(`   ✅ Ejemplo abono: +${ej.abono.toLocaleString('es-CL')} - ${ej.descripcion} (${ej.fecha})`);
+          console.log(`   ✅ Ejemplo de Abono: +${ej.abono.toLocaleString('es-CL')}`);
+          console.log(`      "${ej.descripcion}" (${ej.fecha})`);
         }
         if (cuenta.saldoInfo.detalleDebug.ejemploCargo) {
           const ej = cuenta.saldoInfo.detalleDebug.ejemploCargo;
-          console.log(`   ❌ Ejemplo cargo: -${ej.cargo.toLocaleString('es-CL')} - ${ej.descripcion} (${ej.fecha})`);
+          console.log(`   ❌ Ejemplo de Cargo: -${ej.cargo.toLocaleString('es-CL')}`);
+          console.log(`      "${ej.descripcion}" (${ej.fecha})`);
         }
+        
+        // Verificación con saldo_acreedor si existe
+        if (cuenta.saldoInfo.verificacion.ultimoSaldoAcreedor !== null) {
+          console.log(`\n🔍 VERIFICACIÓN CRUZADA:`);
+          console.log(`   Último saldo_acreedor en API: ${cuenta.saldoInfo.verificacion.ultimoSaldoAcreedor.toLocaleString('es-CL')}`);
+          console.log(`   Saldo calculado por movimientos: ${cuenta.saldoCalculado.toLocaleString('es-CL')}`);
+          console.log(`   Diferencia: ${(cuenta.saldoInfo.verificacion.diferenciaSaldos || 0).toLocaleString('es-CL')}`);
+        }
+        
+        // Mostrar desglose de saldos encontrados
+        if (cuenta.saldoInfo.detalleDebug.saldosEncontrados.length > 0) {
+          console.log(`\n📈 ÚLTIMOS SALDOS REGISTRADOS EN API:`);
+          cuenta.saldoInfo.detalleDebug.saldosEncontrados.slice(-3).forEach((saldo, i) => {
+            console.log(`   ${i + 1}. ${saldo.fecha}: Acreedor=${saldo.saldo_acreedor.toLocaleString('es-CL')}, Deudor=${saldo.saldo_deudor.toLocaleString('es-CL')}`);
+          });
+        }
+        
       } else {
-        console.log(`   ${cuenta.banco || 'BANCO'} ${cuenta.numeroCuenta}: ${cuenta.saldoCalculado.toLocaleString('es-CL')} (sin movimientos)`);
+        console.log(`❌ SIN MOVIMIENTOS desde 2025-01-01`);
+        console.log(`💰 Saldo: ${cuenta.saldoCalculado.toLocaleString('es-CL')} (solo saldo inicial si aplica)`);
       }
+      
+      console.log(''); // Línea en blanco para separación
     });
+    
+    console.log('\n' + '='.repeat(50));
+    console.log(`📊 RESUMEN GENERAL:`);
+    console.log(`   💵 SALDO TOTAL: ${totalSaldos.toLocaleString('es-CL')}`);
+    console.log(`   🏦 Cuentas con movimientos: ${cuentasConMovimientos.length}/${cuentasConSaldos.length}`);
+    console.log(`   📈 Período analizado: 2025-01-01 hasta hoy`);
+    console.log('='.repeat(50));
 
     console.log(`\n✅ ${cuentasConSaldos.length} saldos cargados con nueva lógica`);
     return cuentasConSaldos;
