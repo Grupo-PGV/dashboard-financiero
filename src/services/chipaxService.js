@@ -629,7 +629,23 @@ const obtenerSaldosBancarios = async () => {
       }
     });
 
-    // 4. ✅ CALCULAR SALDO FINAL: Total abonos - Total cargos
+    // 4. ✅ SALDOS INICIALES DEL AÑO 2025
+    console.log('🎯 Aplicando saldos iniciales del año 2025...');
+    
+    const saldosIniciales2025 = {
+      'bci': 129969864,          // Banco de Chile: $129.969.864
+      'santander': 0,            // Banco Santander: $0  
+      'chipax_wallet': 178098,   // Banco BCI: $178.098 (asumiendo que BCI es chipax_wallet)
+      'banconexion2': 0,         // Banco Internacional: $0 (asumiendo que es banconexion2)
+      'generico': 0              // Cuenta genérica: $0
+    };
+    
+    console.log('💰 Saldos iniciales configurados:');
+    Object.entries(saldosIniciales2025).forEach(([banco, saldo]) => {
+      console.log(`   ${banco.toUpperCase()}: ${saldo.toLocaleString('es-CL')}`);
+    });
+
+    // 5. ✅ CALCULAR SALDO FINAL: Saldo inicial + Abonos - Cargos
     console.log('💰 Calculando saldos finales...');
     
     Object.keys(saldosPorCuenta).forEach(cuentaId => {
@@ -643,13 +659,16 @@ const obtenerSaldosBancarios = async () => {
       }
     });
 
-    // 5. Combinar cuentas con saldos calculados
+    // 6. Combinar cuentas con saldos calculados (incluyendo saldos iniciales)
     const cuentasConSaldos = cuentas.map(cuenta => {
       const saldoInfo = saldosPorCuenta[cuenta.id];
+      const bancoCodigo = cuenta.banco?.toLowerCase() || 'generico';
+      const saldoInicial = saldosIniciales2025[bancoCodigo] || 0;
       
       return {
         ...cuenta,
         saldoCalculado: saldoInfo.saldoCalculado,
+        saldoInicial: saldoInicial,
         ultimaActualizacion: saldoInfo.ultimaFecha,
         movimientosCount: saldoInfo.movimientosCount,
         ultimoMovimiento: saldoInfo.ultimoMovimiento,
