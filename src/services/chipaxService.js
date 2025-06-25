@@ -629,20 +629,386 @@ const obtenerSaldosBancarios = async () => {
       }
     });
 
-    // 4. ✅ SALDOS INICIALES DEL AÑO 2025
-    console.log('🎯 Aplicando saldos iniciales del año 2025...');
+   // 4. ✅ SALDOS INICIALES + MOVIMIENTOS MANUALES BANCO INTERNACIONAL
+    console.log('🎯 Aplicando saldos iniciales + movimientos manuales del Banco Internacional...');
     
+    // Primero, analicemos qué bancos tenemos realmente
+    console.log('\n🔍 ANÁLISIS DE BANCOS ENCONTRADOS:');
+    cuentas.forEach((cuenta, index) => {
+      console.log(`   ${index + 1}. ID: ${cuenta.id} | Banco: "${cuenta.banco}" | Número: ${cuenta.numeroCuenta}`);
+    });
+    
+    // 🚨 MAPEO CORREGIDO FINAL:
+    // Basado en tu corrección: BCI y Banco de Chile estaban cambiados
     const saldosIniciales2025 = {
-      'bci': 129969864,          // Banco de Chile: $129.969.864
-      'santander': 0,            // Banco Santander: $0  
-      'chipax_wallet': 178098,   // Banco BCI: $178.098 (asumiendo que BCI es chipax_wallet)
-      'banconexion2': 0,         // Banco Internacional: $0 (asumiendo que es banconexion2)
-      'generico': 0              // Cuenta genérica: $0
+      'bci': 178098,             // 🏦 BANCO BCI: $178.098 (BCI 89107021) ✅ CORREGIDO
+      'santander': 0,            // 🏦 BANCO SANTANDER: $0 (Santander 0-000-7066661-8) 
+      'banconexion2': 129969864, // 🏦 BANCO DE CHILE: $129.969.864 (BancoNexion2 00-800-10734-09) ✅ CORREGIDO
+      'generico': 0,             // 🏦 BANCO INTERNACIONAL: $0 (Genérico 9117726 - MANUAL)
+      'chipax_wallet': 0         // 🏦 CHIPAX WALLET: $0 (wallet interno)
     };
     
-    console.log('💰 Saldos iniciales configurados:');
+    // 📊 MOVIMIENTOS MANUALES DEL BANCO INTERNACIONAL 2025 (que no están en la API)
+    // Parseados desde las cartolas proporcionadas
+    const movimientosManualesBancoInternacional = [
+      // ENERO 2025
+      { fecha: '2025-01-02', descripcion: 'INTERES POR USO LINEA DE CREDITO 9479150', abono: 0, cargo: 118611 },
+      { fecha: '2025-01-02', descripcion: 'ITE SOBGR/PACTADO 9479150', abono: 0, cargo: 3900 },
+      { fecha: '2025-01-02', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 122511, cargo: 0 },
+      { fecha: '2025-01-08', descripcion: 'COMISION X MANTENCION CTA.CTE.', abono: 0, cargo: 115243 },
+      { fecha: '2025-01-08', descripcion: 'IVA DE LA COMISION', abono: 0, cargo: 21896 },
+      { fecha: '2025-01-08', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 137139, cargo: 0 },
+      { fecha: '2025-01-13', descripcion: 'Transferencia de otro banco 76278661-3', abono: 3778998, cargo: 0 },
+      { fecha: '2025-01-13', descripcion: 'AMORTIZACION AUTOMATICA LCR 9479150', abono: 0, cargo: 3778998 },
+      
+      // FEBRERO 2025
+      { fecha: '2025-02-03', descripcion: 'INTERES POR USO LINEA DE CREDITO 9479150', abono: 0, cargo: 29029 },
+      { fecha: '2025-02-03', descripcion: 'ITE SOBGR/PACTADO 9479150', abono: 0, cargo: 2435 },
+      { fecha: '2025-02-03', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 31464, cargo: 0 },
+      { fecha: '2025-02-07', descripcion: 'COMISION X MANTENCION CTA.CTE.', abono: 0, cargo: 115153 },
+      { fecha: '2025-02-07', descripcion: 'IVA DE LA COMISION', abono: 0, cargo: 21879 },
+      { fecha: '2025-02-07', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 137032, cargo: 0 },
+      { fecha: '2025-02-10', descripcion: 'PAGO TGR', abono: 0, cargo: 328507 },
+      { fecha: '2025-02-10', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 328507, cargo: 0 },
+      { fecha: '2025-02-11', descripcion: 'TRANSF. PARA PGV Mantenimiento Internacional', abono: 0, cargo: 7000000 },
+      { fecha: '2025-02-11', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 7000000, cargo: 0 },
+      { fecha: '2025-02-12', descripcion: 'TRANSF. PARA PGR Seguridad Chile', abono: 0, cargo: 7000000 },
+      { fecha: '2025-02-12', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 7000000, cargo: 0 },
+      { fecha: '2025-02-17', descripcion: 'PAGO SERVIPAG', abono: 0, cargo: 228316 },
+      { fecha: '2025-02-17', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 228316, cargo: 0 },
+      { fecha: '2025-02-21', descripcion: 'TRANSF. PARA PGR SEGURIDAD S.P.A', abono: 0, cargo: 5000000 },
+      { fecha: '2025-02-21', descripcion: 'TRANSF. PARA SERVICIOS PGV SPA', abono: 0, cargo: 5000000 },
+      { fecha: '2025-02-21', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 10000000, cargo: 0 },
+      { fecha: '2025-02-28', descripcion: 'Transferencia de otro banco 76278661-3', abono: 5000000, cargo: 0 },
+      { fecha: '2025-02-28', descripcion: 'AMORTIZACION AUTOMATICA LCR 9479150', abono: 0, cargo: 5000000 },
+      
+      // MARZO 2025
+      { fecha: '2025-03-03', descripcion: 'INTERES POR USO LINEA DE CREDITO 9479150', abono: 0, cargo: 223729 },
+      { fecha: '2025-03-03', descripcion: 'ITE SOBGR/PACTADO 9479150', abono: 0, cargo: 8448 },
+      { fecha: '2025-03-03', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 232177, cargo: 0 },
+      { fecha: '2025-03-07', descripcion: 'COMISION X MANTENCION CTA.CTE.', abono: 0, cargo: 115944 },
+      { fecha: '2025-03-07', descripcion: 'IVA DE LA COMISION', abono: 0, cargo: 22029 },
+      { fecha: '2025-03-07', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 137973, cargo: 0 },
+      { fecha: '2025-03-18', descripcion: 'PAGO SERVIPAG', abono: 0, cargo: 230645 },
+      { fecha: '2025-03-18', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 230645, cargo: 0 },
+      { fecha: '2025-03-20', descripcion: 'TRANSF. PARA SERVICIOS PGV SPA', abono: 0, cargo: 250000 },
+      { fecha: '2025-03-20', descripcion: 'TRANSF. PARA SEGURIDAD SMART SpA', abono: 0, cargo: 550000 },
+      { fecha: '2025-03-20', descripcion: 'TRANSF. PARA SEGURIDAD SMART SpA', abono: 0, cargo: 120709 },
+      { fecha: '2025-03-20', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 920709, cargo: 0 },
+      { fecha: '2025-03-21', descripcion: 'TRANSF. PARA PGV Mantenimiento BCI', abono: 0, cargo: 1000000 },
+      { fecha: '2025-03-21', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 1000000, cargo: 0 },
+      { fecha: '2025-03-25', descripcion: 'TRANSFERENCIA CANCELACION 9479150', abono: 0, cargo: 22592666 },
+      { fecha: '2025-03-31', descripcion: 'Transferencia de otro banco 76278661-3', abono: 5000000, cargo: 0 },
+      { fecha: '2025-03-31', descripcion: 'Transferencia de otro banco 76278661-3', abono: 2592666, cargo: 0 },
+      { fecha: '2025-03-31', descripcion: 'Transferencia de otro banco 76278661-3', abono: 5000000, cargo: 0 },
+      { fecha: '2025-03-31', descripcion: 'Transferencia de otro banco 76278661-3', abono: 5000000, cargo: 0 },
+      { fecha: '2025-03-31', descripcion: 'Transferencia de otro banco 76278661-3', abono: 5000000, cargo: 0 },
+      { fecha: '2025-03-31', descripcion: 'ABONO POR CIERRE DE LCRE N° 9479150', abono: 22592666, cargo: 0 },
+      { fecha: '2025-03-31', descripcion: 'INTERESES POR SOBREGIRO', abono: 0, cargo: 155304 },
+      { fecha: '2025-03-31', descripcion: 'ITE SOBREGIRO NO PACTADO', abono: 0, cargo: 14911 },
+      
+      // ABRIL 2025
+      { fecha: '2025-04-07', descripcion: 'COMISION X MANTENCION CTA.CTE.', abono: 0, cargo: 116682 },
+      { fecha: '2025-04-07', descripcion: 'IVA DE LA COMISION', abono: 0, cargo: 22170 },
+      { fecha: '2025-04-15', descripcion: 'Transferencia de otro banco 76278661-3', abono: 1000000, cargo: 0 },
+      { fecha: '2025-04-15', descripcion: 'PAGO TOTAL DEL PRESTAMO 9754503', abono: 0, cargo: 22982593 },
+      
+      // MAYO 2025
+      { fecha: '2025-05-30', descripcion: 'ABONO LBTR OP 451894', abono: 104537850, cargo: 0 }
+    ];
+    
+    console.log(`📊 ${movimientosManualesBancoInternacional.length} movimientos manuales del Banco Internacional agregados`);
+    
+    // Calcular totales del Banco Internacional
+    let totalAbonosBI = 0;
+    let totalCargosBI = 0;
+    movimientosManualesBancoInternacional.forEach(mov => {
+      totalAbonosBI += mov.abono;
+      totalCargosBI += mov.cargo;
+    });
+    
+    console.log(`💰 Banco Internacional - Total Abonos: ${totalAbonosBI.toLocaleString('es-CL')}`);
+    console.log(`💰 Banco Internacional - Total Cargos: ${totalCargosBI.toLocaleString('es-CL')}`);
+    console.log(`💰 Banco Internacional - Saldo Calculado: ${(totalAbonosBI - totalCargosBI).toLocaleString('es-CL')}`);
+    
+    console.log('\n💰 Saldos iniciales FINALES:');
     Object.entries(saldosIniciales2025).forEach(([banco, saldo]) => {
       console.log(`   ${banco.toUpperCase()}: ${saldo.toLocaleString('es-CL')}`);
+    });/**
+ * ✅ FUNCIÓN COMPLETA CORREGIDA: Obtener saldos bancarios usando /flujo-caja/cartolas
+ * NUEVA LÓGICA: Saldo = SUMA(abonos) - SUMA(cargos) por cuenta
+ */
+const obtenerSaldosBancarios = async () => {
+  console.log('🏦 Obteniendo saldos bancarios CORREGIDO DEFINITIVAMENTE...');
+
+  try {
+    // 1. Obtener cuentas corrientes
+    console.log('📋 Obteniendo cuentas corrientes...');
+    const cuentasResponse = await fetchFromChipax('/cuentas-corrientes', { maxRetries: 1 });
+    const cuentas = cuentasResponse.data || cuentasResponse;
+
+    if (!Array.isArray(cuentas)) {
+      console.warn('⚠️ Cuentas corrientes no es array:', typeof cuentas);
+      return [];
+    }
+
+    console.log(`✅ ${cuentas.length} cuentas corrientes obtenidas`);
+    console.log('🔍 DEBUG cuentas:', cuentas);
+
+    // 2. Obtener TODAS las cartolas desde 2025-01-01 usando paginación manual
+    console.log('💰 Obteniendo cartolas desde 2025-01-01 para calcular saldos...');
+    const todasLasCartolas = [];
+    let page = 1;
+    let hasMoreData = true;
+    const limit = 500;
+    const fechaDesde = '2025-01-01'; // 🚨 AGREGAR FILTRO DE FECHA
+
+    while (hasMoreData) {
+      console.log(`📄 Cargando página ${page} de cartolas desde ${fechaDesde}...`);
+      
+      try {
+        // 🚨 CORRECCIÓN: Agregar fecha_desde al query
+        const response = await fetchFromChipax(`/flujo-caja/cartolas?fecha_desde=${fechaDesde}&page=${page}&limit=${limit}`, { maxRetries: 1 });
+        
+        console.log(`🔍 DEBUG respuesta página ${page}:`, typeof response, Array.isArray(response));
+        
+        // 🚨 PROBAR DIFERENTES ESTRUCTURAS DE RESPUESTA
+        let movimientos = [];
+        
+        if (Array.isArray(response)) {
+          movimientos = response;
+          console.log(`✅ Respuesta directa como array: ${movimientos.length} items`);
+        } else if (response?.data && Array.isArray(response.data)) {
+          movimientos = response.data;
+          console.log(`✅ Respuesta en .data: ${movimientos.length} items`);
+        } else if (response?.items && Array.isArray(response.items)) {
+          movimientos = response.items;
+          console.log(`✅ Respuesta en .items: ${movimientos.length} items`);
+        } else if (response && typeof response === 'object') {
+          // Buscar arrays en las propiedades del objeto
+          for (const [key, value] of Object.entries(response)) {
+            if (Array.isArray(value) && value.length > 0) {
+              // Verificar si parece ser cartolas (tiene campos como abono, cargo, descripcion)
+              if (value[0].id && (value[0].abono !== undefined || value[0].cargo !== undefined)) {
+                movimientos = value;
+                console.log(`✅ Movimientos encontrados en .${key}: ${movimientos.length} items`);
+                break;
+              }
+            }
+          }
+        }
+
+        if (movimientos.length > 0) {
+          todasLasCartolas.push(...movimientos);
+          console.log(`✅ Página ${page}: ${movimientos.length} movimientos (total: ${todasLasCartolas.length})`);
+          
+          // Si obtuvimos menos movimientos que el límite, es la última página
+          if (movimientos.length < limit) {
+            console.log(`📄 Última página alcanzada (${movimientos.length} < ${limit})`);
+            hasMoreData = false;
+          } else {
+            page++;
+          }
+        } else {
+          console.log(`📄 Página ${page} sin datos válidos`);
+          console.log(`🔍 Estructura completa de respuesta:`, response);
+          hasMoreData = false;
+        }
+      } catch (error) {
+        console.error(`❌ Error en página ${page}:`, error);
+        hasMoreData = false;
+      }
+    }
+
+    console.log(`✅ ${todasLasCartolas.length} movimientos de cartola obtenidos en total`);
+
+    // 3. 🚨 NUEVA LÓGICA CORRECTA: Sumar abonos y restar cargos por cuenta
+    console.log('🧮 Calculando saldos por cuenta corriente (NUEVA LÓGICA)...');
+    
+    const saldosPorCuenta = {};
+
+    // Inicializar todas las cuentas
+    cuentas.forEach(cuenta => {
+      saldosPorCuenta[cuenta.id] = {
+        totalAbonos: 0,
+        totalCargos: 0,
+        saldoCalculado: 0,
+        ultimaFecha: null,
+        movimientosCount: 0,
+        ultimoMovimiento: null,
+        ultimoSaldoAcreedor: null,  // Para verificación
+        ultimoSaldoDeudor: null,    // Para verificación
+        detalleDebug: {
+          ejemploAbono: null,
+          ejemploCargo: null,
+          saldosEncontrados: []
+        }
+      };
+    });
+
+    // 5. ✅ PROCESAR MOVIMIENTOS DE LA API + MOVIMIENTOS MANUALES
+    console.log('🔄 Procesando movimientos de API + movimientos manuales...');
+    
+    // Combinar movimientos de la API con los movimientos manuales del Banco Internacional
+    const todosLosMovimientosCompletos = [...todasLasCartolas];
+    
+    // Agregar movimientos manuales del Banco Internacional con el formato de la API
+    movimientosManualesBancoInternacional.forEach(movManual => {
+      todosLosMovimientosCompletos.push({
+        fecha: movManual.fecha,
+        descripcion: movManual.descripcion,
+        abono: movManual.abono,
+        cargo: movManual.cargo,
+        cuenta_corriente_id: 11419, // ID del banco genérico
+        id: `manual_${movManual.fecha}_${movManual.abono || movManual.cargo}`,
+        tipo_cartola_id: 1,
+        Saldos: [] // Los movimientos manuales no tienen saldos automáticos
+      });
+    });
+    
+    console.log(`📊 Total movimientos procesados: ${todosLosMovimientosCompletos.length} (${todasLasCartolas.length} de API + ${movimientosManualesBancoInternacional.length} manuales)`);
+    
+    // Procesar TODOS los movimientos (API + manuales)
+    todosLosMovimientosCompletos.forEach((movimiento) => {
+      const cuentaId = movimiento.cuenta_corriente_id;
+      
+      if (cuentaId && saldosPorCuenta[cuentaId]) {
+        const fechaMovimiento = new Date(movimiento.fecha);
+        const abono = Number(movimiento.abono) || 0;
+        const cargo = Number(movimiento.cargo) || 0;
+        
+        // ✅ ACUMULAR abonos y cargos
+        saldosPorCuenta[cuentaId].totalAbonos += abono;
+        saldosPorCuenta[cuentaId].totalCargos += cargo;
+        saldosPorCuenta[cuentaId].movimientosCount++;
+        
+        // Guardar el movimiento más reciente para referencia
+        if (!saldosPorCuenta[cuentaId].ultimaFecha || fechaMovimiento > new Date(saldosPorCuenta[cuentaId].ultimaFecha)) {
+          saldosPorCuenta[cuentaId].ultimaFecha = movimiento.fecha;
+          saldosPorCuenta[cuentaId].ultimoMovimiento = {
+            descripcion: movimiento.descripcion,
+            fecha: movimiento.fecha,
+            abono: abono,
+            cargo: cargo
+          };
+        }
+        
+        // 📊 Guardar ejemplos para debug
+        if (abono > 0 && !saldosPorCuenta[cuentaId].detalleDebug.ejemploAbono) {
+          saldosPorCuenta[cuentaId].detalleDebug.ejemploAbono = {
+            abono, cargo, descripcion: movimiento.descripcion, fecha: movimiento.fecha
+          };
+        }
+        if (cargo > 0 && !saldosPorCuenta[cuentaId].detalleDebug.ejemploCargo) {
+          saldosPorCuenta[cuentaId].detalleDebug.ejemploCargo = {
+            abono, cargo, descripcion: movimiento.descripcion, fecha: movimiento.fecha
+          };
+        }
+        
+        // 📊 Recolectar información de saldos para verificación (solo de API)
+        if (movimiento.Saldos && Array.isArray(movimiento.Saldos) && movimiento.Saldos.length > 0) {
+          const saldoData = movimiento.Saldos[0];
+          if (saldoData.last_record === 1) {
+            saldosPorCuenta[cuentaId].ultimoSaldoAcreedor = saldoData.saldo_acreedor;
+            saldosPorCuenta[cuentaId].ultimoSaldoDeudor = saldoData.saldo_deudor;
+            
+            saldosPorCuenta[cuentaId].detalleDebug.saldosEncontrados.push({
+              fecha: movimiento.fecha,
+              saldo_acreedor: saldoData.saldo_acreedor,
+              saldo_deudor: saldoData.saldo_deudor,
+              debe: saldoData.debe,
+              haber: saldoData.haber
+            });
+          }
+        }
+      }
+    });
+
+    // 4. ✅ SALDOS INICIALES DEL AÑO 2025 - MAPEO FINAL CORREGIDO
+    console.log('🎯 Aplicando saldos iniciales del año 2025 (MAPEO FINAL CORREGIDO)...');
+    
+    // Primero, analicemos qué bancos tenemos realmente
+    console.log('\n🔍 ANÁLISIS DE BANCOS ENCONTRADOS:');
+    cuentas.forEach((cuenta, index) => {
+      console.log(`   ${index + 1}. ID: ${cuenta.id} | Banco: "${cuenta.banco}" | Número: ${cuenta.numeroCuenta}`);
+    });
+    
+    // 🚨 MAPEO FINAL CORREGIDO BASADO EN LA INFORMACIÓN COMPLETA:
+    // Según la información proporcionada:
+    // - Banco de Chile: $129.969.864 → BCI tiene movimientos
+    // - Banco Santander: $0 → santander tiene movimientos  
+    // - Banco BCI: $178.098 → chipax_wallet (que NO es BCI, debe ser otra cosa)
+    // - Banco Internacional: $0 → generico tiene movimientos grandes
+    
+    // MAPEO CORREGIDO:
+    const saldosIniciales2025 = {
+      'bci': 129969864,          // 🚨 BANCO DE CHILE: $129.969.864 (cuenta BCI 89107021)
+      'santander': 0,            // ✅ BANCO SANTANDER: $0 (tiene muchos movimientos)
+      'generico': 0,             // 🚨 BANCO INTERNACIONAL: $0 (cuenta Genérico 9117726, tiene movimientos)
+      'banconexion2': 178098,    // 🚨 BANCO BCI: $178.098 (cuenta banconexion2 00-800-10734-09)
+      'chipax_wallet': 0         // ✅ CHIPAX WALLET: $0 (wallet interno, sin movimientos relevantes)
+    };
+    
+    console.log('\n💰 Saldos iniciales FINALES CORREGIDOS:');
+    Object.entries(saldosIniciales2025).forEach(([banco, saldo]) => {
+      console.log(`   ${banco.toUpperCase()}: ${saldo.toLocaleString('es-CL')}`);
+    });
+    
+    // 🚨 VERIFICACIÓN DE MAPEO FINAL
+    console.log('\n🔍 VERIFICACIÓN DE MAPEO FINAL:');
+    cuentas.forEach(cuenta => {
+      const bancoCodigo = cuenta.banco?.toLowerCase() || 'sin_banco';
+      const tieneMapeo = saldosIniciales2025.hasOwnProperty(bancoCodigo);
+      const saldoInicial = saldosIniciales2025[bancoCodigo] || 0;
+      
+      console.log(`   ${cuenta.banco?.toUpperCase() || 'SIN_BANCO'} (${cuenta.numeroCuenta}): ${tieneMapeo ? '✅' : '❌'} | Saldo inicial: ${saldoInicial.toLocaleString('es-CL')}`);
+    });
+    
+    console.log('\n💡 EXPLICACIÓN DEL MAPEO FINAL CORREGIDO:');
+    console.log('   🏦 BCI 89107021 → $129.969.864 (BANCO DE CHILE - tiene movimientos May/Jun)');
+    console.log('   🏦 SANTANDER 0-000-7066661-8 → $0 (BANCO SANTANDER - muchos movimientos)');
+    console.log('   🏦 GENERICO 9117726 → $0 (BANCO INTERNACIONAL - movimiento $104M en mayo)');
+    console.log('   🏦 BANCONEXION2 00-800-10734-09 → $178.098 (BANCO BCI - movimientos grandes)');
+    console.log('   🏦 CHIPAX_WALLET 0000000803 → $0 (Wallet interno)');                  // 🚨 CORREGIDO: Banco Internacional: $0 (sin movimientos, puede ser otra cosa)
+      'chipax_wallet': 0         // Chipax Wallet: $0 (sin movimientos)
+    };
+    
+    console.log('\n💰 Saldos iniciales CORREGIDOS:');
+    Object.entries(saldosIniciales2025).forEach(([banco, saldo]) => {
+      console.log(`   ${banco.toUpperCase()}: ${saldo.toLocaleString('es-CL')}`);
+    });
+    
+    // 🚨 NUEVO: Verificar qué cuentas no tienen mapeo
+    console.log('\n🔍 VERIFICACIÓN DE MAPEO CORREGIDO:');
+    cuentas.forEach(cuenta => {
+      const bancoCodigo = cuenta.banco?.toLowerCase() || 'sin_banco';
+      const tieneMapeo = saldosIniciales2025.hasOwnProperty(bancoCodigo);
+      const saldoInicial = saldosIniciales2025[bancoCodigo] || 0;
+      
+      console.log(`   ${cuenta.banco?.toUpperCase() || 'SIN_BANCO'} (${cuenta.numeroCuenta}): ${tieneMapeo ? '✅' : '❌'} Mapeo | Saldo inicial: ${saldoInicial.toLocaleString('es-CL')}`);
+      
+      if (!tieneMapeo) {
+        console.log(`      ⚠️ BANCO "${bancoCodigo}" NO TIENE SALDO INICIAL CONFIGURADO`);
+      }
+    });
+    
+    console.log('\n💡 EXPLICACIÓN DEL MAPEO CORREGIDO:');
+    console.log('   🏦 SANTANDER (449 movimientos) → $0 (correcto)');
+    console.log('   🏦 BANCONEXION2 (50 movimientos) → $129.969.864 (Banco de Chile)');
+    console.log('   🏦 GENERICO (0 movimientos) → $178.098 (Banco BCI)');
+    console.log('   🏦 BCI (0 movimientos) → $0 (Banco Internacional)');
+    console.log('   🏦 CHIPAX_WALLET (0 movimientos) → $0 (wallet interno)');as no tienen mapeo
+    console.log('\n🔍 VERIFICACIÓN DE MAPEO:');
+    cuentas.forEach(cuenta => {
+      const bancoCodigo = cuenta.banco?.toLowerCase() || 'sin_banco';
+      const tieneMapeo = saldosIniciales2025.hasOwnProperty(bancoCodigo);
+      const saldoInicial = saldosIniciales2025[bancoCodigo] || 0;
+      
+      console.log(`   ${cuenta.banco?.toUpperCase() || 'SIN_BANCO'} (${cuenta.numeroCuenta}): ${tieneMapeo ? '✅' : '❌'} Mapeo | Saldo inicial: ${saldoInicial.toLocaleString('es-CL')}`);
+      
+      if (!tieneMapeo) {
+        console.log(`      ⚠️ BANCO "${bancoCodigo}" NO TIENE SALDO INICIAL CONFIGURADO`);
+      }
     });
 
     // 5. ✅ CALCULAR SALDO FINAL: Saldo inicial + Abonos - Cargos
