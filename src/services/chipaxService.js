@@ -970,7 +970,6 @@ const obtenerSaldosBancarios = async () => {
     console.log('   🏦 GENERICO 9117726 → $0 (BANCO INTERNACIONAL - movimiento $104M en mayo)');
     console.log('   🏦 BANCONEXION2 00-800-10734-09 → $178.098 (BANCO BCI - movimientos grandes)');
     console.log('   🏦 CHIPAX_WALLET 0000000803 → $0 (Wallet interno)');                  // 🚨 CORREGIDO: Banco Internacional: $0 (sin movimientos, puede ser otra cosa)
-      'chipax_wallet': 0         // Chipax Wallet: $0 (sin movimientos)
     };
     
     console.log('\n💰 Saldos iniciales CORREGIDOS:');
