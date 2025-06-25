@@ -460,12 +460,13 @@ const obtenerCuentasPorCobrar = async () => {
 };
 
 /**
- * ✅ FUNCIÓN: Obtener saldos bancarios (SIN CAMBIOS)
+ * ✅ FUNCIÓN CORREGIDA: Obtener saldos bancarios usando /flujo-caja/cartolas
  */
 const obtenerSaldosBancarios = async () => {
-  console.log('🏦 Obteniendo saldos bancarios...');
+  console.log('🏦 Obteniendo saldos bancarios CORREGIDO...');
 
   try {
+    // 1. Obtener cuentas corrientes (esto ya funciona)
     console.log('📋 Obteniendo cuentas corrientes...');
     const cuentas = await fetchFromChipax('/cuentas-corrientes', { maxRetries: 1 });
 
@@ -475,53 +476,178 @@ const obtenerSaldosBancarios = async () => {
     }
 
     console.log(`✅ ${cuentas.length} cuentas corrientes obtenidas`);
+    console.log('🔍 DEBUG cuentas:', cuentas);
 
+    // 2. Obtener TODAS las cartolas (movimientos bancarios)
     console.log('💰 Obteniendo cartolas para calcular saldos...');
-    const cartolasData = await fetchFromChipax('/flujo-caja/cartolas', { maxRetries: 1 });
+    
+    let todasLasCartolas = [];
+    let currentPage = 1;
+    let hasMorePages = true;
+    const limit = 500; // Máximo por página que vimos
 
-    let cartolas = [];
-    if (Array.isArray(cartolasData)) {
-      cartolas = cartolasData;
-    } else if (cartolasData.items && Array.isArray(cartolasData.items)) {
-      cartolas = cartolasData.items;
+    // Obtener todas las páginas de cartolas
+    while (hasMorePages) {
+      try {
+        console.log(`📄 Cargando página ${currentPage} de cartolas...`);
+        
+        const cartolasData = await fetchFromChipax(
+          `/flujo-caja/cartolas?page=${currentPage}&limit=${limit}`, 
+          { maxRetries: 1 }
+        );
+
+        if (cartolasData && cartolasData.docs && Array.isArray(cartolasData.docs)) {
+          const movimientos = cartolasData.docs;
+          todasLasCartolas.push(...movimientos);
+          
+          console.log(`✅ Página ${currentPage}: ${movimientos.length} movimientos (total: ${todasLasCartolas.length})`);
+          
+          // Verificar si hay más páginas
+          if (movimientos.length < limit) {
+            hasMorePages = false;
+            console.log(`📄 Última página alcanzada (${movimientos.length} < ${limit})`);
+          } else {
+            currentPage++;
+          }
+        } else {
+          console.warn(`⚠️ Página ${currentPage} no tiene estructura docs esperada:`, cartolasData);
+          hasMorePages = false;
+        }
+
+      } catch (error) {
+        console.error(`❌ Error en página ${currentPage}:`, error);
+        hasMorePages = false;
+      }
     }
 
-    console.log(`✅ ${cartolas.length} cartolas obtenidas`);
+    console.log(`✅ ${todasLasCartolas.length} movimientos de cartola obtenidos en total`);
 
-    // Calcular saldos por cuenta usando la cartola más reciente
+    if (todasLasCartolas.length === 0) {
+      console.warn('⚠️ No se obtuvieron movimientos de cartola');
+      return cuentas.map(cuenta => ({
+        ...cuenta,
+        saldoCalculado: 0,
+        ultimaActualizacion: null,
+        movimientosCount: 0
+      }));
+    }
+
+    // 3. Procesar saldos por cuenta corriente
+    console.log('🧮 Calculando saldos por cuenta corriente...');
+    
     const saldosPorCuenta = {};
-    cartolas.forEach(cartola => {
-      const cuentaId = cartola.idCuentaCorriente;
-      if (!saldosPorCuenta[cuentaId]) {
-        saldosPorCuenta[cuentaId] = {
-          saldoDeudor: 0,
-          saldoAcreedor: 0,
-          ultimaFecha: cartola.fecha
-        };
-      }
 
-      const fechaCartola = new Date(cartola.fecha);
-      const fechaActual = new Date(saldosPorCuenta[cuentaId].ultimaFecha);
+    // Inicializar todas las cuentas
+    cuentas.forEach(cuenta => {
+      saldosPorCuenta[cuenta.id] = {
+        saldoActual: 0,
+        ultimaFecha: null,
+        movimientosCount: 0,
+        ultimoMovimiento: null
+      };
+    });
 
-      if (fechaCartola >= fechaActual) {
-        saldosPorCuenta[cuentaId] = {
-          saldoDeudor: cartola.saldo || 0,
-          saldoAcreedor: 0,
-          ultimaFecha: cartola.fecha
-        };
+    // Procesar cada movimiento de cartola
+    // IMPORTANTE: Ordenar por fecha DESC para procesar del más reciente al más antiguo
+    const movimientosOrdenados = todasLasCartolas.sort((a, b) => {
+      return new Date(b.fecha) - new Date(a.fecha); // Más recientes primero
+    });
+
+    console.log(`🔄 Procesando ${movimientosOrdenados.length} movimientos ordenados por fecha...`);
+    
+    movimientosOrdenados.forEach((movimiento, index) => {
+      const cuentaId = movimiento.cuenta_corriente_id;
+      
+      if (cuentaId && saldosPorCuenta[cuentaId]) {
+        const fechaMovimiento = new Date(movimiento.fecha);
+        
+        // Solo actualizar si es el primer movimiento procesado para esta cuenta
+        // (ya que están ordenados por fecha DESC, el primero es el más reciente)
+        if (!saldosPorCuenta[cuentaId].ultimaFecha) {
+          
+          // Calcular saldo: abonos suman, cargos restan
+          const abono = Number(movimiento.abono) || 0;
+          const cargo = Number(movimiento.cargo) || 0;
+          
+          // Si hay Saldos en el movimiento, usar esos datos
+          if (movimiento.Saldos && Array.isArray(movimiento.Saldos) && movimiento.Saldos.length > 0) {
+            const saldoData = movimiento.Saldos[0]; // Tomar el primer saldo
+            
+            // Usar saldo_deudor como saldo principal (activos)
+            // saldo_acreedor para pasivos (normalmente 0 en cuentas corrientes)
+            const saldoDeudor = Number(saldoData.saldo_deudor) || 0;
+            const saldoAcreedor = Number(saldoData.saldo_acreedor) || 0;
+            
+            // En cuentas corrientes bancarias, el saldo real es saldo_deudor
+            saldosPorCuenta[cuentaId].saldoActual = saldoDeudor;
+            
+            // Guardar información adicional para debug
+            saldosPorCuenta[cuentaId].saldoCompleto = {
+              saldo_deudor: saldoDeudor,
+              saldo_acreedor: saldoAcreedor,
+              debe: Number(saldoData.debe) || 0,
+              haber: Number(saldoData.haber) || 0,
+              id_saldo: saldoData.id
+            };
+            
+            console.log(`💰 Cuenta ${cuentaId}: Saldo actualizado a ${saldoDeudor.toLocaleString('es-CL')} (${movimiento.fecha})`);
+          } else {
+            // Fallback: calcular manualmente acumulando movimientos
+            const saldoAnterior = saldosPorCuenta[cuentaId].saldoActual;
+            saldosPorCuenta[cuentaId].saldoActual = saldoAnterior + abono - cargo;
+            
+            console.log(`📊 Cuenta ${cuentaId}: Cálculo manual - Anterior: ${saldoAnterior.toLocaleString('es-CL')} + Abono: ${abono.toLocaleString('es-CL')} - Cargo: ${cargo.toLocaleString('es-CL')} = ${saldosPorCuenta[cuentaId].saldoActual.toLocaleString('es-CL')}`);
+          }
+          
+          saldosPorCuenta[cuentaId].ultimaFecha = movimiento.fecha;
+          saldosPorCuenta[cuentaId].ultimoMovimiento = {
+            id: movimiento.id,
+            fecha: movimiento.fecha,
+            descripcion: movimiento.descripcion,
+            abono: abono,
+            cargo: cargo
+          };
+        }
+        
+        // Contar todos los movimientos, no solo el más reciente
+        saldosPorCuenta[cuentaId].movimientosCount++;
       }
     });
 
-    const cuentasConSaldos = cuentas.map(cuenta => ({
-      ...cuenta,
-      saldoCalculado: saldosPorCuenta[cuenta.id]?.saldoDeudor || 0,
-      ultimaActualizacion: saldosPorCuenta[cuenta.id]?.ultimaFecha || null,
-      saldoInfo: saldosPorCuenta[cuenta.id] || null
-    }));
+    // 4. Combinar cuentas con saldos calculados
+    const cuentasConSaldos = cuentas.map(cuenta => {
+      const saldoInfo = saldosPorCuenta[cuenta.id];
+      
+      return {
+        ...cuenta,
+        saldoCalculado: saldoInfo.saldoActual,
+        ultimaActualizacion: saldoInfo.ultimaFecha,
+        movimientosCount: saldoInfo.movimientosCount,
+        ultimoMovimiento: saldoInfo.ultimoMovimiento,
+        saldoInfo: saldoInfo
+      };
+    });
 
+    // 5. Mostrar resumen
     const totalSaldos = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.saldoCalculado, 0);
+    const cuentasConMovimientos = cuentasConSaldos.filter(cuenta => cuenta.movimientosCount > 0);
+    
     console.log(`💰 Saldos calculados para ${cuentasConSaldos.length} cuentas`);
+    console.log(`📊 Cuentas con movimientos: ${cuentasConMovimientos.length}`);
     console.log(`💵 Saldo total: ${totalSaldos.toLocaleString('es-CL')}`);
+    
+    // Debug: mostrar detalle de cada cuenta
+    console.log('🔍 DETALLE POR CUENTA:');
+    cuentasConSaldos.forEach(cuenta => {
+      console.log(`   ${cuenta.banco.toUpperCase()} ${cuenta.numeroCuenta}: ${cuenta.saldoCalculado.toLocaleString('es-CL')} (${cuenta.movimientosCount} movimientos)`);
+      if (cuenta.ultimoMovimiento) {
+        console.log(`     Último: ${cuenta.ultimoMovimiento.fecha} - ${cuenta.ultimoMovimiento.descripcion}`);
+        if (cuenta.saldoInfo?.saldoCompleto) {
+          const sc = cuenta.saldoInfo.saldoCompleto;
+          console.log(`     Detalle saldo: Deudor=${sc.saldo_deudor.toLocaleString('es-CL')}, Acreedor=${sc.saldo_acreedor.toLocaleString('es-CL')}, Debe=${sc.debe.toLocaleString('es-CL')}, Haber=${sc.haber.toLocaleString('es-CL')}`);
+        }
+      }
+    });
 
     return cuentasConSaldos;
 
