@@ -460,7 +460,7 @@ const obtenerCuentasPorCobrar = async () => {
 };
 
 /**
- * ✅ FUNCIÓN CORREGIDA COMPLETA: Obtener saldos bancarios usando /flujo-caja/cartolas
+ * ✅ FUNCIÓN COMPLETA CORREGIDA: Obtener saldos bancarios usando /flujo-caja/cartolas
  * NUEVA LÓGICA: Saldo = SUMA(abonos) - SUMA(cargos) por cuenta
  */
 const obtenerSaldosBancarios = async () => {
@@ -681,14 +681,10 @@ const obtenerSaldosBancarios = async () => {
     return cuentasConSaldos;
 
   } catch (error) {
-    console.log(`✅ ${cuentasConSaldos.length} saldos cargados`);
-    return cuentasConSaldos;   // ✅ ESTE return debe estar DENTRO del try
-
-  } catch (error) {
     console.error('❌ Error obteniendo saldos bancarios:', error);
     return [];
   }
-}; 
+};
 
 // Exportaciones
 const chipaxService = {
