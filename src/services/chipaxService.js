@@ -460,8 +460,9 @@ const obtenerCuentasPorCobrar = async () => {
 };
 
 /**
- * ✅ FUNCIÓN COMPLETA CORREGIDA: Obtener saldos bancarios usando /flujo-caja/cartolas
- * NUEVA LÓGICA: Saldo = SUMA(abonos) - SUMA(cargos) por cuenta
+ * ✅ FUNCIÓN COMPLETA Y FINAL: Obtener saldos bancarios usando /flujo-caja/cartolas
+ * NUEVA LÓGICA: Saldo = Saldo Inicial + SUMA(abonos) - SUMA(cargos) por cuenta
+ * INCLUYE: Movimientos manuales del Banco Internacional
  */
 const obtenerSaldosBancarios = async () => {
   console.log('🏦 Obteniendo saldos bancarios CORREGIDO DEFINITIVAMENTE...');
@@ -486,18 +487,16 @@ const obtenerSaldosBancarios = async () => {
     let page = 1;
     let hasMoreData = true;
     const limit = 500;
-    const fechaDesde = '2025-01-01'; // 🚨 AGREGAR FILTRO DE FECHA
+    const fechaDesde = '2025-01-01';
 
     while (hasMoreData) {
       console.log(`📄 Cargando página ${page} de cartolas desde ${fechaDesde}...`);
       
       try {
-        // 🚨 CORRECCIÓN: Agregar fecha_desde al query
         const response = await fetchFromChipax(`/flujo-caja/cartolas?fecha_desde=${fechaDesde}&page=${page}&limit=${limit}`, { maxRetries: 1 });
         
         console.log(`🔍 DEBUG respuesta página ${page}:`, typeof response, Array.isArray(response));
         
-        // 🚨 PROBAR DIFERENTES ESTRUCTURAS DE RESPUESTA
         let movimientos = [];
         
         if (Array.isArray(response)) {
@@ -510,10 +509,8 @@ const obtenerSaldosBancarios = async () => {
           movimientos = response.items;
           console.log(`✅ Respuesta en .items: ${movimientos.length} items`);
         } else if (response && typeof response === 'object') {
-          // Buscar arrays en las propiedades del objeto
           for (const [key, value] of Object.entries(response)) {
             if (Array.isArray(value) && value.length > 0) {
-              // Verificar si parece ser cartolas (tiene campos como abono, cargo, descripcion)
               if (value[0].id && (value[0].abono !== undefined || value[0].cargo !== undefined)) {
                 movimientos = value;
                 console.log(`✅ Movimientos encontrados en .${key}: ${movimientos.length} items`);
@@ -527,7 +524,6 @@ const obtenerSaldosBancarios = async () => {
           todasLasCartolas.push(...movimientos);
           console.log(`✅ Página ${page}: ${movimientos.length} movimientos (total: ${todasLasCartolas.length})`);
           
-          // Si obtuvimos menos movimientos que el límite, es la última página
           if (movimientos.length < limit) {
             console.log(`📄 Última página alcanzada (${movimientos.length} < ${limit})`);
             hasMoreData = false;
@@ -547,12 +543,11 @@ const obtenerSaldosBancarios = async () => {
 
     console.log(`✅ ${todasLasCartolas.length} movimientos de cartola obtenidos en total`);
 
-    // 3. 🚨 NUEVA LÓGICA CORRECTA: Sumar abonos y restar cargos por cuenta
+    // 3. Inicializar saldos por cuenta
     console.log('🧮 Calculando saldos por cuenta corriente (NUEVA LÓGICA)...');
     
     const saldosPorCuenta = {};
 
-    // Inicializar todas las cuentas
     cuentas.forEach(cuenta => {
       saldosPorCuenta[cuenta.id] = {
         totalAbonos: 0,
@@ -561,8 +556,8 @@ const obtenerSaldosBancarios = async () => {
         ultimaFecha: null,
         movimientosCount: 0,
         ultimoMovimiento: null,
-        ultimoSaldoAcreedor: null,  // Para verificación
-        ultimoSaldoDeudor: null,    // Para verificación
+        ultimoSaldoAcreedor: null,
+        ultimoSaldoDeudor: null,
         detalleDebug: {
           ejemploAbono: null,
           ejemploCargo: null,
@@ -571,85 +566,23 @@ const obtenerSaldosBancarios = async () => {
       };
     });
 
-    // 🔄 PROCESAR TODOS LOS MOVIMIENTOS: Acumular abonos y cargos
-    console.log(`🔄 Procesando ${todasLasCartolas.length} movimientos para acumular...`);
+    // 4. Saldos iniciales 2025 (MAPEO CORREGIDO)
+    console.log('🎯 Aplicando saldos iniciales del año 2025...');
     
-    todasLasCartolas.forEach((movimiento) => {
-      const cuentaId = movimiento.cuenta_corriente_id;
-      
-      if (cuentaId && saldosPorCuenta[cuentaId]) {
-        const fechaMovimiento = new Date(movimiento.fecha);
-        const abono = Number(movimiento.abono) || 0;
-        const cargo = Number(movimiento.cargo) || 0;
-        
-        // ✅ ACUMULAR abonos y cargos
-        saldosPorCuenta[cuentaId].totalAbonos += abono;
-        saldosPorCuenta[cuentaId].totalCargos += cargo;
-        saldosPorCuenta[cuentaId].movimientosCount++;
-        
-        // Guardar el movimiento más reciente para referencia
-        if (!saldosPorCuenta[cuentaId].ultimaFecha || fechaMovimiento > new Date(saldosPorCuenta[cuentaId].ultimaFecha)) {
-          saldosPorCuenta[cuentaId].ultimaFecha = movimiento.fecha;
-          saldosPorCuenta[cuentaId].ultimoMovimiento = {
-            descripcion: movimiento.descripcion,
-            fecha: movimiento.fecha,
-            abono: abono,
-            cargo: cargo
-          };
-        }
-        
-        // 📊 Guardar ejemplos para debug
-        if (abono > 0 && !saldosPorCuenta[cuentaId].detalleDebug.ejemploAbono) {
-          saldosPorCuenta[cuentaId].detalleDebug.ejemploAbono = {
-            abono, cargo, descripcion: movimiento.descripcion, fecha: movimiento.fecha
-          };
-        }
-        if (cargo > 0 && !saldosPorCuenta[cuentaId].detalleDebug.ejemploCargo) {
-          saldosPorCuenta[cuentaId].detalleDebug.ejemploCargo = {
-            abono, cargo, descripcion: movimiento.descripcion, fecha: movimiento.fecha
-          };
-        }
-        
-        // 📊 Recolectar información de saldos para verificación
-        if (movimiento.Saldos && Array.isArray(movimiento.Saldos) && movimiento.Saldos.length > 0) {
-          const saldoData = movimiento.Saldos[0];
-          if (saldoData.last_record === 1) {
-            saldosPorCuenta[cuentaId].ultimoSaldoAcreedor = saldoData.saldo_acreedor;
-            saldosPorCuenta[cuentaId].ultimoSaldoDeudor = saldoData.saldo_deudor;
-            
-            saldosPorCuenta[cuentaId].detalleDebug.saldosEncontrados.push({
-              fecha: movimiento.fecha,
-              saldo_acreedor: saldoData.saldo_acreedor,
-              saldo_deudor: saldoData.saldo_deudor,
-              debe: saldoData.debe,
-              haber: saldoData.haber
-            });
-          }
-        }
-      }
-    });
-
-   // 4. ✅ SALDOS INICIALES + MOVIMIENTOS MANUALES BANCO INTERNACIONAL
-    console.log('🎯 Aplicando saldos iniciales + movimientos manuales del Banco Internacional...');
-    
-    // Primero, analicemos qué bancos tenemos realmente
     console.log('\n🔍 ANÁLISIS DE BANCOS ENCONTRADOS:');
     cuentas.forEach((cuenta, index) => {
       console.log(`   ${index + 1}. ID: ${cuenta.id} | Banco: "${cuenta.banco}" | Número: ${cuenta.numeroCuenta}`);
     });
     
-    // 🚨 MAPEO CORREGIDO FINAL:
-    // Basado en tu corrección: BCI y Banco de Chile estaban cambiados
     const saldosIniciales2025 = {
-      'bci': 178098,             // 🏦 BANCO BCI: $178.098 (BCI 89107021) ✅ CORREGIDO
-      'santander': 0,            // 🏦 BANCO SANTANDER: $0 (Santander 0-000-7066661-8) 
-      'banconexion2': 129969864, // 🏦 BANCO DE CHILE: $129.969.864 (BancoNexion2 00-800-10734-09) ✅ CORREGIDO
-      'generico': 0,             // 🏦 BANCO INTERNACIONAL: $0 (Genérico 9117726 - MANUAL)
-      'chipax_wallet': 0         // 🏦 CHIPAX WALLET: $0 (wallet interno)
+      'bci': 178098,             // BANCO BCI: $178.098 (BCI 89107021) ✅ CORREGIDO
+      'santander': 0,            // BANCO SANTANDER: $0 (Santander 0-000-7066661-8) 
+      'banconexion2': 129969864, // BANCO DE CHILE: $129.969.864 (BancoNexion2 00-800-10734-09) ✅ CORREGIDO
+      'generico': 0,             // BANCO INTERNACIONAL: $0 (Genérico 9117726 - MANUAL)
+      'chipax_wallet': 0         // CHIPAX WALLET: $0 (wallet interno)
     };
     
-    // 📊 MOVIMIENTOS MANUALES DEL BANCO INTERNACIONAL 2025 (que no están en la API)
-    // Parseados desde las cartolas proporcionadas
+    // 5. Movimientos manuales del Banco Internacional 2025
     const movimientosManualesBancoInternacional = [
       // ENERO 2025
       { fecha: '2025-01-02', descripcion: 'INTERES POR USO LINEA DE CREDITO 9479150', abono: 0, cargo: 118611 },
@@ -731,128 +664,17 @@ const obtenerSaldosBancarios = async () => {
     console.log(`💰 Banco Internacional - Total Cargos: ${totalCargosBI.toLocaleString('es-CL')}`);
     console.log(`💰 Banco Internacional - Saldo Calculado: ${(totalAbonosBI - totalCargosBI).toLocaleString('es-CL')}`);
     
-    console.log('\n💰 Saldos iniciales FINALES:');
+    console.log('\n💰 Saldos iniciales configurados:');
     Object.entries(saldosIniciales2025).forEach(([banco, saldo]) => {
       console.log(`   ${banco.toUpperCase()}: ${saldo.toLocaleString('es-CL')}`);
-    });/**
- * ✅ FUNCIÓN COMPLETA CORREGIDA: Obtener saldos bancarios usando /flujo-caja/cartolas
- * NUEVA LÓGICA: Saldo = SUMA(abonos) - SUMA(cargos) por cuenta
- */
-const obtenerSaldosBancarios = async () => {
-  console.log('🏦 Obteniendo saldos bancarios CORREGIDO DEFINITIVAMENTE...');
-
-  try {
-    // 1. Obtener cuentas corrientes
-    console.log('📋 Obteniendo cuentas corrientes...');
-    const cuentasResponse = await fetchFromChipax('/cuentas-corrientes', { maxRetries: 1 });
-    const cuentas = cuentasResponse.data || cuentasResponse;
-
-    if (!Array.isArray(cuentas)) {
-      console.warn('⚠️ Cuentas corrientes no es array:', typeof cuentas);
-      return [];
-    }
-
-    console.log(`✅ ${cuentas.length} cuentas corrientes obtenidas`);
-    console.log('🔍 DEBUG cuentas:', cuentas);
-
-    // 2. Obtener TODAS las cartolas desde 2025-01-01 usando paginación manual
-    console.log('💰 Obteniendo cartolas desde 2025-01-01 para calcular saldos...');
-    const todasLasCartolas = [];
-    let page = 1;
-    let hasMoreData = true;
-    const limit = 500;
-    const fechaDesde = '2025-01-01'; // 🚨 AGREGAR FILTRO DE FECHA
-
-    while (hasMoreData) {
-      console.log(`📄 Cargando página ${page} de cartolas desde ${fechaDesde}...`);
-      
-      try {
-        // 🚨 CORRECCIÓN: Agregar fecha_desde al query
-        const response = await fetchFromChipax(`/flujo-caja/cartolas?fecha_desde=${fechaDesde}&page=${page}&limit=${limit}`, { maxRetries: 1 });
-        
-        console.log(`🔍 DEBUG respuesta página ${page}:`, typeof response, Array.isArray(response));
-        
-        // 🚨 PROBAR DIFERENTES ESTRUCTURAS DE RESPUESTA
-        let movimientos = [];
-        
-        if (Array.isArray(response)) {
-          movimientos = response;
-          console.log(`✅ Respuesta directa como array: ${movimientos.length} items`);
-        } else if (response?.data && Array.isArray(response.data)) {
-          movimientos = response.data;
-          console.log(`✅ Respuesta en .data: ${movimientos.length} items`);
-        } else if (response?.items && Array.isArray(response.items)) {
-          movimientos = response.items;
-          console.log(`✅ Respuesta en .items: ${movimientos.length} items`);
-        } else if (response && typeof response === 'object') {
-          // Buscar arrays en las propiedades del objeto
-          for (const [key, value] of Object.entries(response)) {
-            if (Array.isArray(value) && value.length > 0) {
-              // Verificar si parece ser cartolas (tiene campos como abono, cargo, descripcion)
-              if (value[0].id && (value[0].abono !== undefined || value[0].cargo !== undefined)) {
-                movimientos = value;
-                console.log(`✅ Movimientos encontrados en .${key}: ${movimientos.length} items`);
-                break;
-              }
-            }
-          }
-        }
-
-        if (movimientos.length > 0) {
-          todasLasCartolas.push(...movimientos);
-          console.log(`✅ Página ${page}: ${movimientos.length} movimientos (total: ${todasLasCartolas.length})`);
-          
-          // Si obtuvimos menos movimientos que el límite, es la última página
-          if (movimientos.length < limit) {
-            console.log(`📄 Última página alcanzada (${movimientos.length} < ${limit})`);
-            hasMoreData = false;
-          } else {
-            page++;
-          }
-        } else {
-          console.log(`📄 Página ${page} sin datos válidos`);
-          console.log(`🔍 Estructura completa de respuesta:`, response);
-          hasMoreData = false;
-        }
-      } catch (error) {
-        console.error(`❌ Error en página ${page}:`, error);
-        hasMoreData = false;
-      }
-    }
-
-    console.log(`✅ ${todasLasCartolas.length} movimientos de cartola obtenidos en total`);
-
-    // 3. 🚨 NUEVA LÓGICA CORRECTA: Sumar abonos y restar cargos por cuenta
-    console.log('🧮 Calculando saldos por cuenta corriente (NUEVA LÓGICA)...');
-    
-    const saldosPorCuenta = {};
-
-    // Inicializar todas las cuentas
-    cuentas.forEach(cuenta => {
-      saldosPorCuenta[cuenta.id] = {
-        totalAbonos: 0,
-        totalCargos: 0,
-        saldoCalculado: 0,
-        ultimaFecha: null,
-        movimientosCount: 0,
-        ultimoMovimiento: null,
-        ultimoSaldoAcreedor: null,  // Para verificación
-        ultimoSaldoDeudor: null,    // Para verificación
-        detalleDebug: {
-          ejemploAbono: null,
-          ejemploCargo: null,
-          saldosEncontrados: []
-        }
-      };
     });
 
-    // 5. ✅ PROCESAR MOVIMIENTOS DE LA API + MOVIMIENTOS MANUALES
+    // 6. Procesar movimientos de API + movimientos manuales
     console.log('🔄 Procesando movimientos de API + movimientos manuales...');
     
-    // Combinar movimientos de la API con los movimientos manuales del Banco Internacional
     const todosLosMovimientosCompletos = [...todasLasCartolas];
     
-    // Agregar movimientos manuales del Banco Internacional con el formato de la API
+    // Agregar movimientos manuales del Banco Internacional
     movimientosManualesBancoInternacional.forEach(movManual => {
       todosLosMovimientosCompletos.push({
         fecha: movManual.fecha,
@@ -862,7 +684,7 @@ const obtenerSaldosBancarios = async () => {
         cuenta_corriente_id: 11419, // ID del banco genérico
         id: `manual_${movManual.fecha}_${movManual.abono || movManual.cargo}`,
         tipo_cartola_id: 1,
-        Saldos: [] // Los movimientos manuales no tienen saldos automáticos
+        Saldos: []
       });
     });
     
@@ -877,12 +699,12 @@ const obtenerSaldosBancarios = async () => {
         const abono = Number(movimiento.abono) || 0;
         const cargo = Number(movimiento.cargo) || 0;
         
-        // ✅ ACUMULAR abonos y cargos
+        // ACUMULAR abonos y cargos
         saldosPorCuenta[cuentaId].totalAbonos += abono;
         saldosPorCuenta[cuentaId].totalCargos += cargo;
         saldosPorCuenta[cuentaId].movimientosCount++;
         
-        // Guardar el movimiento más reciente para referencia
+        // Guardar el movimiento más reciente
         if (!saldosPorCuenta[cuentaId].ultimaFecha || fechaMovimiento > new Date(saldosPorCuenta[cuentaId].ultimaFecha)) {
           saldosPorCuenta[cuentaId].ultimaFecha = movimiento.fecha;
           saldosPorCuenta[cuentaId].ultimoMovimiento = {
@@ -893,7 +715,7 @@ const obtenerSaldosBancarios = async () => {
           };
         }
         
-        // 📊 Guardar ejemplos para debug
+        // Guardar ejemplos para debug
         if (abono > 0 && !saldosPorCuenta[cuentaId].detalleDebug.ejemploAbono) {
           saldosPorCuenta[cuentaId].detalleDebug.ejemploAbono = {
             abono, cargo, descripcion: movimiento.descripcion, fecha: movimiento.fecha
@@ -905,7 +727,7 @@ const obtenerSaldosBancarios = async () => {
           };
         }
         
-        // 📊 Recolectar información de saldos para verificación (solo de API)
+        // Recolectar información de saldos para verificación (solo de API)
         if (movimiento.Saldos && Array.isArray(movimiento.Saldos) && movimiento.Saldos.length > 0) {
           const saldoData = movimiento.Saldos[0];
           if (saldoData.last_record === 1) {
@@ -924,107 +746,41 @@ const obtenerSaldosBancarios = async () => {
       }
     });
 
-    // 4. ✅ SALDOS INICIALES DEL AÑO 2025 - MAPEO FINAL CORREGIDO
-    console.log('🎯 Aplicando saldos iniciales del año 2025 (MAPEO FINAL CORREGIDO)...');
-    
-    // Primero, analicemos qué bancos tenemos realmente
-    console.log('\n🔍 ANÁLISIS DE BANCOS ENCONTRADOS:');
-    cuentas.forEach((cuenta, index) => {
-      console.log(`   ${index + 1}. ID: ${cuenta.id} | Banco: "${cuenta.banco}" | Número: ${cuenta.numeroCuenta}`);
-    });
-    
-    // 🚨 MAPEO FINAL CORREGIDO BASADO EN LA INFORMACIÓN COMPLETA:
-    // Según la información proporcionada:
-    // - Banco de Chile: $129.969.864 → BCI tiene movimientos
-    // - Banco Santander: $0 → santander tiene movimientos  
-    // - Banco BCI: $178.098 → chipax_wallet (que NO es BCI, debe ser otra cosa)
-    // - Banco Internacional: $0 → generico tiene movimientos grandes
-    
-    // MAPEO CORREGIDO:
-    const saldosIniciales2025 = {
-      'bci': 129969864,          // 🚨 BANCO DE CHILE: $129.969.864 (cuenta BCI 89107021)
-      'santander': 0,            // ✅ BANCO SANTANDER: $0 (tiene muchos movimientos)
-      'generico': 0,             // 🚨 BANCO INTERNACIONAL: $0 (cuenta Genérico 9117726, tiene movimientos)
-      'banconexion2': 178098,    // 🚨 BANCO BCI: $178.098 (cuenta banconexion2 00-800-10734-09)
-      'chipax_wallet': 0         // ✅ CHIPAX WALLET: $0 (wallet interno, sin movimientos relevantes)
-    };
-    
-    console.log('\n💰 Saldos iniciales FINALES CORREGIDOS:');
-    Object.entries(saldosIniciales2025).forEach(([banco, saldo]) => {
-      console.log(`   ${banco.toUpperCase()}: ${saldo.toLocaleString('es-CL')}`);
-    });
-    
-    // 🚨 VERIFICACIÓN DE MAPEO FINAL
-    console.log('\n🔍 VERIFICACIÓN DE MAPEO FINAL:');
-    cuentas.forEach(cuenta => {
-      const bancoCodigo = cuenta.banco?.toLowerCase() || 'sin_banco';
-      const tieneMapeo = saldosIniciales2025.hasOwnProperty(bancoCodigo);
-      const saldoInicial = saldosIniciales2025[bancoCodigo] || 0;
-      
-      console.log(`   ${cuenta.banco?.toUpperCase() || 'SIN_BANCO'} (${cuenta.numeroCuenta}): ${tieneMapeo ? '✅' : '❌'} | Saldo inicial: ${saldoInicial.toLocaleString('es-CL')}`);
-    });
-    
-    console.log('\n💡 EXPLICACIÓN DEL MAPEO FINAL CORREGIDO:');
-    console.log('   🏦 BCI 89107021 → $129.969.864 (BANCO DE CHILE - tiene movimientos May/Jun)');
-    console.log('   🏦 SANTANDER 0-000-7066661-8 → $0 (BANCO SANTANDER - muchos movimientos)');
-    console.log('   🏦 GENERICO 9117726 → $0 (BANCO INTERNACIONAL - movimiento $104M en mayo)');
-    console.log('   🏦 BANCONEXION2 00-800-10734-09 → $178.098 (BANCO BCI - movimientos grandes)');
-    console.log('   🏦 CHIPAX_WALLET 0000000803 → $0 (Wallet interno)');                  // 🚨 CORREGIDO: Banco Internacional: $0 (sin movimientos, puede ser otra cosa)
-    };
-    
-    console.log('\n💰 Saldos iniciales CORREGIDOS:');
-    Object.entries(saldosIniciales2025).forEach(([banco, saldo]) => {
-      console.log(`   ${banco.toUpperCase()}: ${saldo.toLocaleString('es-CL')}`);
-    });
-    
-    // 🚨 NUEVO: Verificar qué cuentas no tienen mapeo
-    console.log('\n🔍 VERIFICACIÓN DE MAPEO CORREGIDO:');
-    cuentas.forEach(cuenta => {
-      const bancoCodigo = cuenta.banco?.toLowerCase() || 'sin_banco';
-      const tieneMapeo = saldosIniciales2025.hasOwnProperty(bancoCodigo);
-      const saldoInicial = saldosIniciales2025[bancoCodigo] || 0;
-      
-      console.log(`   ${cuenta.banco?.toUpperCase() || 'SIN_BANCO'} (${cuenta.numeroCuenta}): ${tieneMapeo ? '✅' : '❌'} Mapeo | Saldo inicial: ${saldoInicial.toLocaleString('es-CL')}`);
-      
-      if (!tieneMapeo) {
-        console.log(`      ⚠️ BANCO "${bancoCodigo}" NO TIENE SALDO INICIAL CONFIGURADO`);
-      }
-    });
-    
-    console.log('\n💡 EXPLICACIÓN DEL MAPEO CORREGIDO:');
-    console.log('   🏦 SANTANDER (449 movimientos) → $0 (correcto)');
-    console.log('   🏦 BANCONEXION2 (50 movimientos) → $129.969.864 (Banco de Chile)');
-    console.log('   🏦 GENERICO (0 movimientos) → $178.098 (Banco BCI)');
-    console.log('   🏦 BCI (0 movimientos) → $0 (Banco Internacional)');
-    console.log('   🏦 CHIPAX_WALLET (0 movimientos) → $0 (wallet interno)');as no tienen mapeo
-    console.log('\n🔍 VERIFICACIÓN DE MAPEO:');
-    cuentas.forEach(cuenta => {
-      const bancoCodigo = cuenta.banco?.toLowerCase() || 'sin_banco';
-      const tieneMapeo = saldosIniciales2025.hasOwnProperty(bancoCodigo);
-      const saldoInicial = saldosIniciales2025[bancoCodigo] || 0;
-      
-      console.log(`   ${cuenta.banco?.toUpperCase() || 'SIN_BANCO'} (${cuenta.numeroCuenta}): ${tieneMapeo ? '✅' : '❌'} Mapeo | Saldo inicial: ${saldoInicial.toLocaleString('es-CL')}`);
-      
-      if (!tieneMapeo) {
-        console.log(`      ⚠️ BANCO "${bancoCodigo}" NO TIENE SALDO INICIAL CONFIGURADO`);
-      }
-    });
-
-    // 5. ✅ CALCULAR SALDO FINAL: Saldo inicial + Abonos - Cargos
-    console.log('💰 Calculando saldos finales...');
+    // 7. Calcular saldo final: Saldo inicial + Abonos - Cargos
+    console.log('💰 Calculando saldos finales con TODOS los movimientos...');
     
     Object.keys(saldosPorCuenta).forEach(cuentaId => {
       const cuenta = saldosPorCuenta[cuentaId];
+      const cuentaInfo = cuentas.find(c => c.id == cuentaId);
+      const bancoCodigo = cuentaInfo?.banco?.toLowerCase() || 'generico';
       
-      // 🚨 FÓRMULA CORRECTA: Saldo = Abonos - Cargos
-      cuenta.saldoCalculado = cuenta.totalAbonos - cuenta.totalCargos;
+      // Obtener saldo inicial para este banco
+      const saldoInicial = saldosIniciales2025[bancoCodigo] || 0;
       
-      if (cuenta.movimientosCount > 0) {
-        console.log(`💰 Cuenta ${cuentaId}: ${cuenta.saldoCalculado.toLocaleString()} (${cuenta.totalAbonos.toLocaleString()} abonos - ${cuenta.totalCargos.toLocaleString()} cargos)`);
+      // FÓRMULA CORRECTA: Saldo = Saldo Inicial + Abonos - Cargos
+      cuenta.saldoInicial = saldoInicial;
+      cuenta.saldoCalculado = saldoInicial + cuenta.totalAbonos - cuenta.totalCargos;
+      
+      if (cuenta.movimientosCount > 0 || saldoInicial > 0) {
+        console.log(`💰 Cuenta ${cuentaId} (${bancoCodigo.toUpperCase()}): ${cuenta.saldoCalculado.toLocaleString('es-CL')}`);
+        console.log(`   📊 Inicial: ${saldoInicial.toLocaleString('es-CL')} + Abonos: ${cuenta.totalAbonos.toLocaleString('es-CL')} - Cargos: ${cuenta.totalCargos.toLocaleString('es-CL')}`);
+        console.log(`   📋 Movimientos: ${cuenta.movimientosCount} (incluye manuales si aplica)`);
       }
     });
+    
+    // Verificación especial del Banco Internacional
+    const cuentaGenerico = saldosPorCuenta[11419]; // ID del banco genérico
+    if (cuentaGenerico) {
+      console.log('\n🎯 VERIFICACIÓN BANCO INTERNACIONAL (GENÉRICO):');
+      console.log(`   💰 Saldo inicial: ${cuentaGenerico.saldoInicial.toLocaleString('es-CL')}`);
+      console.log(`   📈 Total abonos: ${cuentaGenerico.totalAbonos.toLocaleString('es-CL')}`);
+      console.log(`   📉 Total cargos: ${cuentaGenerico.totalCargos.toLocaleString('es-CL')}`);
+      console.log(`   💰 Saldo final: ${cuentaGenerico.saldoCalculado.toLocaleString('es-CL')}`);
+      console.log(`   📊 Movimientos: ${cuentaGenerico.movimientosCount} (todos manuales)`);
+      console.log(`   📅 Período: enero 2025 - mayo 2025`);
+    }
 
-    // 6. Combinar cuentas con saldos calculados (incluyendo saldos iniciales)
+    // 8. Combinar cuentas con saldos calculados
     const cuentasConSaldos = cuentas.map(cuenta => {
       const saldoInfo = saldosPorCuenta[cuenta.id];
       const bancoCodigo = cuenta.banco?.toLowerCase() || 'generico';
@@ -1051,15 +807,17 @@ const obtenerSaldosBancarios = async () => {
       };
     });
 
-    // 6. Mostrar resumen
+    // 9. Mostrar resumen final
     const totalSaldos = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.saldoCalculado, 0);
+    const totalSaldosIniciales = Object.values(saldosIniciales2025).reduce((sum, saldo) => sum + saldo, 0);
     const cuentasConMovimientos = cuentasConSaldos.filter(cuenta => cuenta.movimientosCount > 0);
     
-    console.log(`💰 Saldos calculados para ${cuentasConSaldos.length} cuentas`);
+    console.log(`💰 Saldos calculados para ${cuentasConSaldos.length} cuentas (CON SALDOS INICIALES)`);
     console.log(`📊 Cuentas con movimientos: ${cuentasConMovimientos.length}`);
-    console.log(`💵 Saldo total: ${totalSaldos.toLocaleString('es-CL')}`);
+    console.log(`🎯 Total saldos iniciales 2025: ${totalSaldosIniciales.toLocaleString('es-CL')}`);
+    console.log(`💵 SALDO TOTAL FINAL: ${totalSaldos.toLocaleString('es-CL')}`);
     
-    // 📊 Debug detallado SEPARADO POR CUENTA CORRIENTE
+    // Debug detallado por cuenta
     console.log('\n🏦 ============================================');
     console.log('📊 RESUMEN DETALLADO POR CUENTA CORRIENTE');
     console.log('============================================\n');
@@ -1070,12 +828,14 @@ const obtenerSaldosBancarios = async () => {
       console.log(`\n🏦 ${index + 1}. ${nombreCuenta}`);
       console.log('─'.repeat(50));
       
+      console.log(`🎯 SALDO INICIAL (01-ENE-2025): ${cuenta.saldoInicial.toLocaleString('es-CL')}`);
+      
       if (cuenta.movimientosCount > 0) {
-        console.log(`💰 SALDO FINAL: ${cuenta.saldoCalculado.toLocaleString('es-CL')}`);
         console.log(`📈 Total Abonos (ingresos): ${cuenta.totalAbonos.toLocaleString('es-CL')}`);
         console.log(`📉 Total Cargos (egresos): ${cuenta.totalCargos.toLocaleString('es-CL')}`);
         console.log(`📊 Total Movimientos: ${cuenta.movimientosCount}`);
         console.log(`📅 Período: 2025-01-01 hasta ${cuenta.ultimaActualizacion}`);
+        console.log(`💰 SALDO FINAL: ${cuenta.saldoCalculado.toLocaleString('es-CL')} (Inicial + Movimientos)`);
         
         // Mostrar último movimiento
         if (cuenta.ultimoMovimiento) {
@@ -1103,35 +863,23 @@ const obtenerSaldosBancarios = async () => {
           console.log(`      "${ej.descripcion}" (${ej.fecha})`);
         }
         
-        // Verificación con saldo_acreedor si existe
-        if (cuenta.saldoInfo.verificacion.ultimoSaldoAcreedor !== null) {
-          console.log(`\n🔍 VERIFICACIÓN CRUZADA:`);
-          console.log(`   Último saldo_acreedor en API: ${cuenta.saldoInfo.verificacion.ultimoSaldoAcreedor.toLocaleString('es-CL')}`);
-          console.log(`   Saldo calculado por movimientos: ${cuenta.saldoCalculado.toLocaleString('es-CL')}`);
-          console.log(`   Diferencia: ${(cuenta.saldoInfo.verificacion.diferenciaSaldos || 0).toLocaleString('es-CL')}`);
-        }
-        
-        // Mostrar desglose de saldos encontrados
-        if (cuenta.saldoInfo.detalleDebug.saldosEncontrados.length > 0) {
-          console.log(`\n📈 ÚLTIMOS SALDOS REGISTRADOS EN API:`);
-          cuenta.saldoInfo.detalleDebug.saldosEncontrados.slice(-3).forEach((saldo, i) => {
-            console.log(`   ${i + 1}. ${saldo.fecha}: Acreedor=${saldo.saldo_acreedor.toLocaleString('es-CL')}, Deudor=${saldo.saldo_deudor.toLocaleString('es-CL')}`);
-          });
-        }
-        
       } else {
         console.log(`❌ SIN MOVIMIENTOS desde 2025-01-01`);
-        console.log(`💰 Saldo: ${cuenta.saldoCalculado.toLocaleString('es-CL')} (solo saldo inicial si aplica)`);
+        console.log(`💰 SALDO FINAL: ${cuenta.saldoCalculado.toLocaleString('es-CL')} (solo saldo inicial)`);
       }
+      
+      // Fórmula de cálculo
+      console.log(`\n🧮 FÓRMULA: ${cuenta.saldoInicial.toLocaleString('es-CL')} + ${cuenta.totalAbonos.toLocaleString('es-CL')} - ${cuenta.totalCargos.toLocaleString('es-CL')} = ${cuenta.saldoCalculado.toLocaleString('es-CL')}`);
       
       console.log(''); // Línea en blanco para separación
     });
     
     console.log('\n' + '='.repeat(50));
-    console.log(`📊 RESUMEN GENERAL:`);
-    console.log(`   💵 SALDO TOTAL: ${totalSaldos.toLocaleString('es-CL')}`);
+    console.log(`📊 RESUMEN GENERAL FINAL:`);
+    console.log(`   🎯 Saldos iniciales (01-ENE-2025): ${totalSaldosIniciales.toLocaleString('es-CL')}`);
+    console.log(`   💵 SALDO TOTAL FINAL: ${totalSaldos.toLocaleString('es-CL')}`);
     console.log(`   🏦 Cuentas con movimientos: ${cuentasConMovimientos.length}/${cuentasConSaldos.length}`);
-    console.log(`   📈 Período analizado: 2025-01-01 hasta hoy`);
+    console.log(`   📈 Período: 01-ENE-2025 hasta HOY`);
     console.log('='.repeat(50));
 
     console.log(`\n✅ ${cuentasConSaldos.length} saldos cargados con nueva lógica`);
