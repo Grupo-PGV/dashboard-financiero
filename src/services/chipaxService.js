@@ -480,22 +480,50 @@ const obtenerSaldosBancarios = async () => {
     console.log(`✅ ${cuentas.length} cuentas corrientes obtenidas`);
     console.log('🔍 DEBUG cuentas:', cuentas);
 
-    // 2. Obtener TODAS las cartolas usando paginación manual
-    console.log('💰 Obteniendo cartolas para calcular saldos...');
+    // 2. Obtener TODAS las cartolas desde 2025-01-01 usando paginación manual
+    console.log('💰 Obteniendo cartolas desde 2025-01-01 para calcular saldos...');
     const todasLasCartolas = [];
     let page = 1;
     let hasMoreData = true;
     const limit = 500;
+    const fechaDesde = '2025-01-01'; // 🚨 AGREGAR FILTRO DE FECHA
 
     while (hasMoreData) {
-      console.log(`📄 Cargando página ${page} de cartolas...`);
+      console.log(`📄 Cargando página ${page} de cartolas desde ${fechaDesde}...`);
       
       try {
-        const response = await fetchFromChipax(`/flujo-caja/cartolas?page=${page}&limit=${limit}`, { maxRetries: 1 });
-        const data = response.data || response;
-        const movimientos = data.data || data;
+        // 🚨 CORRECCIÓN: Agregar fecha_desde al query
+        const response = await fetchFromChipax(`/flujo-caja/cartolas?fecha_desde=${fechaDesde}&page=${page}&limit=${limit}`, { maxRetries: 1 });
+        
+        console.log(`🔍 DEBUG respuesta página ${page}:`, typeof response, Array.isArray(response));
+        
+        // 🚨 PROBAR DIFERENTES ESTRUCTURAS DE RESPUESTA
+        let movimientos = [];
+        
+        if (Array.isArray(response)) {
+          movimientos = response;
+          console.log(`✅ Respuesta directa como array: ${movimientos.length} items`);
+        } else if (response?.data && Array.isArray(response.data)) {
+          movimientos = response.data;
+          console.log(`✅ Respuesta en .data: ${movimientos.length} items`);
+        } else if (response?.items && Array.isArray(response.items)) {
+          movimientos = response.items;
+          console.log(`✅ Respuesta en .items: ${movimientos.length} items`);
+        } else if (response && typeof response === 'object') {
+          // Buscar arrays en las propiedades del objeto
+          for (const [key, value] of Object.entries(response)) {
+            if (Array.isArray(value) && value.length > 0) {
+              // Verificar si parece ser cartolas (tiene campos como abono, cargo, descripcion)
+              if (value[0].id && (value[0].abono !== undefined || value[0].cargo !== undefined)) {
+                movimientos = value;
+                console.log(`✅ Movimientos encontrados en .${key}: ${movimientos.length} items`);
+                break;
+              }
+            }
+          }
+        }
 
-        if (Array.isArray(movimientos) && movimientos.length > 0) {
+        if (movimientos.length > 0) {
           todasLasCartolas.push(...movimientos);
           console.log(`✅ Página ${page}: ${movimientos.length} movimientos (total: ${todasLasCartolas.length})`);
           
@@ -507,7 +535,8 @@ const obtenerSaldosBancarios = async () => {
             page++;
           }
         } else {
-          console.log(`📄 Página ${page} sin datos, terminando paginación`);
+          console.log(`📄 Página ${page} sin datos válidos`);
+          console.log(`🔍 Estructura completa de respuesta:`, response);
           hasMoreData = false;
         }
       } catch (error) {
