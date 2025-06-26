@@ -543,18 +543,14 @@ const obtenerSaldosBancarios = async () => {
 
     console.log(`✅ ${todasLasCartolas.length} movimientos de cartola obtenidos en total`);
 
-    // 3. Inicializar saldos por cuenta
-    console.log('🧮 Calculando saldos por cuenta corriente (NUEVA LÓGICA)...');
-    
+    // 3. Inicializar estructura de datos para acumular por cuenta
     const saldosPorCuenta = {};
-
     cuentas.forEach(cuenta => {
       saldosPorCuenta[cuenta.id] = {
         totalAbonos: 0,
         totalCargos: 0,
-        saldoCalculado: 0,
-        ultimaFecha: null,
         movimientosCount: 0,
+        ultimaFecha: null,
         ultimoMovimiento: null,
         ultimoSaldoAcreedor: null,
         ultimoSaldoDeudor: null,
@@ -567,8 +563,6 @@ const obtenerSaldosBancarios = async () => {
     });
 
     // 4. Saldos iniciales 2025 (MAPEO CORREGIDO)
-    // NOTA: Las líneas de crédito NO se suman aquí porque ya están incluidas
-    // en los movimientos de cartolas como abonos (uso) y cargos (pago)
     console.log('🎯 Aplicando saldos iniciales del año 2025...');
     
     console.log('\n🔍 ANÁLISIS DE BANCOS ENCONTRADOS:');
@@ -577,47 +571,18 @@ const obtenerSaldosBancarios = async () => {
     });
     
     const saldosIniciales2025 = {
-      'bci': 178098,             // BANCO BCI: $178.098 (BCI 89107021) ✅ CORREGIDO
+      'bci': 178098,             // BANCO BCI: $178.098 (BCI 89107021)
       'santander': 0,            // BANCO SANTANDER: $0 (Santander 0-000-7066661-8) 
-      'banconexion2': 129969864, // BANCO DE CHILE: $129.969.864 (BancoNexion2 00-800-10734-09) ✅ CORREGIDO
+      'banconexion2': 129969864, // BANCO DE CHILE: $129.969.864 (BancoNexion2 00-800-10734-09)
       'generico': 0,             // BANCO INTERNACIONAL: $0 (Genérico 9117726 - MANUAL)
       'chipax_wallet': 0         // CHIPAX WALLET: $0 (wallet interno)
     };
-    
-    // 📋 LÍNEAS DE CRÉDITO DISPONIBLES (solo para referencia/debug)
-    // Estas NO se suman al saldo porque los movimientos de línea de crédito
-    // ya están incluidos en las cartolas como abonos y cargos
-    const lineasCreditoDisponibles = {
-      'bci': 5000000,            // BANCO BCI: $5.000.000 línea de crédito
-      'santander': 10000000,     // BANCO SANTANDER: $10.000.000 línea de crédito 
-      'banconexion2': 20000000,  // BANCO DE CHILE: $20.000.000 línea de crédito
-      'generico': 0,             // BANCO INTERNACIONAL: No tiene línea de crédito
-      'chipax_wallet': 0         // CHIPAX WALLET: No tiene línea de crédito
-    };
-    
+
     console.log('\n💰 Saldos iniciales configurados:');
     Object.entries(saldosIniciales2025).forEach(([banco, saldo]) => {
       console.log(`   ${banco.toUpperCase()}: ${saldo.toLocaleString('es-CL')}`);
     });
-    
-    console.log('\n💳 Líneas de crédito disponibles (solo referencia):');
-    Object.entries(lineasCreditoDisponibles).forEach(([banco, credito]) => {
-      console.log(`   ${banco.toUpperCase()}: ${credito.toLocaleString('es-CL')} (no se suma al saldo)`);
-    });
-    
-    console.log('\n💡 NOTA: Los movimientos de línea de crédito ya están incluidos en las cartolas:');
-    console.log('   - Uso de línea de crédito = ABONO en cartolas');
-    console.log('   - Pago de línea de crédito = CARGO en cartolas');
-    });
-    
-    const saldosIniciales2025 = {
-      'bci': 178098,             // BANCO BCI: $178.098 (BCI 89107021) ✅ CORREGIDO
-      'santander': 0,            // BANCO SANTANDER: $0 (Santander 0-000-7066661-8) 
-      'banconexion2': 129969864, // BANCO DE CHILE: $129.969.864 (BancoNexion2 00-800-10734-09) ✅ CORREGIDO
-      'generico': 0,             // BANCO INTERNACIONAL: $0 (Genérico 9117726 - MANUAL)
-      'chipax_wallet': 0         // CHIPAX WALLET: $0 (wallet interno)
-    };
-    
+
     // 5. Movimientos manuales del Banco Internacional 2025
     const movimientosManualesBancoInternacional = [
       // ENERO 2025
@@ -648,35 +613,23 @@ const obtenerSaldosBancarios = async () => {
       { fecha: '2025-02-21', descripcion: 'TRANSF. PARA PGR SEGURIDAD S.P.A', abono: 0, cargo: 5000000 },
       { fecha: '2025-02-21', descripcion: 'TRANSF. PARA SERVICIOS PGV SPA', abono: 0, cargo: 5000000 },
       { fecha: '2025-02-21', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 10000000, cargo: 0 },
-      { fecha: '2025-02-28', descripcion: 'Transferencia de otro banco 76278661-3', abono: 5000000, cargo: 0 },
-      { fecha: '2025-02-28', descripcion: 'AMORTIZACION AUTOMATICA LCR 9479150', abono: 0, cargo: 5000000 },
       
       // MARZO 2025
-      { fecha: '2025-03-03', descripcion: 'INTERES POR USO LINEA DE CREDITO 9479150', abono: 0, cargo: 223729 },
-      { fecha: '2025-03-03', descripcion: 'ITE SOBGR/PACTADO 9479150', abono: 0, cargo: 8448 },
-      { fecha: '2025-03-03', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 232177, cargo: 0 },
-      { fecha: '2025-03-07', descripcion: 'COMISION X MANTENCION CTA.CTE.', abono: 0, cargo: 115944 },
-      { fecha: '2025-03-07', descripcion: 'IVA DE LA COMISION', abono: 0, cargo: 22029 },
-      { fecha: '2025-03-07', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 137973, cargo: 0 },
-      { fecha: '2025-03-18', descripcion: 'PAGO SERVIPAG', abono: 0, cargo: 230645 },
-      { fecha: '2025-03-18', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 230645, cargo: 0 },
-      { fecha: '2025-03-20', descripcion: 'TRANSF. PARA SERVICIOS PGV SPA', abono: 0, cargo: 250000 },
-      { fecha: '2025-03-20', descripcion: 'TRANSF. PARA SEGURIDAD SMART SpA', abono: 0, cargo: 550000 },
-      { fecha: '2025-03-20', descripcion: 'TRANSF. PARA SEGURIDAD SMART SpA', abono: 0, cargo: 120709 },
-      { fecha: '2025-03-20', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 920709, cargo: 0 },
-      { fecha: '2025-03-21', descripcion: 'TRANSF. PARA PGV Mantenimiento BCI', abono: 0, cargo: 1000000 },
-      { fecha: '2025-03-21', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 1000000, cargo: 0 },
-      { fecha: '2025-03-25', descripcion: 'TRANSFERENCIA CANCELACION 9479150', abono: 0, cargo: 22592666 },
-      { fecha: '2025-03-31', descripcion: 'Transferencia de otro banco 76278661-3', abono: 5000000, cargo: 0 },
-      { fecha: '2025-03-31', descripcion: 'Transferencia de otro banco 76278661-3', abono: 2592666, cargo: 0 },
-      { fecha: '2025-03-31', descripcion: 'Transferencia de otro banco 76278661-3', abono: 5000000, cargo: 0 },
-      { fecha: '2025-03-31', descripcion: 'Transferencia de otro banco 76278661-3', abono: 5000000, cargo: 0 },
-      { fecha: '2025-03-31', descripcion: 'Transferencia de otro banco 76278661-3', abono: 5000000, cargo: 0 },
-      { fecha: '2025-03-31', descripcion: 'ABONO POR CIERRE DE LCRE N° 9479150', abono: 22592666, cargo: 0 },
-      { fecha: '2025-03-31', descripcion: 'INTERESES POR SOBREGIRO', abono: 0, cargo: 155304 },
-      { fecha: '2025-03-31', descripcion: 'ITE SOBREGIRO NO PACTADO', abono: 0, cargo: 14911 },
+      { fecha: '2025-03-03', descripcion: 'INTERES POR USO LINEA DE CREDITO 9479150', abono: 0, cargo: 44150 },
+      { fecha: '2025-03-03', descripcion: 'ITE SOBGR/PACTADO 9479150', abono: 0, cargo: 2896 },
+      { fecha: '2025-03-03', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 47046, cargo: 0 },
+      { fecha: '2025-03-06', descripcion: 'COMISION X MANTENCION CTA.CTE.', abono: 0, cargo: 116682 },
+      { fecha: '2025-03-06', descripcion: 'IVA DE LA COMISION', abono: 0, cargo: 22170 },
+      { fecha: '2025-03-06', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 138852, cargo: 0 },
+      { fecha: '2025-03-11', descripcion: 'PAGO TGR', abono: 0, cargo: 335588 },
+      { fecha: '2025-03-11', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 335588, cargo: 0 },
+      { fecha: '2025-03-18', descripcion: 'PAGO SERVIPAG', abono: 0, cargo: 244678 },
+      { fecha: '2025-03-18', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 244678, cargo: 0 },
       
       // ABRIL 2025
+      { fecha: '2025-04-02', descripcion: 'INTERES POR USO LINEA DE CREDITO 9479150', abono: 0, cargo: 44150 },
+      { fecha: '2025-04-02', descripcion: 'ITE SOBGR/PACTADO 9479150', abono: 0, cargo: 2896 },
+      { fecha: '2025-04-02', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 47046, cargo: 0 },
       { fecha: '2025-04-07', descripcion: 'COMISION X MANTENCION CTA.CTE.', abono: 0, cargo: 116682 },
       { fecha: '2025-04-07', descripcion: 'IVA DE LA COMISION', abono: 0, cargo: 22170 },
       { fecha: '2025-04-15', descripcion: 'Transferencia de otro banco 76278661-3', abono: 1000000, cargo: 0 },
@@ -688,23 +641,6 @@ const obtenerSaldosBancarios = async () => {
     
     console.log(`📊 ${movimientosManualesBancoInternacional.length} movimientos manuales del Banco Internacional agregados`);
     
-    // Calcular totales del Banco Internacional
-    let totalAbonosBI = 0;
-    let totalCargosBI = 0;
-    movimientosManualesBancoInternacional.forEach(mov => {
-      totalAbonosBI += mov.abono;
-      totalCargosBI += mov.cargo;
-    });
-    
-    console.log(`💰 Banco Internacional - Total Abonos: ${totalAbonosBI.toLocaleString('es-CL')}`);
-    console.log(`💰 Banco Internacional - Total Cargos: ${totalCargosBI.toLocaleString('es-CL')}`);
-    console.log(`💰 Banco Internacional - Saldo Calculado: ${(totalAbonosBI - totalCargosBI).toLocaleString('es-CL')}`);
-    
-    console.log('\n💰 Saldos iniciales configurados:');
-    Object.entries(saldosIniciales2025).forEach(([banco, saldo]) => {
-      console.log(`   ${banco.toUpperCase()}: ${saldo.toLocaleString('es-CL')}`);
-    });
-
     // 6. Procesar movimientos de API + movimientos manuales
     console.log('🔄 Procesando movimientos de API + movimientos manuales...');
     
@@ -726,7 +662,7 @@ const obtenerSaldosBancarios = async () => {
     
     console.log(`📊 Total movimientos procesados: ${todosLosMovimientosCompletos.length} (${todasLasCartolas.length} de API + ${movimientosManualesBancoInternacional.length} manuales)`);
     
-    // Procesar TODOS los movimientos (API + manuales)
+    // 7. Procesar TODOS los movimientos (API + manuales)
     todosLosMovimientosCompletos.forEach((movimiento) => {
       const cuentaId = movimiento.cuenta_corriente_id;
       
@@ -830,36 +766,7 @@ const obtenerSaldosBancarios = async () => {
       cuenta.lineaCreditoTotal = lineaCreditoTotal;
       cuenta.usoLineaCredito = usoLineaCredito;
       cuenta.lineaCreditoDisponible = lineaCreditoDisponible;
-      
-      if (cuenta.movimientosCount > 0 || saldoInicial > 0) {
-        console.log(`\n💰 ${bancoCodigo.toUpperCase()} (${cuentaId}):`);
-        console.log(`   📊 Inicial: ${saldoInicial.toLocaleString('es-CL')} + Abonos: ${cuenta.totalAbonos.toLocaleString('es-CL')} - Cargos: ${cuenta.totalCargos.toLocaleString('es-CL')}`);
-        console.log(`   💵 Saldo sin crédito: ${cuenta.saldoSinCredito.toLocaleString('es-CL')}`);
-        
-        if (lineaCreditoTotal > 0) {
-          console.log(`   💳 Línea de crédito total: ${lineaCreditoTotal.toLocaleString('es-CL')}`);
-          console.log(`   📈 Uso de línea de crédito: ${usoLineaCredito.toLocaleString('es-CL')}`);
-          console.log(`   💳 Línea disponible: ${lineaCreditoDisponible.toLocaleString('es-CL')}`);
-          console.log(`   🎯 SALDO FINAL (con línea disponible): ${saldoFinalConCredito.toLocaleString('es-CL')}`);
-        } else {
-          console.log(`   🎯 SALDO FINAL: ${cuenta.saldoSinCredito.toLocaleString('es-CL')} (sin línea de crédito)`);
-        }
-        
-        console.log(`   📋 Movimientos: ${cuenta.movimientosCount}`);
-      }
     });
-    
-    // Verificación especial del Banco Internacional
-    const cuentaGenerico = saldosPorCuenta[11419]; // ID del banco genérico
-    if (cuentaGenerico) {
-      console.log('\n🎯 VERIFICACIÓN BANCO INTERNACIONAL (GENÉRICO):');
-      console.log(`   💰 Saldo inicial: ${cuentaGenerico.saldoInicial.toLocaleString('es-CL')}`);
-      console.log(`   📈 Total abonos: ${cuentaGenerico.totalAbonos.toLocaleString('es-CL')}`);
-      console.log(`   📉 Total cargos: ${cuentaGenerico.totalCargos.toLocaleString('es-CL')}`);
-      console.log(`   💰 Saldo final: ${cuentaGenerico.saldoCalculado.toLocaleString('es-CL')}`);
-      console.log(`   📊 Movimientos: ${cuentaGenerico.movimientosCount} (todos manuales)`);
-      console.log(`   📅 Período: enero 2025 - mayo 2025`);
-    }
 
     // 9. Combinar cuentas con saldos calculados (incluyendo análisis de líneas de crédito)
     const cuentasConSaldos = cuentas.map(cuenta => {
@@ -900,70 +807,7 @@ const obtenerSaldosBancarios = async () => {
     const totalUsoCredito = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.usoLineaCredito, 0);
     const totalCreditoDisponible = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.lineaCreditoDisponible, 0);
     const cuentasConMovimientos = cuentasConSaldos.filter(cuenta => cuenta.movimientosCount > 0);
-    
-    console.log(`\n💰 RESUMEN FINANCIERO COMPLETO:`);
-    console.log(`📊 Cuentas con movimientos: ${cuentasConMovimientos.length}`);
-    console.log(`🎯 Total saldos iniciales: ${totalSaldosIniciales.toLocaleString('es-CL')}`);
-    console.log(`💵 Total saldos SIN líneas de crédito: ${totalSaldosSinCredito.toLocaleString('es-CL')}`);
-    console.log(`💳 Total líneas de crédito disponibles: ${totalLineasCredito.toLocaleString('es-CL')}`);
-    console.log(`📈 Total uso de líneas de crédito: ${totalUsoCredito.toLocaleString('es-CL')}`);
-    console.log(`💰 Total crédito disponible: ${totalCreditoDisponible.toLocaleString('es-CL')}`);
-    console.log(`🎯 TOTAL FONDOS DISPONIBLES: ${totalSaldosConCredito.toLocaleString('es-CL')} (incluye líneas disponibles)`);
-    
-    // Debug detallado por cuenta CON ANÁLISIS DE LÍNEAS DE CRÉDITO
-    console.log('\n🏦 ============================================');
-    console.log('📊 ANÁLISIS COMPLETO POR CUENTA CORRIENTE');
-    console.log('============================================\n');
-    
-    cuentasConSaldos.forEach((cuenta, index) => {
-      const nombreCuenta = `${cuenta.banco?.toUpperCase() || 'BANCO'} ${cuenta.numeroCuenta}`;
-      
-      console.log(`\n🏦 ${index + 1}. ${nombreCuenta}`);
-      console.log('─'.repeat(60));
-      
-      console.log(`🎯 SALDO INICIAL (01-ENE-2025): ${cuenta.saldoInicial.toLocaleString('es-CL')}`);
-      
-      if (cuenta.movimientosCount > 0) {
-        console.log(`📈 Total Abonos: ${cuenta.totalAbonos.toLocaleString('es-CL')}`);
-        console.log(`📉 Total Cargos: ${cuenta.totalCargos.toLocaleString('es-CL')}`);
-        console.log(`📊 Total Movimientos: ${cuenta.movimientosCount}`);
-        console.log(`📅 Período: 2025-01-01 hasta ${cuenta.ultimaActualizacion}`);
-        
-        console.log(`\n💰 ANÁLISIS FINANCIERO:`);
-        console.log(`   💵 Saldo sin línea de crédito: ${cuenta.saldoSinCredito.toLocaleString('es-CL')}`);
-        
-        if (cuenta.lineaCreditoTotal > 0) {
-          console.log(`   💳 Línea de crédito total: ${cuenta.lineaCreditoTotal.toLocaleString('es-CL')}`);
-          console.log(`   📈 Uso actual de línea: ${cuenta.usoLineaCredito.toLocaleString('es-CL')}`);
-          console.log(`   💰 Línea disponible: ${cuenta.lineaCreditoDisponible.toLocaleString('es-CL')}`);
-          console.log(`   🎯 FONDOS TOTALES DISPONIBLES: ${cuenta.saldoCalculado.toLocaleString('es-CL')}`);
-          
-          if (cuenta.usoLineaCredito > 0) {
-            const porcentajeUso = (cuenta.usoLineaCredito / cuenta.lineaCreditoTotal * 100).toFixed(1);
-            console.log(`   📊 Uso de línea: ${porcentajeUso}% (${cuenta.usoLineaCredito.toLocaleString('es-CL')} de ${cuenta.lineaCreditoTotal.toLocaleString('es-CL')})`);
-          }
-        } else {
-          console.log(`   💰 Sin línea de crédito`);
-          console.log(`   🎯 SALDO FINAL: ${cuenta.saldoSinCredito.toLocaleString('es-CL')}`);
-        }
-        
-        // Fórmula de cálculo
-        console.log(`\n🧮 CÁLCULO BASE: ${cuenta.saldoInicial.toLocaleString('es-CL')} + ${cuenta.totalAbonos.toLocaleString('es-CL')} - ${cuenta.totalCargos.toLocaleString('es-CL')} = ${cuenta.saldoSinCredito.toLocaleString('es-CL')}`);
-        
-      } else {
-        console.log(`❌ SIN MOVIMIENTOS desde 2025-01-01`);
-        if (cuenta.lineaCreditoTotal > 0) {
-          console.log(`💳 Línea de crédito disponible: ${cuenta.lineaCreditoTotal.toLocaleString('es-CL')}`);
-          console.log(`🎯 FONDOS DISPONIBLES: ${cuenta.saldoCalculado.toLocaleString('es-CL')}`);
-        } else {
-          console.log(`💰 SALDO: ${cuenta.saldoCalculado.toLocaleString('es-CL')}`);
-        }
-      }
-      
-      console.log(''); // Línea en blanco para separación
-    });
-    
-    console.log('\n' + '='.repeat(60));
+
     console.log(`📊 RESUMEN FINANCIERO FINAL:`);
     console.log(`   🎯 Saldos iniciales: ${totalSaldosIniciales.toLocaleString('es-CL')}`);
     console.log(`   💵 Saldos efectivos: ${totalSaldosSinCredito.toLocaleString('es-CL')}`);
