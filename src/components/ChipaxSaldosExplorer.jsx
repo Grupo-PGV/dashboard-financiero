@@ -1,4 +1,4 @@
-// REEMPLAZA COMPLETAMENTE el archivo: src/components/ChipaxSaldosExplorer.jsx
+// src/components/ChipaxSaldosExplorer.jsx - CORRECCIÓN del error creditoDisponible
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -257,6 +257,8 @@ const ChipaxSaldosExplorer = () => {
               const saldoEfectivo = cuenta.saldoSinCredito || cuenta.saldo || 0;
               const lineaCredito = cuenta.lineaCreditoTotal || 0;
               const usoCredito = cuenta.usoLineaCredito || 0;
+              // ✅ CORREGIR: Calcular creditoDisponible localmente dentro del map
+              const creditoDisponible = Math.max(0, lineaCredito - usoCredito);
 
               return (
                 <div key={cuenta.id || index} className="p-6 hover:bg-gray-50">
@@ -265,40 +267,70 @@ const ChipaxSaldosExplorer = () => {
                     <div className="flex items-center space-x-3">
                       {getIconoSaldo(saldoMostrar)}
                       <div>
-                        <h4 className="font-semibold text-gray-900">
-                          {cuenta.banco?.toUpperCase() || 'BANCO'} - {cuenta.numeroCuenta || cuenta.nombre}
+                        <h4 className="text-lg font-semibold text-gray-900">
+                          {cuenta.nombre || `Cuenta ${index + 1}`}
                         </h4>
-                        <p className="text-sm text-gray-500">
-                          {cuenta.tipo || 'Cuenta Corriente'} • 
-                          {cuenta.movimientosCount || 0} movimientos
-                        </p>
+                        <div className="flex items-center space-x-2 text-sm text-gray-500">
+                          <span>{cuenta.banco?.toUpperCase() || 'BANCO GENÉRICO'}</span>
+                          {cuenta.ultimaActualizacion && (
+                            <>
+                              <span>•</span>
+                              <Clock className="w-4 h-4" />
+                              <span>{new Date(cuenta.ultimaActualizacion).toLocaleDateString('es-CL')}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                     
                     <div className="text-right">
-                      <div className={`text-2xl font-bold ${getColorSaldo(saldoMostrar)}`}>
-                        {formatCurrency(saldoMostrar)}
+                      <div className={`text-2xl font-bold ${getColorSaldo(saldoEfectivo)}`}>
+                        {formatCurrency(saldoEfectivo)}
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {cuenta.ultimaActualizacion && (
-                          <span className="flex items-center space-x-1">
-                            <Clock className="w-3 h-3" />
-                            <span>{new Date(cuenta.ultimaActualizacion).toLocaleDateString('es-CL')}</span>
-                          </span>
-                        )}
+                      <div className="text-sm text-gray-500">Saldo efectivo</div>
+                    </div>
+                  </div>
+
+                  {/* Detalle de movimientos */}
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
+                    <div>
+                      <div className="text-xs text-gray-500 uppercase tracking-wide">Saldo Inicial</div>
+                      <div className="text-lg font-semibold text-gray-700">
+                        {formatCurrency(cuenta.saldoInicial || 0)}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <div className="text-xs text-gray-500 uppercase tracking-wide">Total Ingresos</div>
+                      <div className="text-lg font-semibold text-green-600">
+                        {formatCurrency(cuenta.totalAbonos || 0)}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <div className="text-xs text-gray-500 uppercase tracking-wide">Total Egresos</div>
+                      <div className="text-lg font-semibold text-red-600">
+                        {formatCurrency(cuenta.totalCargos || 0)}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <div className="text-xs text-gray-500 uppercase tracking-wide">Movimientos</div>
+                      <div className="text-lg font-semibold text-blue-600">
+                        {cuenta.movimientosCount || 0}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <div className="text-xs text-gray-500 uppercase tracking-wide">Saldo Final</div>
+                      <div className={`text-lg font-bold ${getColorSaldo(saldoEfectivo)}`}>
+                        {formatCurrency(saldoEfectivo)}
                       </div>
                     </div>
                   </div>
 
-                  {/* Detalle financiero */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wide">Saldo Efectivo</div>
-                      <div className={`text-lg font-semibold ${getColorSaldo(saldoMostrar)}`}>
-                        {formatCurrency(saldoMostrar)}
-                      </div>
-                    </div>
-                    
+                  {/* Información de líneas de crédito */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
                     {lineaCredito > 0 && (
                       <>
                         <div>
@@ -332,48 +364,23 @@ const ChipaxSaldosExplorer = () => {
                     )}
                   </div>
 
-                  {/* Último movimiento */}
+                  {/* Debug info condicional */}
                   {cuenta.ultimoMovimiento && (
-                    <div className="mt-4 pt-4 border-t border-gray-100">
-                      <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Último Movimiento</div>
-                      <div className="text-sm text-gray-700">
-                        <span className="font-medium">{cuenta.ultimoMovimiento.descripcion}</span>
-                        <span className="mx-2">•</span>
-                        <span>{new Date(cuenta.ultimoMovimiento.fecha).toLocaleDateString('es-CL')}</span>
-                        {cuenta.ultimoMovimiento.abono > 0 && (
-                          <span className="ml-2 text-green-600">+{formatCurrency(cuenta.ultimoMovimiento.abono)}</span>
-                        )}
-                        {cuenta.ultimoMovimiento.cargo > 0 && (
-                          <span className="ml-2 text-red-600">-{formatCurrency(cuenta.ultimoMovimiento.cargo)}</span>
-                        )}
+                    <details className="mt-4">
+                      <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-800">
+                        Ver último movimiento
+                      </summary>
+                      <div className="mt-2 p-3 bg-gray-100 rounded text-sm">
+                        <div><strong>Fecha:</strong> {cuenta.ultimoMovimiento.fecha}</div>
+                        <div><strong>Descripción:</strong> {cuenta.ultimoMovimiento.descripcion}</div>
+                        <div><strong>Abono:</strong> {formatCurrency(cuenta.ultimoMovimiento.abono)}</div>
+                        <div><strong>Cargo:</strong> {formatCurrency(cuenta.ultimoMovimiento.cargo)}</div>
                       </div>
-                    </div>
+                    </details>
                   )}
                 </div>
               );
             })}
-          </div>
-          
-          {/* Footer con totales */}
-          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="w-5 h-5 text-green-500" />
-                <span className="text-sm text-gray-600">
-                  {saldos.length} cuenta{saldos.length !== 1 ? 's' : ''} corriente{saldos.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-              
-              <div className="text-right">
-                <div className="text-sm text-gray-500">Total Saldo Efectivo</div>
-                <div className={`text-2xl font-bold ${Math.abs(totalDisponible - TARGET_AMOUNT) < TARGET_AMOUNT * 0.05 ? 'text-green-600' : 'text-orange-600'}`}>
-                  {formatCurrency(totalDisponible)}
-                </div>
-                <div className="text-xs text-gray-500">
-                  Target: {formatCurrency(TARGET_AMOUNT)}
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -382,38 +389,56 @@ const ChipaxSaldosExplorer = () => {
       {mostrarExplorador && (
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold mb-4">🔍 Explorador de Endpoints</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {endpointsParaSaldos.map((endpoint, index) => (
-              <button
-                key={index}
-                onClick={() => testEndpoint(endpoint)}
-                className="p-2 text-sm border rounded hover:bg-gray-50"
-              >
-                {endpoint.name}
-              </button>
-            ))}
-          </div>
           
-          {/* Verificación del target */}
-          {totalDisponible > 0 && (
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-              <div className="flex items-center space-x-2">
-                <Target className="w-5 h-5 text-blue-600" />
-                <span className="font-medium">Verificación Target: {formatCurrency(TARGET_AMOUNT)}</span>
-              </div>
-              <div className="mt-2 text-sm">
-                <span className="text-gray-600">Calculado: {formatCurrency(totalDisponible)}</span>
-                <span className="mx-2">•</span>
-                <span className={`font-medium ${Math.abs(totalDisponible - TARGET_AMOUNT) < TARGET_AMOUNT * 0.05 ? 'text-green-600' : 'text-orange-600'}`}>
-                  Diferencia: {formatCurrency(Math.abs(totalDisponible - TARGET_AMOUNT))}
-                </span>
-                <span className="mx-2">•</span>
-                <span className="text-gray-500">
-                  Error: {((Math.abs(totalDisponible - TARGET_AMOUNT) / TARGET_AMOUNT) * 100).toFixed(2)}%
-                </span>
-              </div>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {endpointsParaSaldos.map((endpoint) => (
+                <button
+                  key={endpoint.path}
+                  onClick={() => testEndpoint(endpoint)}
+                  disabled={testing}
+                  className="p-3 text-sm bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 rounded-lg transition-colors"
+                >
+                  {endpoint.name}
+                </button>
+              ))}
             </div>
-          )}
+            
+            {testing && (
+              <div className="flex items-center space-x-2 text-blue-600">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Probando {currentEndpoint}...</span>
+              </div>
+            )}
+            
+            {results.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-medium">Resultados:</h4>
+                {results.map((result, index) => (
+                  <div
+                    key={index}
+                    className={`p-3 rounded-lg ${
+                      result.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      {result.success ? (
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-red-500" />
+                      )}
+                      <span className="font-medium">{result.endpoint}</span>
+                    </div>
+                    {result.success ? (
+                      <div className="text-sm text-green-700 mt-1">{result.data}</div>
+                    ) : (
+                      <div className="text-sm text-red-700 mt-1">{result.error}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
