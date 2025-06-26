@@ -15,6 +15,7 @@ import {
   filtrarComprasPendientes,
   filtrarComprasPorFecha 
 } from '../services/chipaxAdapter';
+import SaldosCuentasCorrientes from '../components/SaldosCuentasCorrientes';
 
 const DashboardFinancieroIntegrado = () => {
   // Estados principales
@@ -23,7 +24,7 @@ const DashboardFinancieroIntegrado = () => {
   const [cuentasPorPagar, setCuentasPorPagar] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState([]);
-  const [pestanaActiva, setPestanaActiva] = useState('dashboard');
+  const [pestanaActiva, setPestanaActiva] = useState('saldos');
   
   // Estados para filtrado
   const [filtroCompras, setFiltroCompras] = useState({
