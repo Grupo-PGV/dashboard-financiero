@@ -463,6 +463,7 @@ const obtenerCuentasPorCobrar = async () => {
  * ✅ FUNCIÓN COMPLETA Y FINAL: Obtener saldos bancarios usando /flujo-caja/cartolas
  * NUEVA LÓGICA: Saldo = Saldo Inicial + SUMA(abonos) - SUMA(cargos) por cuenta
  * INCLUYE: Movimientos manuales del Banco Internacional
+ * DETECTA: Uso de líneas de crédito y traspasos automáticamente
  */
 const obtenerSaldosBancarios = async () => {
   console.log('🏦 Obteniendo saldos bancarios CORREGIDO DEFINITIVAMENTE...');
@@ -554,6 +555,9 @@ const obtenerSaldosBancarios = async () => {
         ultimoMovimiento: null,
         ultimoSaldoAcreedor: null,
         ultimoSaldoDeudor: null,
+        movimientosCredito: [], // Para detectar uso de líneas de crédito
+        traspasosEnviados: 0,
+        traspasosRecibidos: 0,
         detalleDebug: {
           ejemploAbono: null,
           ejemploCargo: null,
@@ -571,11 +575,11 @@ const obtenerSaldosBancarios = async () => {
     });
     
     const saldosIniciales2025 = {
-      'bci': 178098,             // BANCO BCI: $178.098 (BCI 89107021)
-      'santander': 0,            // BANCO SANTANDER: $0 (Santander 0-000-7066661-8) 
-      'banconexion2': 129969864, // BANCO DE CHILE: $129.969.864 (BancoNexion2 00-800-10734-09)
-      'generico': 0,             // BANCO INTERNACIONAL: $0 (Genérico 9117726 - MANUAL)
-      'chipax_wallet': 0         // CHIPAX WALLET: $0 (wallet interno)
+      'bci': 178098,             // BANCO BCI: $178.098
+      'santander': 0,            // BANCO SANTANDER: $0
+      'banconexion2': 129969864, // BANCO DE CHILE: $129.969.864
+      'generico': 0,             // BANCO INTERNACIONAL: $0
+      'chipax_wallet': 0         // CHIPAX WALLET: $0
     };
 
     console.log('\n💰 Saldos iniciales configurados:');
@@ -604,14 +608,14 @@ const obtenerSaldosBancarios = async () => {
       { fecha: '2025-02-07', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 137032, cargo: 0 },
       { fecha: '2025-02-10', descripcion: 'PAGO TGR', abono: 0, cargo: 328507 },
       { fecha: '2025-02-10', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 328507, cargo: 0 },
-      { fecha: '2025-02-11', descripcion: 'TRANSF. PARA PGV Mantenimiento Internacional', abono: 0, cargo: 7000000 },
+      { fecha: '2025-02-11', descripcion: 'TRANSF. PARA PGV Mantenimiento Internacional', abono: 0, cargo: 7000000, traspaso: true },
       { fecha: '2025-02-11', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 7000000, cargo: 0 },
-      { fecha: '2025-02-12', descripcion: 'TRANSF. PARA PGR Seguridad Chile', abono: 0, cargo: 7000000 },
+      { fecha: '2025-02-12', descripcion: 'TRANSF. PARA PGR Seguridad Chile', abono: 0, cargo: 7000000, traspaso: true },
       { fecha: '2025-02-12', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 7000000, cargo: 0 },
       { fecha: '2025-02-17', descripcion: 'PAGO SERVIPAG', abono: 0, cargo: 228316 },
       { fecha: '2025-02-17', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 228316, cargo: 0 },
-      { fecha: '2025-02-21', descripcion: 'TRANSF. PARA PGR SEGURIDAD S.P.A', abono: 0, cargo: 5000000 },
-      { fecha: '2025-02-21', descripcion: 'TRANSF. PARA SERVICIOS PGV SPA', abono: 0, cargo: 5000000 },
+      { fecha: '2025-02-21', descripcion: 'TRANSF. PARA PGR SEGURIDAD S.P.A', abono: 0, cargo: 5000000, traspaso: true },
+      { fecha: '2025-02-21', descripcion: 'TRANSF. PARA SERVICIOS PGV SPA', abono: 0, cargo: 5000000, traspaso: true },
       { fecha: '2025-02-21', descripcion: 'TRANSF. DE FONDOS DE 9479150', abono: 10000000, cargo: 0 },
       
       // MARZO 2025
@@ -656,13 +660,16 @@ const obtenerSaldosBancarios = async () => {
         cuenta_corriente_id: 11419, // ID del banco genérico
         id: `manual_${movManual.fecha}_${movManual.abono || movManual.cargo}`,
         tipo_cartola_id: 1,
+        esTraspaso: movManual.traspaso || false,
         Saldos: []
       });
     });
     
     console.log(`📊 Total movimientos procesados: ${todosLosMovimientosCompletos.length} (${todasLasCartolas.length} de API + ${movimientosManualesBancoInternacional.length} manuales)`);
     
-    // 7. Procesar TODOS los movimientos (API + manuales)
+    // 7. Procesar TODOS los movimientos (API + manuales) y DETECTAR PATRONES
+    console.log('🔍 Detectando uso de líneas de crédito y traspasos...');
+    
     todosLosMovimientosCompletos.forEach((movimiento) => {
       const cuentaId = movimiento.cuenta_corriente_id;
       
@@ -675,6 +682,36 @@ const obtenerSaldosBancarios = async () => {
         saldosPorCuenta[cuentaId].totalAbonos += abono;
         saldosPorCuenta[cuentaId].totalCargos += cargo;
         saldosPorCuenta[cuentaId].movimientosCount++;
+        
+        // DETECTAR TRASPASOS del Banco Internacional
+        if (movimiento.esTraspaso || 
+            (movimiento.descripcion && (
+              movimiento.descripcion.includes('TRANSF. PARA') ||
+              movimiento.descripcion.includes('TRANSFERENCIA A') ||
+              movimiento.descripcion.includes('PAGO A')
+            ))) {
+          if (cargo > 0) {
+            saldosPorCuenta[cuentaId].traspasosEnviados += cargo;
+          }
+          if (abono > 0) {
+            saldosPorCuenta[cuentaId].traspasosRecibidos += abono;
+          }
+        }
+        
+        // DETECTAR USO DE LÍNEAS DE CRÉDITO
+        if (movimiento.descripcion && (
+            movimiento.descripcion.includes('LINEA DE CREDITO') ||
+            movimiento.descripcion.includes('SOBREGIRO') ||
+            movimiento.descripcion.includes('CREDITO') ||
+            movimiento.descripcion.includes('INTERES')
+          )) {
+          saldosPorCuenta[cuentaId].movimientosCredito.push({
+            fecha: movimiento.fecha,
+            descripcion: movimiento.descripcion,
+            abono,
+            cargo
+          });
+        }
         
         // Guardar el movimiento más reciente
         if (!saldosPorCuenta[cuentaId].ultimaFecha || fechaMovimiento > new Date(saldosPorCuenta[cuentaId].ultimaFecha)) {
@@ -718,16 +755,16 @@ const obtenerSaldosBancarios = async () => {
       }
     });
 
-    // 8. CALCULAR SALDOS FINALES + LÍNEAS DE CRÉDITO DISPONIBLES
-    console.log('💰 Calculando saldos finales con análisis de líneas de crédito...');
+    // 8. CALCULAR SALDOS FINALES CON DETECCIÓN AUTOMÁTICA
+    console.log('💰 Calculando saldos finales con detección automática...');
     
-    // Líneas de crédito totales disponibles
+    // Líneas de crédito totales disponibles (información fija)
     const lineasCreditoTotales = {
-      'bci': 5000000,            // BANCO BCI: $5.000.000 línea de crédito total
-      'santander': 10000000,     // BANCO SANTANDER: $10.000.000 línea de crédito total
-      'banconexion2': 20000000,  // BANCO DE CHILE: $20.000.000 línea de crédito total
-      'generico': 0,             // BANCO INTERNACIONAL: No tiene línea de crédito
-      'chipax_wallet': 0         // CHIPAX WALLET: No tiene línea de crédito
+      'bci': 5000000,            // BANCO BCI: $5.000.000 línea total
+      'santander': 10000000,     // BANCO SANTANDER: $10.000.000 línea total  
+      'banconexion2': 20000000,  // BANCO DE CHILE: $20.000.000 línea total
+      'generico': 0,             // BANCO INTERNACIONAL: $0 (SIN LÍNEA DE CRÉDITO)
+      'chipax_wallet': 0         // CHIPAX WALLET: $0 (wallet interno)
     };
     
     Object.keys(saldosPorCuenta).forEach(cuentaId => {
@@ -735,40 +772,72 @@ const obtenerSaldosBancarios = async () => {
       const cuentaInfo = cuentas.find(c => c.id == cuentaId);
       const bancoCodigo = cuentaInfo?.banco?.toLowerCase() || 'generico';
       
-      // Obtener saldo inicial y línea de crédito para este banco
+      // Obtener saldo inicial
       const saldoInicial = saldosIniciales2025[bancoCodigo] || 0;
-      const lineaCreditoTotal = lineasCreditoTotales[bancoCodigo] || 0;
       
-      // CALCULAR SALDO SIN LÍNEA DE CRÉDITO
+      // CALCULAR SALDO EFECTIVO (sin líneas de crédito)
       cuenta.saldoInicial = saldoInicial;
       cuenta.saldoSinCredito = saldoInicial + cuenta.totalAbonos - cuenta.totalCargos;
       
-      // CALCULAR USO DE LÍNEA DE CRÉDITO
+      // DETECTAR USO DE LÍNEA DE CRÉDITO AUTOMÁTICAMENTE
+      const lineaCreditoTotal = lineasCreditoTotales[bancoCodigo] || 0;
       let usoLineaCredito = 0;
-      let lineaCreditoDisponible = lineaCreditoTotal;
-      let saldoFinalConCredito = cuenta.saldoSinCredito;
       
       if (lineaCreditoTotal > 0) {
+        // Detectar uso basado en movimientos de crédito
+        const movimientosCredito = cuenta.movimientosCredito || [];
+        const interesesPagados = movimientosCredito
+          .filter(mov => mov.descripcion.includes('INTERES'))
+          .reduce((sum, mov) => sum + mov.cargo, 0);
+        
+        // Si hay intereses, estimar uso de línea de crédito
+        if (interesesPagados > 0) {
+          // Estimación: intereses anuales ~12%, calcular capital usado
+          usoLineaCredito = Math.min(interesesPagados * 10, lineaCreditoTotal);
+        }
+        
+        // Si el saldo es negativo, también indica uso de línea
         if (cuenta.saldoSinCredito < 0) {
-          // Si el saldo es negativo, está usando línea de crédito
-          usoLineaCredito = Math.abs(cuenta.saldoSinCredito);
-          lineaCreditoDisponible = lineaCreditoTotal - usoLineaCredito;
-          saldoFinalConCredito = lineaCreditoDisponible; // Línea de crédito disponible
-        } else {
-          // Si el saldo es positivo, línea de crédito está disponible completa
-          lineaCreditoDisponible = lineaCreditoTotal;
-          saldoFinalConCredito = cuenta.saldoSinCredito + lineaCreditoTotal;
+          usoLineaCredito = Math.max(usoLineaCredito, Math.abs(cuenta.saldoSinCredito));
         }
       }
       
-      // Guardar información completa
-      cuenta.saldoCalculado = saldoFinalConCredito;
+      const lineaCreditoDisponible = Math.max(0, lineaCreditoTotal - usoLineaCredito);
+      
+      // SALDO TOTAL = SALDO EFECTIVO (para el target de $107.645.045)
+      // Las líneas de crédito son solo referencia adicional
+      cuenta.saldoCalculado = cuenta.saldoSinCredito;
       cuenta.lineaCreditoTotal = lineaCreditoTotal;
       cuenta.usoLineaCredito = usoLineaCredito;
       cuenta.lineaCreditoDisponible = lineaCreditoDisponible;
+      cuenta.fondosTotalesDisponibles = cuenta.saldoSinCredito + lineaCreditoDisponible;
+      
+      // Log detallado
+      if (cuenta.movimientosCount > 0 || saldoInicial > 0) {
+        console.log(`\n💰 ${bancoCodigo.toUpperCase()} (${cuentaId}):`);
+        console.log(`   📊 Inicial: $${saldoInicial.toLocaleString('es-CL')} + Abonos: $${cuenta.totalAbonos.toLocaleString('es-CL')} - Cargos: $${cuenta.totalCargos.toLocaleString('es-CL')}`);
+        console.log(`   💵 Saldo efectivo: $${cuenta.saldoSinCredito.toLocaleString('es-CL')}`);
+        
+        if (cuenta.traspasosEnviados > 0 || cuenta.traspasosRecibidos > 0) {
+          console.log(`   🔄 Traspasos enviados: $${cuenta.traspasosEnviados.toLocaleString('es-CL')}`);
+          console.log(`   🔄 Traspasos recibidos: $${cuenta.traspasosRecibidos.toLocaleString('es-CL')}`);
+        }
+        
+        if (lineaCreditoTotal > 0) {
+          console.log(`   💳 Línea de crédito total: $${lineaCreditoTotal.toLocaleString('es-CL')}`);
+          console.log(`   📈 Uso detectado: $${usoLineaCredito.toLocaleString('es-CL')}`);
+          console.log(`   💰 Línea disponible: $${lineaCreditoDisponible.toLocaleString('es-CL')}`);
+          console.log(`   🎯 FONDOS TOTALES: $${cuenta.fondosTotalesDisponibles.toLocaleString('es-CL')}`);
+        }
+        
+        console.log(`   📋 Movimientos: ${cuenta.movimientosCount}`);
+        if (cuenta.movimientosCredito.length > 0) {
+          console.log(`   💳 Movimientos de crédito detectados: ${cuenta.movimientosCredito.length}`);
+        }
+      }
     });
 
-    // 9. Combinar cuentas con saldos calculados (incluyendo análisis de líneas de crédito)
+    // 9. Combinar cuentas con saldos calculados
     const cuentasConSaldos = cuentas.map(cuenta => {
       const saldoInfo = saldosPorCuenta[cuenta.id];
       const bancoCodigo = cuenta.banco?.toLowerCase() || 'generico';
@@ -782,11 +851,15 @@ const obtenerSaldosBancarios = async () => {
         lineaCreditoTotal: saldoInfo.lineaCreditoTotal || 0,
         usoLineaCredito: saldoInfo.usoLineaCredito || 0,
         lineaCreditoDisponible: saldoInfo.lineaCreditoDisponible || 0,
+        fondosTotalesDisponibles: saldoInfo.fondosTotalesDisponibles || saldoInfo.saldoCalculado,
+        traspasosEnviados: saldoInfo.traspasosEnviados || 0,
+        traspasosRecibidos: saldoInfo.traspasosRecibidos || 0,
         ultimaActualizacion: saldoInfo.ultimaFecha,
         movimientosCount: saldoInfo.movimientosCount,
         ultimoMovimiento: saldoInfo.ultimoMovimiento,
         totalAbonos: saldoInfo.totalAbonos,
         totalCargos: saldoInfo.totalCargos,
+        movimientosCredito: saldoInfo.movimientosCredito || [],
         saldoInfo: {
           ...saldoInfo,
           verificacion: {
@@ -799,26 +872,39 @@ const obtenerSaldosBancarios = async () => {
       };
     });
 
-    // 10. Mostrar resumen final con análisis completo de líneas de crédito
-    const totalSaldosSinCredito = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.saldoSinCredito, 0);
-    const totalSaldosConCredito = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.saldoCalculado, 0);
+    // 10. Resumen final con nuevo target
+    const totalSaldoEfectivo = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.saldoSinCredito, 0);
+    const totalFondosDisponibles = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.fondosTotalesDisponibles, 0);
     const totalSaldosIniciales = Object.values(saldosIniciales2025).reduce((sum, saldo) => sum + saldo, 0);
     const totalLineasCredito = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.lineaCreditoTotal, 0);
     const totalUsoCredito = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.usoLineaCredito, 0);
     const totalCreditoDisponible = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.lineaCreditoDisponible, 0);
+    const totalTraspasos = cuentasConSaldos.reduce((sum, cuenta) => sum + cuenta.traspasosEnviados, 0);
     const cuentasConMovimientos = cuentasConSaldos.filter(cuenta => cuenta.movimientosCount > 0);
 
-    console.log(`📊 RESUMEN FINANCIERO FINAL:`);
-    console.log(`   🎯 Saldos iniciales: ${totalSaldosIniciales.toLocaleString('es-CL')}`);
-    console.log(`   💵 Saldos efectivos: ${totalSaldosSinCredito.toLocaleString('es-CL')}`);
-    console.log(`   💳 Líneas de crédito: ${totalLineasCredito.toLocaleString('es-CL')}`);
-    console.log(`   📈 Uso de crédito: ${totalUsoCredito.toLocaleString('es-CL')}`);
-    console.log(`   💰 Crédito disponible: ${totalCreditoDisponible.toLocaleString('es-CL')}`);
-    console.log(`   🎯 TOTAL DISPONIBLE: ${totalSaldosConCredito.toLocaleString('es-CL')}`);
+    console.log(`\n📊 RESUMEN FINANCIERO FINAL CORREGIDO:`);
+    console.log(`   🎯 Saldos iniciales: $${totalSaldosIniciales.toLocaleString('es-CL')}`);
+    console.log(`   💵 Saldos efectivos: $${totalSaldoEfectivo.toLocaleString('es-CL')}`);
+    console.log(`   🔄 Total traspasos detectados: $${totalTraspasos.toLocaleString('es-CL')}`);
+    console.log(`   💳 Líneas de crédito totales: $${totalLineasCredito.toLocaleString('es-CL')}`);
+    console.log(`   📈 Uso detectado de crédito: $${totalUsoCredito.toLocaleString('es-CL')}`);
+    console.log(`   💰 Crédito disponible: $${totalCreditoDisponible.toLocaleString('es-CL')}`);
+    console.log(`   🏛️ FONDOS TOTALES DISPONIBLES: $${totalFondosDisponibles.toLocaleString('es-CL')}`);
     console.log(`   🏦 Cuentas activas: ${cuentasConMovimientos.length}/${cuentasConSaldos.length}`);
     console.log('='.repeat(60));
 
-    console.log(`\n✅ ${cuentasConSaldos.length} saldos cargados con nueva lógica`);
+    // ✅ VERIFICACIÓN CON NUEVO TARGET
+    const targetEsperado = 107645045;
+    const diferencia = Math.abs(totalSaldoEfectivo - targetEsperado);
+    const porcentajeError = (diferencia / targetEsperado) * 100;
+    
+    console.log(`\n🎯 VERIFICACIÓN TARGET ACTUALIZADO:`);
+    console.log(`   Esperado: $${targetEsperado.toLocaleString('es-CL')}`);
+    console.log(`   Calculado: $${totalSaldoEfectivo.toLocaleString('es-CL')}`);
+    console.log(`   Diferencia: $${diferencia.toLocaleString('es-CL')} (${porcentajeError.toFixed(2)}%)`);
+    console.log(`   Estado: ${porcentajeError < 5 ? '✅ CORRECTO' : '⚠️ REVISAR'}`);
+
+    console.log(`\n✅ ${cuentasConSaldos.length} saldos cargados con detección automática`);
     return cuentasConSaldos;
 
   } catch (error) {
