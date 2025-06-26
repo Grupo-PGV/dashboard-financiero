@@ -20,7 +20,7 @@ const ChipaxSaldosExplorer = () => {
   const [currentEndpoint, setCurrentEndpoint] = useState('');
   const [mostrarExplorador, setMostrarExplorador] = useState(false);
 
-  const TARGET_AMOUNT = 186648977;
+  const TARGET_AMOUNT = 107645045; // Target actualizado
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('es-CL', {
@@ -77,7 +77,7 @@ const ChipaxSaldosExplorer = () => {
     cargarSaldos();
   }, []);
 
-  // Calcular totales
+  // Calcular totales CORREGIDOS
   const totalSaldoEfectivo = saldos.reduce((sum, cuenta) => {
     return sum + (cuenta.saldoSinCredito || cuenta.saldoCalculado || cuenta.saldo || 0);
   }, 0);
@@ -86,13 +86,14 @@ const ChipaxSaldosExplorer = () => {
     return sum + (cuenta.lineaCreditoTotal || 0);
   }, 0);
   
-  const totalDisponible = saldos.reduce((sum, cuenta) => {
-    return sum + (cuenta.saldoCalculado || cuenta.saldo || 0);
-  }, 0);
+  // TOTAL DISPONIBLE = SALDO EFECTIVO (no suma líneas, solo las muestra como referencia)
+  const totalDisponible = totalSaldoEfectivo;
   
   const totalUsoCredito = saldos.reduce((sum, cuenta) => {
     return sum + (cuenta.usoLineaCredito || 0);
   }, 0);
+  
+  const totalCreditoDisponible = totalLineasCredito - totalUsoCredito;
 
   // Endpoints para exploración (funcionalidad original)
   const endpointsParaSaldos = [
@@ -197,26 +198,26 @@ const ChipaxSaldosExplorer = () => {
         <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-6 rounded-lg text-white">
           <div className="flex items-center space-x-2 mb-2">
             <TrendingDown className="w-6 h-6" />
-            <span className="text-sm font-medium opacity-90">Uso de Crédito</span>
+            <span className="text-sm font-medium opacity-90">Crédito Disponible</span>
           </div>
           <div className="text-3xl font-bold mb-1">
-            {formatCurrency(totalUsoCredito)}
+            {formatCurrency(totalCreditoDisponible)}
           </div>
           <div className="text-sm opacity-80">
-            Crédito actualmente usado
+            Líneas no utilizadas
           </div>
         </div>
 
         <div className="bg-gradient-to-r from-green-500 to-green-600 p-6 rounded-lg text-white">
           <div className="flex items-center space-x-2 mb-2">
             <Target className="w-6 h-6" />
-            <span className="text-sm font-medium opacity-90">Total Disponible</span>
+            <span className="text-sm font-medium opacity-90">Saldo Total</span>
           </div>
           <div className="text-3xl font-bold mb-1">
             {formatCurrency(totalDisponible)}
           </div>
           <div className="text-sm opacity-80">
-            Fondos totales utilizables
+            Target: {formatCurrency(TARGET_AMOUNT)}
           </div>
         </div>
       </div>
@@ -293,22 +294,22 @@ const ChipaxSaldosExplorer = () => {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
                       <div className="text-xs text-gray-500 uppercase tracking-wide">Saldo Efectivo</div>
-                      <div className={`text-lg font-semibold ${getColorSaldo(saldoEfectivo)}`}>
-                        {formatCurrency(saldoEfectivo)}
+                      <div className={`text-lg font-semibold ${getColorSaldo(saldoMostrar)}`}>
+                        {formatCurrency(saldoMostrar)}
                       </div>
                     </div>
                     
                     {lineaCredito > 0 && (
                       <>
                         <div>
-                          <div className="text-xs text-gray-500 uppercase tracking-wide">Línea de Crédito</div>
+                          <div className="text-xs text-gray-500 uppercase tracking-wide">Línea Total</div>
                           <div className="text-lg font-semibold text-purple-600">
                             {formatCurrency(lineaCredito)}
                           </div>
                         </div>
                         
                         <div>
-                          <div className="text-xs text-gray-500 uppercase tracking-wide">Uso de Crédito</div>
+                          <div className="text-xs text-gray-500 uppercase tracking-wide">Uso Actual</div>
                           <div className="text-lg font-semibold text-orange-600">
                             {formatCurrency(usoCredito)}
                           </div>
@@ -317,10 +318,17 @@ const ChipaxSaldosExplorer = () => {
                         <div>
                           <div className="text-xs text-gray-500 uppercase tracking-wide">Crédito Disponible</div>
                           <div className="text-lg font-semibold text-green-600">
-                            {formatCurrency(cuenta.lineaCreditoDisponible || (lineaCredito - usoCredito))}
+                            {formatCurrency(creditoDisponible)}
                           </div>
                         </div>
                       </>
+                    )}
+                    
+                    {!lineaCredito && (
+                      <div className="md:col-span-3">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide">Estado</div>
+                        <div className="text-sm text-gray-600">Sin línea de crédito asociada</div>
+                      </div>
                     )}
                   </div>
 
@@ -357,9 +365,12 @@ const ChipaxSaldosExplorer = () => {
               </div>
               
               <div className="text-right">
-                <div className="text-sm text-gray-500">Total General</div>
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-sm text-gray-500">Total Saldo Efectivo</div>
+                <div className={`text-2xl font-bold ${Math.abs(totalDisponible - TARGET_AMOUNT) < TARGET_AMOUNT * 0.05 ? 'text-green-600' : 'text-orange-600'}`}>
                   {formatCurrency(totalDisponible)}
+                </div>
+                <div className="text-xs text-gray-500">
+                  Target: {formatCurrency(TARGET_AMOUNT)}
                 </div>
               </div>
             </div>
@@ -393,8 +404,12 @@ const ChipaxSaldosExplorer = () => {
               <div className="mt-2 text-sm">
                 <span className="text-gray-600">Calculado: {formatCurrency(totalDisponible)}</span>
                 <span className="mx-2">•</span>
-                <span className={`font-medium ${Math.abs(totalDisponible - TARGET_AMOUNT) < 1000 ? 'text-green-600' : 'text-orange-600'}`}>
+                <span className={`font-medium ${Math.abs(totalDisponible - TARGET_AMOUNT) < TARGET_AMOUNT * 0.05 ? 'text-green-600' : 'text-orange-600'}`}>
                   Diferencia: {formatCurrency(Math.abs(totalDisponible - TARGET_AMOUNT))}
+                </span>
+                <span className="mx-2">•</span>
+                <span className="text-gray-500">
+                  Error: {((Math.abs(totalDisponible - TARGET_AMOUNT) / TARGET_AMOUNT) * 100).toFixed(2)}%
                 </span>
               </div>
             </div>
