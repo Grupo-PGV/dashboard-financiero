@@ -607,7 +607,7 @@ const obtenerSaldosBancarios = async () => {
     
     console.log('\n💡 NOTA: Los movimientos de línea de crédito ya están incluidos en las cartolas:');
     console.log('   - Uso de línea de crédito = ABONO en cartolas');
-    console.log('   - Pago de línea de crédito = CARGO en cartolas'); | Banco: "${cuenta.banco}" | Número: ${cuenta.numeroCuenta}`);
+    console.log('   - Pago de línea de crédito = CARGO en cartolas');
     });
     
     const saldosIniciales2025 = {
