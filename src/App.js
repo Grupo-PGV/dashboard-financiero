@@ -1,11 +1,12 @@
+// src/App.js
 import React from 'react';
+import PlataformaInicioPGR from './components/PlataformaInicioPGR';
 import './App.css';
-import DashboardFinancieroIntegrado from './pages/DashboardFinancieroIntegrado';
 
 function App() {
   return (
     <div className="App">
-      <DashboardFinancieroIntegrado />
+      <PlataformaInicioPGR />
     </div>
   );
 }
