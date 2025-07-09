@@ -325,4 +325,45 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
             </h3>
             <div className="mb-4">
               <div className="flex items-center gap-4">
-                <span className="
+                <span className="text-sm text-gray-600">
+                  Modalidad: <strong>{clientes[clienteSeleccionado].modalidad}</strong>
+                </span>
+                <span className="text-sm text-gray-600">
+                  Progreso: <strong>{calcularPorcentaje(clienteSeleccionado)}%</strong>
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {clientes[clienteSeleccionado].documentos.map((doc, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg border hover:shadow-sm transition-shadow">
+                  <span className="text-gray-700 flex-1">{doc}</span>
+                  <div className="flex items-center gap-2 ml-4">
+                    <button
+                      onClick={() => toggleDocumento(clienteSeleccionado, doc)}
+                      className="flex items-center gap-1 text-sm"
+                    >
+                      {estadoDocumentos[clienteSeleccionado]?.[doc] ? (
+                        <CheckCircle className="text-green-600" size={18} />
+                      ) : (
+                        <Circle className="text-gray-400" size={18} />
+                      )}
+                      <span className={`text-sm ${
+                        estadoDocumentos[clienteSeleccionado]?.[doc] 
+                          ? 'text-green-600 font-medium' 
+                          : 'text-gray-500'
+                      }`}>
+                        {estadoDocumentos[clienteSeleccionado]?.[doc] ? 'Entregado' : 'Pendiente'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default DashboardCumplimiento;
