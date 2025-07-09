@@ -26,6 +26,29 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
   const [busqueda, setBusqueda] = useState('');
   const [clientesExpandidos, setClientesExpandidos] = useState({});
   const [mostrarDetalles, setMostrarDetalles] = useState(false);
+  const [periodoSeleccionado, setPeriodoSeleccionado] = useState('2025-01');
+  const [mostrarTablaCriticos, setMostrarTablaCriticos] = useState(true);
+  const [clienteFiltro, setClienteFiltro] = useState(''); // Nuevo filtro por cliente específico
+
+  // Generar lista de meses desde enero 2025 hasta diciembre 2025
+  const generarPeriodos = () => {
+    const periodos = [];
+    const meses = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    
+    for (let i = 0; i < 12; i++) {
+      const mes = String(i + 1).padStart(2, '0');
+      periodos.push({
+        valor: `2025-${mes}`,
+        etiqueta: `${meses[i]} 2025`
+      });
+    }
+    return periodos;
+  };
+
+  const periodos = generarPeriodos();
 
   // Base de datos completa de clientes con información del manual
   const clientes = {
@@ -332,19 +355,21 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     }));
   };
 
-  // Filtrar clientes según búsqueda y estado
+  // Filtrar clientes según búsqueda, estado y cliente específico
   const clientesFiltrados = Object.entries(clientes).filter(([nombre, data]) => {
     const cumpleBusqueda = nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
                           data.categoria.toLowerCase().includes(busqueda.toLowerCase());
     
-    if (filtroEstado === 'todos') return cumpleBusqueda;
+    const cumpleClienteFiltro = clienteFiltro === '' || clienteFiltro === 'todos' || nombre === clienteFiltro;
+    
+    if (filtroEstado === 'todos') return cumpleBusqueda && cumpleClienteFiltro;
     
     const porcentaje = calcularPorcentaje(nombre);
-    if (filtroEstado === 'criticos') return cumpleBusqueda && porcentaje < 50;
-    if (filtroEstado === 'proceso') return cumpleBusqueda && porcentaje >= 50 && porcentaje < 90;
-    if (filtroEstado === 'completos') return cumpleBusqueda && porcentaje >= 90;
+    if (filtroEstado === 'criticos') return cumpleBusqueda && cumpleClienteFiltro && porcentaje < 50;
+    if (filtroEstado === 'proceso') return cumpleBusqueda && cumpleClienteFiltro && porcentaje >= 50 && porcentaje < 90;
+    if (filtroEstado === 'completos') return cumpleBusqueda && cumpleClienteFiltro && porcentaje >= 90;
     
-    return cumpleBusqueda;
+    return cumpleBusqueda && cumpleClienteFiltro;
   });
 
   const estadisticas = {
@@ -446,6 +471,43 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
         <div className="p-6 border-b bg-gray-50">
           <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
             <div className="flex flex-col sm:flex-row gap-3 flex-1">
+              {/* Filtro de período */}
+              <div className="flex items-center gap-2">
+                <Calendar size={20} className="text-gray-500" />
+                <select
+                  value={periodoSeleccionado}
+                  onChange={(e) => setPeriodoSeleccionado(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                >
+                  {periodos.map(periodo => (
+                    <option key={periodo.valor} value={periodo.valor}>
+                      {periodo.etiqueta}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filtro de cliente específico */}
+              <div className="flex items-center gap-2">
+                <Building size={20} className="text-gray-500" />
+                <select
+                  value={clienteFiltro}
+                  onChange={(e) => setClienteFiltro(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-48"
+                >
+                  <option value="">Seleccionar cliente</option>
+                  <option value="todos">📋 Ver todos los clientes</option>
+                  <option disabled>──────────────────</option>
+                  {Object.entries(clientes)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([nombre, data]) => (
+                      <option key={nombre} value={nombre}>
+                        {data.icono} {nombre}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              
               <div className="relative">
                 <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
@@ -471,6 +533,18 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
             
             <div className="flex gap-2">
               <button
+                onClick={() => setMostrarTablaCriticos(!mostrarTablaCriticos)}
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                  mostrarTablaCriticos 
+                    ? 'bg-red-600 text-white hover:bg-red-700' 
+                    : 'bg-red-100 text-red-700 hover:bg-red-200'
+                }`}
+              >
+                <AlertTriangle size={16} />
+                {mostrarTablaCriticos ? 'Ocultar' : 'Mostrar'} Críticos
+              </button>
+              
+              <button
                 onClick={() => setMostrarDetalles(!mostrarDetalles)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
               >
@@ -486,21 +560,170 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
           </div>
         </div>
 
-        {/* Alertas */}
-        <div className="mx-6 mt-6 bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="text-red-600" size={20} />
-            <span className="font-medium text-red-900">
-              ⚠️ ATENCIÓN: Todos los clientes requieren actualización de documentación para el período 2025
-            </span>
+        {/* Tabla resumen de clientes críticos - VERSIÓN RESUMIDA */}
+        {mostrarTablaCriticos && estadisticas.criticos > 0 && (
+          <div className="mx-6 mt-6 bg-red-50 border border-red-200 rounded-lg overflow-hidden">
+            <div className="bg-red-100 px-4 py-3 border-b border-red-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="text-red-600" size={20} />
+                  <h3 className="font-bold text-red-900">
+                    Resumen Críticos - {periodos.find(p => p.valor === periodoSeleccionado)?.etiqueta}
+                  </h3>
+                </div>
+                <span className="px-2 py-1 bg-red-200 text-red-800 rounded-full text-sm font-medium">
+                  {estadisticas.criticos} clientes
+                </span>
+              </div>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-red-100">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Cliente</th>
+                    <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Docs</th>
+                    <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Estado</th>
+                    <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Contacto</th>
+                    <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white">
+                  {Object.entries(clientes)
+                    .filter(([nombre]) => calcularPorcentaje(nombre) < 50)
+                    .slice(0, 8) // Limitar a 8 clientes máximo para mantener compacto
+                    .map(([nombre, data], index) => {
+                      const porcentaje = calcularPorcentaje(nombre);
+                      const docsCompletados = data.documentos.filter(doc => estadoDocumentos[nombre]?.[doc]).length;
+                      
+                      return (
+                        <tr key={nombre} className={index % 2 === 0 ? 'bg-white' : 'bg-red-25'}>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-base">{data.icono}</span>
+                              <div>
+                                <div className="font-medium text-gray-900 text-sm">{nombre}</div>
+                                <div className="text-xs text-gray-500">{data.categoria}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="text-sm">
+                              <span className="font-medium">{docsCompletados}/{data.documentos.length}</span>
+                              <div className="text-xs text-gray-500">documentos</div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-12 bg-gray-200 rounded-full h-1.5">
+                                <div 
+                                  className="h-1.5 rounded-full bg-red-600"
+                                  style={{ width: `${porcentaje}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-xs font-medium text-red-700">{porcentaje}%</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <a 
+                              href={`mailto:${data.contacto}`}
+                              className="text-blue-600 hover:text-blue-800 text-xs truncate block max-w-24"
+                              title={data.contacto}
+                            >
+                              {data.contacto.split('@')[0]}
+                            </a>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex gap-1">
+                              <button 
+                                className="p-1 text-blue-600 hover:bg-blue-100 rounded text-xs"
+                                title="Ver detalles"
+                                onClick={() => {
+                                  setClienteFiltro(nombre);
+                                  toggleClienteExpandido(nombre);
+                                }}
+                              >
+                                <Eye size={12} />
+                              </button>
+                              <button 
+                                className="p-1 text-green-600 hover:bg-green-100 rounded text-xs"
+                                title="Contactar"
+                              >
+                                <Mail size={12} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Footer compacto */}
+            <div className="bg-red-50 px-4 py-2 border-t border-red-200">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-red-700">
+                  📋 {Object.entries(clientes).filter(([nombre]) => calcularPorcentaje(nombre) < 50).length > 8 ? 
+                    `Mostrando 8 de ${Object.entries(clientes).filter(([nombre]) => calcularPorcentaje(nombre) < 50).length} críticos` :
+                    `${estadisticas.criticos} clientes críticos`}
+                </span>
+                <div className="flex gap-2">
+                  <button className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors">
+                    📤 Recordatorios
+                  </button>
+                  <button className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 transition-colors">
+                    📊 Exportar
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-          <p className="text-red-700 text-sm mt-2">
-            Estado actual: {estadisticas.total} clientes con 0% de cumplimiento. Inicie el proceso de recopilación y validación de documentos.
-          </p>
-        </div>
+        )}
+
+        {/* Alerta general cuando todos están al 0% */}
+        {estadisticas.criticos === estadisticas.total && (
+          <div className="mx-6 mt-6 bg-orange-50 border border-orange-200 rounded-lg p-4">
+            <div className="flex items-center gap-2">
+              <Calendar className="text-orange-600" size={20} />
+              <span className="font-medium text-orange-900">
+                🚀 Inicio de período {periodos.find(p => p.valor === periodoSeleccionado)?.etiqueta}
+              </span>
+            </div>
+            <p className="text-orange-700 text-sm mt-2">
+              Todos los clientes requieren actualización de documentación. Seleccione un cliente para comenzar el proceso de recopilación.
+            </p>
+          </div>
+        )}
 
         {/* Lista de clientes */}
         <div className="p-6">
+          {/* Mensaje cuando no hay cliente seleccionado */}
+          {!clienteFiltro && (
+            <div className="text-center py-12 bg-blue-50 rounded-lg border border-blue-200 mb-6">
+              <Building size={48} className="mx-auto mb-4 text-blue-400" />
+              <h3 className="text-lg font-medium text-blue-900 mb-2">Seleccione un Cliente</h3>
+              <p className="text-blue-700 text-sm mb-4">
+                Utilice el filtro de cliente arriba para ver la información detallada de un cliente específico, 
+                o seleccione "Ver todos los clientes" para mostrar la lista completa.
+              </p>
+              <div className="flex items-center justify-center gap-4 text-sm text-blue-600">
+                <div className="flex items-center gap-1">
+                  <Circle size={16} className="text-red-500" />
+                  <span>Críticos: {estadisticas.criticos}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Circle size={16} className="text-yellow-500" />
+                  <span>En proceso: {estadisticas.proceso}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <CheckCircle size={16} className="text-green-500" />
+                  <span>Completos: {estadisticas.completos}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-4">
             {clientesFiltrados.map(([nombre, data]) => {
               const porcentaje = calcularPorcentaje(nombre);
@@ -637,11 +860,19 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
             })}
           </div>
 
-          {clientesFiltrados.length === 0 && (
+          {clientesFiltrados.length === 0 && clienteFiltro && (
             <div className="text-center py-12 text-gray-500">
               <Search size={48} className="mx-auto mb-4 text-gray-300" />
-              <h3 className="text-lg font-medium mb-2">No se encontraron clientes</h3>
-              <p>Intenta ajustar los filtros de búsqueda</p>
+              <h3 className="text-lg font-medium mb-2">Cliente no encontrado</h3>
+              <p>Intenta ajustar los filtros de búsqueda o selecciona otro cliente</p>
+            </div>
+          )}
+
+          {clientesFiltrados.length === 0 && !clienteFiltro && busqueda && (
+            <div className="text-center py-12 text-gray-500">
+              <Search size={48} className="mx-auto mb-4 text-gray-300" />
+              <h3 className="text-lg font-medium mb-2">No se encontraron resultados</h3>
+              <p>Intenta ajustar la búsqueda o selecciona un cliente específico</p>
             </div>
           )}
         </div>
@@ -688,9 +919,9 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
           <div className="mt-6 pt-4 border-t text-center text-xs text-gray-500">
             <div className="flex items-center justify-center gap-2 mb-1">
               <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-              <span className="font-medium">PERÍODO DE INICIO: ENERO 2025</span>
+              <span className="font-medium">PERÍODO ACTIVO: {periodos.find(p => p.valor === periodoSeleccionado)?.etiqueta.toUpperCase()}</span>
             </div>
-            Dashboard configurado para inicio de período • Estado: Todos los clientes requieren actualización • Última sincronización: {new Date().toLocaleString('es-CL')}
+            Dashboard configurado para seguimiento mensual • Estado: Requiere actualización de información • Última sincronización: {new Date().toLocaleString('es-CL')}
           </div>
         </div>
       </div>
