@@ -1,0 +1,29 @@
+[build]
+  publish = "build"
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "18"
+  REACT_APP_CHIPAX_API_URL = "https://api.chipax.com/v2"
+
+# Redirecciones para la API de Chipax (si es necesario)
+[[redirects]]
+  from = "/api/*"
+  to = "https://api.chipax.com/v2/:splat"
+  status = 200
+  force = true
+  headers = {X-From = "Netlify"}
+
+# Manejo de rutas SPA
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Headers de seguridad
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
