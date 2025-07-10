@@ -21,7 +21,11 @@ import {
   Square,
   FileText,
   X,
-  ExternalLink
+  ExternalLink,
+  Bell,
+  AlertOctagon,
+  CalendarClock,
+  Plus
 } from 'lucide-react';
 
 const DashboardCumplimiento = ({ onCerrarSesion }) => {
@@ -36,6 +40,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
   const [mostrarMatrizWalmart, setMostrarMatrizWalmart] = useState(false); // Nueva ventana de Walmart
   const [estadoPorPeriodo, setEstadoPorPeriodo] = useState({}); // Estado por período mensual
   const [ultimoGuardado, setUltimoGuardado] = useState(null); // Timestamp del último guardado
+  const [fechasVencimiento, setFechasVencimiento] = useState({}); // Fechas de vencimiento por período
 
   // Generar lista de meses desde enero 2025 hasta diciembre 2025
   const generarPeriodos = () => {
@@ -55,7 +60,32 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     return periodos;
   };
 
-  const periodos = generarPeriodos();
+  // Generar fechas de vencimiento por defecto para cada período
+  const generarFechasDefecto = (periodo) => {
+    const [año, mes] = periodo.split('-');
+    const fechasDefecto = {};
+    
+    Object.entries(clientes).forEach(([cliente, data]) => {
+      fechasDefecto[cliente] = {};
+      data.documentos.forEach((doc, index) => {
+        // Generar fechas escalonadas durante el mes
+        let dia;
+        if (data.frecuencia === 'Mensual' || cliente === 'CIMOLAI') {
+          dia = 5; // Documentos mensuales vencen el 5 de cada mes
+        } else if (cliente === 'WALMART') {
+          dia = 15; // Walmart tiene plazo especial
+        } else if (doc.includes('F30')) {
+          dia = 10; // Certificados F30 vencen el 10
+        } else {
+          dia = Math.min(20 + (index * 2), 28); // Otros documentos escalonados
+        }
+        
+        fechasDefecto[cliente][doc] = `${año}-${mes}-${String(dia).padStart(2, '0')}`;
+      });
+    });
+    
+    return fechasDefecto;
+  };
 
   // Matriz de documentos de Walmart basada en el CSV
   const matrizWalmart = [
@@ -409,12 +439,17 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     
     if (Object.keys(datosGuardados).length > 0) {
       setEstadoPorPeriodo(datosGuardados.estadoPorPeriodo || {});
+      setFechasVencimiento(datosGuardados.fechasVencimiento || {});
       setUltimoGuardado(datosGuardados.ultimoGuardado || null);
     } else {
       // Inicializar estado vacío para todos los períodos
       const estadoInicial = {};
+      const fechasIniciales = {};
+      
       periodos.forEach(periodo => {
         estadoInicial[periodo.valor] = {};
+        fechasIniciales[periodo.valor] = generarFechasDefecto(periodo.valor);
+        
         Object.entries(clientes).forEach(([cliente, data]) => {
           estadoInicial[periodo.valor][cliente] = {};
           data.documentos.forEach((doc) => {
@@ -422,7 +457,9 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
           });
         });
       });
+      
       setEstadoPorPeriodo(estadoInicial);
+      setFechasVencimiento(fechasIniciales);
     }
   }, []);
 
@@ -431,6 +468,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     if (Object.keys(estadoPorPeriodo).length > 0) {
       const datosParaGuardar = {
         estadoPorPeriodo,
+        fechasVencimiento,
         ultimoGuardado: new Date().toISOString(),
         version: '1.0'
       };
@@ -438,10 +476,9 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       localStorage.setItem('pgr_cumplimiento_contratos', JSON.stringify(datosParaGuardar));
       setUltimoGuardado(new Date().toISOString());
     }
-  }, [estadoPorPeriodo]);
+  }, [estadoPorPeriodo, fechasVencimiento]);
 
-  // Obtener estado de documentos para el período actual
-  const estadoDocumentos = estadoPorPeriodo[periodoSeleccionado] || {};
+  const periodos = generarPeriodos();
 
   const calcularPorcentaje = (cliente) => {
     const docs = clientes[cliente].documentos;
@@ -625,6 +662,22 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
               </div>
               <p className="text-2xl font-bold text-purple-700">{estadisticas.promedio}%</p>
             </div>
+            
+            <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+              <div className="flex items-center gap-2 mb-2">
+                <Bell size={20} className="text-orange-600" />
+                <span className="text-sm font-medium text-orange-900">Próximos</span>
+              </div>
+              <p className="text-2xl font-bold text-orange-700">{proximos}</p>
+            </div>
+            
+            <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertOctagon size={20} className="text-red-600" />
+                <span className="text-sm font-medium text-red-900">Vencidos</span>
+              </div>
+              <p className="text-2xl font-bold text-red-700">{vencidos}</p>
+            </div>
           </div>
         </div>
 
@@ -654,6 +707,12 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                       setEstadoPorPeriodo(prev => ({
                         ...prev,
                         [nuevoPeriodo]: estadoVacio
+                      }));
+                      
+                      // Crear fechas para el nuevo período si no existen
+                      setFechasVencimiento(prev => ({
+                        ...prev,
+                        [nuevoPeriodo]: prev[nuevoPeriodo] || generarFechasDefecto(nuevoPeriodo)
                       }));
                     }
                   }}
@@ -740,6 +799,38 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
           </div>
         </div>
 
+        {/* Alertas de vencimientos */}
+        {(vencidos > 0 || proximos > 0) && (
+          <div className="mx-6 mt-6">
+            {vencidos > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center gap-2">
+                  <AlertOctagon className="text-red-600" size={20} />
+                  <span className="font-medium text-red-900">
+                    🚨 URGENTE: {vencidos} documento(s) vencido(s) en {periodos.find(p => p.valor === periodoSeleccionado)?.etiqueta}
+                  </span>
+                </div>
+                <p className="text-red-700 text-sm mt-2">
+                  Estos documentos requieren acción inmediata. Contacte a los clientes urgentemente.
+                </p>
+              </div>
+            )}
+            
+            {proximos > 0 && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <Bell className="text-orange-600" size={20} />
+                  <span className="font-medium text-orange-900">
+                    ⏰ {proximos} documento(s) próximo(s) a vencer (≤7 días)
+                  </span>
+                </div>
+                <p className="text-orange-700 text-sm mt-2">
+                  Programe recordatorios y seguimiento proactivo para estos documentos.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
         {/* Tabla resumen de clientes críticos - VERSIÓN RESUMIDA */}
         {mostrarTablaCriticos && estadisticas.criticos > 0 && (
           <div className="mx-6 mt-6 bg-red-50 border border-red-200 rounded-lg overflow-hidden">
@@ -1034,26 +1125,57 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                             </div>
                           </div>
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                            {data.documentos.map((documento, idx) => (
-                              <div
-                                key={idx}
-                                className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-                                onClick={() => toggleDocumento(nombre, documento)}
-                              >
-                                {estadoDocumentos[nombre]?.[documento] ? (
-                                  <CheckCircle size={18} className="text-green-600 flex-shrink-0" />
-                                ) : (
-                                  <Circle size={18} className="text-gray-400 flex-shrink-0" />
-                                )}
-                                <span className={`text-sm ${
-                                  estadoDocumentos[nombre]?.[documento]
-                                    ? 'text-gray-900' 
-                                    : 'text-gray-600'
-                                }`}>
-                                  {documento}
-                                </span>
-                              </div>
-                            ))}
+                            {data.documentos.map((documento, idx) => {
+                              const fechaVenc = fechasActuales[nombre]?.[documento];
+                              const estadoVenc = fechaVenc ? obtenerEstadoVencimiento(fechaVenc) : null;
+                              
+                              return (
+                                <div
+                                  key={idx}
+                                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                                  onClick={() => toggleDocumento(nombre, documento)}
+                                >
+                                  {estadoDocumentos[nombre]?.[documento] ? (
+                                    <CheckCircle size={18} className="text-green-600 flex-shrink-0" />
+                                  ) : (
+                                    <Circle size={18} className="text-gray-400 flex-shrink-0" />
+                                  )}
+                                  
+                                  <div className="flex-1">
+                                    <span className={`text-sm ${
+                                      estadoDocumentos[nombre]?.[documento]
+                                        ? 'text-gray-900' 
+                                        : 'text-gray-600'
+                                    }`}>
+                                      {documento}
+                                    </span>
+                                    
+                                    {fechaVenc && !estadoDocumentos[nombre]?.[documento] && estadoVenc && (
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <CalendarClock size={12} className={`text-${estadoVenc.color}-600`} />
+                                        <span className={`text-xs font-medium text-${estadoVenc.color}-700`}>
+                                          {estadoVenc.estado === 'vencido' && `Vencido hace ${estadoVenc.dias} día(s)`}
+                                          {estadoVenc.estado === 'critico' && `Vence en ${estadoVenc.dias} día(s)`}
+                                          {estadoVenc.estado === 'proximo' && `Vence en ${estadoVenc.dias} día(s)`}
+                                          {estadoVenc.estado === 'normal' && `Vence: ${new Date(fechaVenc).toLocaleDateString('es-CL')}`}
+                                        </span>
+                                        
+                                        {(estadoVenc.estado === 'vencido' || estadoVenc.estado === 'critico') && (
+                                          <Bell size={10} className={`text-${estadoVenc.color}-600 animate-pulse`} />
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {fechaVenc && estadoDocumentos[nombre]?.[documento] && (
+                                      <div className="flex items-center gap-1 mt-1">
+                                        <CheckCircle size={12} className="text-green-600" />
+                                        <span className="text-xs text-green-700">Completado</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       ) : (
