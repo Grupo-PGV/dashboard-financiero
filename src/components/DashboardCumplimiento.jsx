@@ -26,7 +26,6 @@ import {
 
 const DashboardCumplimiento = ({ onCerrarSesion }) => {
   const [clienteSeleccionado, setClienteSeleccionado] = useState('');
-  const [estadoDocumentos, setEstadoDocumentos] = useState({});
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [busqueda, setBusqueda] = useState('');
   const [clientesExpandidos, setClientesExpandidos] = useState({});
@@ -35,6 +34,8 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
   const [mostrarTablaCriticos, setMostrarTablaCriticos] = useState(true);
   const [clienteFiltro, setClienteFiltro] = useState(''); // Nuevo filtro por cliente específico
   const [mostrarMatrizWalmart, setMostrarMatrizWalmart] = useState(false); // Nueva ventana de Walmart
+  const [estadoPorPeriodo, setEstadoPorPeriodo] = useState({}); // Estado por período mensual
+  const [ultimoGuardado, setUltimoGuardado] = useState(null); // Timestamp del último guardado
 
   // Generar lista de meses desde enero 2025 hasta diciembre 2025
   const generarPeriodos = () => {
@@ -401,23 +402,52 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     }
   };
 
-  // Inicializar estado de documentos - INICIO ENERO 2025 - TODO EN 0%
+  // Inicializar estado de documentos por período - INICIO ENERO 2025 - TODO EN 0%
   useEffect(() => {
-    const estadoInicial = {};
-    Object.entries(clientes).forEach(([cliente, data]) => {
-      estadoInicial[cliente] = {};
-      data.documentos.forEach((doc) => {
-        // Todos los documentos inician en FALSE (0% cumplimiento)
-        estadoInicial[cliente][doc] = false;
+    // Cargar datos guardados del localStorage
+    const datosGuardados = JSON.parse(localStorage.getItem('pgr_cumplimiento_contratos') || '{}');
+    
+    if (Object.keys(datosGuardados).length > 0) {
+      setEstadoPorPeriodo(datosGuardados.estadoPorPeriodo || {});
+      setUltimoGuardado(datosGuardados.ultimoGuardado || null);
+    } else {
+      // Inicializar estado vacío para todos los períodos
+      const estadoInicial = {};
+      periodos.forEach(periodo => {
+        estadoInicial[periodo.valor] = {};
+        Object.entries(clientes).forEach(([cliente, data]) => {
+          estadoInicial[periodo.valor][cliente] = {};
+          data.documentos.forEach((doc) => {
+            estadoInicial[periodo.valor][cliente][doc] = false;
+          });
+        });
       });
-    });
-    setEstadoDocumentos(estadoInicial);
+      setEstadoPorPeriodo(estadoInicial);
+    }
   }, []);
+
+  // Auto-guardar cuando cambie el estado
+  useEffect(() => {
+    if (Object.keys(estadoPorPeriodo).length > 0) {
+      const datosParaGuardar = {
+        estadoPorPeriodo,
+        ultimoGuardado: new Date().toISOString(),
+        version: '1.0'
+      };
+      
+      localStorage.setItem('pgr_cumplimiento_contratos', JSON.stringify(datosParaGuardar));
+      setUltimoGuardado(new Date().toISOString());
+    }
+  }, [estadoPorPeriodo]);
+
+  // Obtener estado de documentos para el período actual
+  const estadoDocumentos = estadoPorPeriodo[periodoSeleccionado] || {};
 
   const calcularPorcentaje = (cliente) => {
     const docs = clientes[cliente].documentos;
     if (docs.length === 0) return 100; // Clientes sin requerimientos
-    const completados = docs.filter(doc => estadoDocumentos[cliente]?.[doc]).length;
+    const estadoActual = estadoDocumentos[cliente] || {};
+    const completados = docs.filter(doc => estadoActual[doc]).length;
     return Math.round((completados / docs.length) * 100);
   };
 
@@ -435,25 +465,32 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
   };
 
   const toggleDocumento = (cliente, documento) => {
-    setEstadoDocumentos(prev => ({
+    setEstadoPorPeriodo(prev => ({
       ...prev,
-      [cliente]: {
-        ...prev[cliente],
-        [documento]: !prev[cliente]?.[documento]
+      [periodoSeleccionado]: {
+        ...prev[periodoSeleccionado],
+        [cliente]: {
+          ...prev[periodoSeleccionado]?.[cliente],
+          [documento]: !prev[periodoSeleccionado]?.[cliente]?.[documento]
+        }
       }
     }));
   };
 
   const seleccionarTodoCliente = (cliente) => {
     const docs = clientes[cliente].documentos;
-    const todosSeleccionados = docs.every(doc => estadoDocumentos[cliente]?.[doc]);
+    const estadoActual = estadoDocumentos[cliente] || {};
+    const todosSeleccionados = docs.every(doc => estadoActual[doc]);
     
-    setEstadoDocumentos(prev => ({
+    setEstadoPorPeriodo(prev => ({
       ...prev,
-      [cliente]: docs.reduce((acc, doc) => ({
-        ...acc,
-        [doc]: !todosSeleccionados
-      }), {})
+      [periodoSeleccionado]: {
+        ...prev[periodoSeleccionado],
+        [cliente]: docs.reduce((acc, doc) => ({
+          ...acc,
+          [doc]: !todosSeleccionados
+        }), {})
+      }
     }));
   };
 
@@ -520,15 +557,30 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
 
         {/* Estadísticas generales */}
         <div className="p-6 border-b">
-          {/* Banner de inicio período */}
-          <div className="mb-6 bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <Calendar size={24} className="text-orange-600" />
-              <div>
-                <h3 className="font-bold text-orange-900">🚀 Inicio de Período - Enero 2025</h3>
-                <p className="text-orange-700 text-sm">
-                  Todos los clientes inician con 0% de cumplimiento. Se requiere actualización completa de la información y documentación.
-                </p>
+          {/* Banner de período actual con auto-guardado */}
+          <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Calendar size={24} className="text-blue-600" />
+                <div>
+                  <h3 className="font-bold text-blue-900">
+                    📅 Período Activo: {periodos.find(p => p.valor === periodoSeleccionado)?.etiqueta}
+                  </h3>
+                  <p className="text-blue-700 text-sm">
+                    Cada mes mantiene su progreso independiente. Los cambios se guardan automáticamente.
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="flex items-center gap-2 text-sm text-blue-600">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span>Auto-guardado activo</span>
+                </div>
+                {ultimoGuardado && (
+                  <p className="text-xs text-blue-500">
+                    Último guardado: {new Date(ultimoGuardado).toLocaleString('es-CL')}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -585,7 +637,26 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 <Calendar size={20} className="text-gray-500" />
                 <select
                   value={periodoSeleccionado}
-                  onChange={(e) => setPeriodoSeleccionado(e.target.value)}
+                  onChange={(e) => {
+                    const nuevoPeriodo = e.target.value;
+                    setPeriodoSeleccionado(nuevoPeriodo);
+                    
+                    // Asegurar que existe el estado para el nuevo período
+                    if (!estadoPorPeriodo[nuevoPeriodo]) {
+                      const estadoVacio = {};
+                      Object.entries(clientes).forEach(([cliente, data]) => {
+                        estadoVacio[cliente] = {};
+                        data.documentos.forEach((doc) => {
+                          estadoVacio[cliente][doc] = false;
+                        });
+                      });
+                      
+                      setEstadoPorPeriodo(prev => ({
+                        ...prev,
+                        [nuevoPeriodo]: estadoVacio
+                      }));
+                    }
+                  }}
                   className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                 >
                   {periodos.map(periodo => (
@@ -775,7 +846,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 <span className="text-red-700">
                   📋 {Object.entries(clientes).filter(([nombre]) => calcularPorcentaje(nombre) < 50).length > 8 ? 
                     `Mostrando 8 de ${Object.entries(clientes).filter(([nombre]) => calcularPorcentaje(nombre) < 50).length} críticos` :
-                    `${estadisticas.criticos} clientes críticos`}
+                    `${estadisticas.criticos} clientes críticos en ${periodos.find(p => p.valor === periodoSeleccionado)?.etiqueta}`}
                 </span>
                 <div className="flex gap-2">
                   <button className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors">
@@ -975,7 +1046,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                                   <Circle size={18} className="text-gray-400 flex-shrink-0" />
                                 )}
                                 <span className={`text-sm ${
-                                  estadoDocumentos[nombre]?.[documento] 
+                                  estadoDocumentos[nombre]?.[documento]
                                     ? 'text-gray-900' 
                                     : 'text-gray-600'
                                 }`}>
@@ -1056,10 +1127,16 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
           
           <div className="mt-6 pt-4 border-t text-center text-xs text-gray-500">
             <div className="flex items-center justify-center gap-2 mb-1">
-              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span className="font-medium">PERÍODO ACTIVO: {periodos.find(p => p.valor === periodoSeleccionado)?.etiqueta.toUpperCase()}</span>
             </div>
-            Dashboard configurado para seguimiento mensual • Estado: Requiere actualización de información • Última sincronización: {new Date().toLocaleString('es-CL')}
+            <div className="flex items-center justify-center gap-4 text-xs">
+              <span>Dashboard con seguimiento mensual independiente</span>
+              <span>•</span>
+              <span>Auto-guardado: {ultimoGuardado ? 'Activo' : 'Inicializando'}</span>
+              <span>•</span>
+              <span>Última sincronización: {new Date().toLocaleString('es-CL')}</span>
+            </div>
           </div>
         </div>
 
