@@ -16,7 +16,12 @@ import {
   ChevronDown,
   ChevronRight,
   Users,
-  Clock
+  Clock,
+  CheckSquare,
+  Square,
+  FileText,
+  X,
+  ExternalLink
 } from 'lucide-react';
 
 const DashboardCumplimiento = ({ onCerrarSesion }) => {
@@ -29,6 +34,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState('2025-01');
   const [mostrarTablaCriticos, setMostrarTablaCriticos] = useState(true);
   const [clienteFiltro, setClienteFiltro] = useState(''); // Nuevo filtro por cliente específico
+  const [mostrarMatrizWalmart, setMostrarMatrizWalmart] = useState(false); // Nueva ventana de Walmart
 
   // Generar lista de meses desde enero 2025 hasta diciembre 2025
   const generarPeriodos = () => {
@@ -49,6 +55,96 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
   };
 
   const periodos = generarPeriodos();
+
+  // Matriz de documentos de Walmart basada en el CSV
+  const matrizWalmart = [
+    {
+      categoria: 'Comité Paritario',
+      documentos: [
+        {
+          nombre: 'Acta Constitución Comité Paritario',
+          criterios: [
+            'Legible',
+            'Existe presencia tanto femenina como masculina entre los miembros del comité (equidad de género)',
+            'Timbrada por la DT',
+            'Documento completo',
+            'Documento debe corresponder al solicitado',
+            'Vigencia del comité al periodo de revisión (vigencia de 2 años)',
+            'Identificación de los representantes que conforman el CPHYS',
+            'Nombre de la empresa'
+          ]
+        }
+      ]
+    },
+    {
+      categoria: 'Contratos y Anexos',
+      documentos: [
+        {
+          nombre: 'Anexos de Contrato',
+          criterios: [
+            'Nombre y Rut de la empresa',
+            'Legible',
+            'Aparece firma de ambas partes',
+            'Documento completo',
+            'Vigente',
+            'Corresponde al trabajador solicitado'
+          ]
+        },
+        {
+          nombre: 'Contrato de Trabajo',
+          criterios: [
+            'Legible',
+            'Documento completo',
+            'Aparece firma de ambas partes',
+            'Vigente',
+            'Corresponde al trabajador solicitado',
+            'Nombre y Rut de la empresa'
+          ]
+        }
+      ]
+    },
+    {
+      categoria: 'Documentos Previsionales',
+      documentos: [
+        {
+          nombre: 'Certificado F30',
+          criterios: [
+            'Vigente (no mayor a 60 días)',
+            'Legible',
+            'Documento completo',
+            'Timbrado por la DT',
+            'Nombre y Rut de la empresa',
+            'Sin multas pendientes'
+          ]
+        },
+        {
+          nombre: 'Certificado F30-1',
+          criterios: [
+            'Vigente (no mayor a 60 días)',
+            'Legible',
+            'Documento completo',
+            'Timbrado por la DT',
+            'Nombre y Rut de la empresa'
+          ]
+        }
+      ]
+    },
+    {
+      categoria: 'Seguros y Mutualidades',
+      documentos: [
+        {
+          nombre: 'Certificado de Afiliación Mutualidad',
+          criterios: [
+            'Vigente',
+            'Legible',
+            'Documento completo',
+            'Nombre y Rut de la empresa',
+            'Corresponde al organismo administrador'
+          ]
+        }
+      ]
+    }
+  ];
 
   // Base de datos completa de clientes con información del manual
   const clientes = {
@@ -345,6 +441,19 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
         ...prev[cliente],
         [documento]: !prev[cliente]?.[documento]
       }
+    }));
+  };
+
+  const seleccionarTodoCliente = (cliente) => {
+    const docs = clientes[cliente].documentos;
+    const todosSeleccionados = docs.every(doc => estadoDocumentos[cliente]?.[doc]);
+    
+    setEstadoDocumentos(prev => ({
+      ...prev,
+      [cliente]: docs.reduce((acc, doc) => ({
+        ...acc,
+        [doc]: !todosSeleccionados
+      }), {})
     }));
   };
 
@@ -823,7 +932,36 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                       {/* Lista de documentos */}
                       {data.documentos.length > 0 ? (
                         <div className="p-4">
-                          <h4 className="font-medium text-gray-900 mb-3">Documentos requeridos:</h4>
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-medium text-gray-900">Documentos requeridos:</h4>
+                            <div className="flex gap-2">
+                              {nombre === 'WALMART' && (
+                                <button
+                                  onClick={() => setMostrarMatrizWalmart(true)}
+                                  className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors flex items-center gap-1"
+                                >
+                                  <FileText size={14} />
+                                  Ver Matriz Completa
+                                </button>
+                              )}
+                              <button
+                                onClick={() => seleccionarTodoCliente(nombre)}
+                                className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors flex items-center gap-1"
+                              >
+                                {data.documentos.every(doc => estadoDocumentos[nombre]?.[doc]) ? (
+                                  <>
+                                    <Square size={14} />
+                                    Deseleccionar Todo
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckSquare size={14} />
+                                    Seleccionar Todo
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                             {data.documentos.map((documento, idx) => (
                               <div
@@ -924,6 +1062,136 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
             Dashboard configurado para seguimiento mensual • Estado: Requiere actualización de información • Última sincronización: {new Date().toLocaleString('es-CL')}
           </div>
         </div>
+
+        {/* Modal de Matriz de Documentos de Walmart */}
+        {mostrarMatrizWalmart && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+              {/* Header del Modal */}
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <FileText size={32} />
+                    <div>
+                      <h2 className="text-2xl font-bold">Matriz de Documentos - WALMART</h2>
+                      <p className="text-blue-100">Criterios de revisión detallados por documento</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setMostrarMatrizWalmart(false)}
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Contenido del Modal */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ExternalLink size={20} className="text-blue-600" />
+                    <span className="font-semibold text-blue-900">Plataforma: SubcontrataLey</span>
+                  </div>
+                  <p className="text-blue-700 text-sm">
+                    Todos los documentos deben subirse a través de la plataforma oficial de Walmart Chile.
+                    <br />URL: <span className="font-mono bg-blue-100 px-1 rounded">https://subcontrataley.cl</span>
+                  </p>
+                </div>
+
+                <div className="space-y-6">
+                  {matrizWalmart.map((categoria, catIndex) => (
+                    <div key={catIndex} className="border border-gray-200 rounded-lg overflow-hidden">
+                      <div className="bg-gray-50 px-4 py-3 border-b">
+                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                          <Building size={20} className="text-gray-600" />
+                          {categoria.categoria}
+                        </h3>
+                      </div>
+                      
+                      <div className="divide-y divide-gray-200">
+                        {categoria.documentos.map((documento, docIndex) => (
+                          <div key={docIndex} className="p-4">
+                            <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                              <FileText size={18} className="text-blue-600" />
+                              {documento.nombre}
+                            </h4>
+                            
+                            <div className="bg-gray-50 rounded-lg p-3">
+                              <h5 className="text-sm font-medium text-gray-700 mb-2">Criterios de Validación:</h5>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {documento.criterios.map((criterio, critIndex) => (
+                                  <div key={critIndex} className="flex items-start gap-2 text-sm">
+                                    <CheckCircle size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
+                                    <span className="text-gray-700">{criterio}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Información adicional */}
+                <div className="mt-8 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <h3 className="font-bold text-yellow-900 mb-2">📋 Información Importante</h3>
+                  <ul className="text-yellow-800 text-sm space-y-1">
+                    <li>• Todos los documentos deben estar vigentes y legibles</li>
+                    <li>• Los certificados F30 y F30-1 no deben tener más de 60 días de antigüedad</li>
+                    <li>• Verificar que el nombre y RUT de la empresa aparezcan correctamente</li>
+                    <li>• Los documentos deben estar completos y sin páginas faltantes</li>
+                    <li>• Las firmas de ambas partes son obligatorias en contratos y anexos</li>
+                  </ul>
+                </div>
+
+                {/* Próximos cambios */}
+                <div className="mt-6 bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <h3 className="font-bold text-orange-900 mb-2">🔄 Próximos Cambios Programados</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <h4 className="font-semibold text-orange-800 mb-1">Mayo 2025:</h4>
+                      <ul className="text-orange-700 space-y-1 text-xs">
+                        <li>• Programa de Trabajo Preventivo (SGSST)</li>
+                        <li>• Registro Difusión Trabajador Reglamento Interno</li>
+                        <li>• Capacitación Uso y Mantención de EPP</li>
+                        <li>• Información de riesgos laborales</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-orange-800 mb-1">Diciembre 2025:</h4>
+                      <ul className="text-orange-700 space-y-1 text-xs">
+                        <li>• Evaluación de Desempeño del Programa (SGSST)</li>
+                        <li>• Mejora Continua (SGSST)</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer del Modal */}
+              <div className="bg-gray-50 px-6 py-4 border-t flex justify-between items-center">
+                <span className="text-sm text-gray-600">
+                  Matriz basada en criterios oficiales de Walmart Chile S.A.
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setMostrarMatrizWalmart(false)}
+                    className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                  >
+                    Cerrar
+                  </button>
+                  <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+                    <Download size={16} />
+                    Exportar Matriz
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
