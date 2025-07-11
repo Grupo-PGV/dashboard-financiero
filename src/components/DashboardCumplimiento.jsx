@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+{/* Lista de documentos */}
+                      {todosDocumentos > 0 ? (
+                        <div className="p-import React, { useState, useEffect } from 'react';
 import { 
   FileCheck, 
   CheckCircle, 
@@ -31,10 +33,12 @@ import {
 const DashboardCumplimiento = ({ onCerrarSesion }) => {
   const [clienteSeleccionado, setClienteSeleccionado] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('todos');
+  const [filtroTipoDocumento, setFiltroTipoDocumento] = useState('todos'); // Nuevo filtro
+  const [mesSeleccionado, setMesSeleccionado] = useState('2025-07'); // Julio 2025 por defecto
   const [busqueda, setBusqueda] = useState('');
   const [clientesExpandidos, setClientesExpandidos] = useState({});
   const [mostrarDetalles, setMostrarDetalles] = useState(false);
-  const [periodoSeleccionado, setPeriodoSeleccionado] = useState('2025-01');
+  const [periodoSeleccionado, setPeriodoSeleccionado] = useState('2025-07');
   const [mostrarTablaCriticos, setMostrarTablaCriticos] = useState(true);
   const [clienteFiltro, setClienteFiltro] = useState('');
   const [mostrarMatrizWalmart, setMostrarMatrizWalmart] = useState(false);
@@ -50,13 +54,19 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       categoria: 'Logística',
       contacto: 'documentos@incoport.cl',
       frecuencia: 'Mensual',
-      documentos: [
-        'Liquidaciones de Sueldo',
-        'Libro Asistencia',
-        'Certificado F30',
-        'Certificado F30-1',
-        'Planilla Cotizaciones Previsionales'
-      ]
+      fechaInicio: '2021-01',
+      fechaTermino: '2025-05',
+      estado: 'Terminado',
+      documentos: {
+        mensuales: [
+          'Liquidaciones de Sueldo',
+          'Libro Asistencia',
+          'Certificado F30',
+          'Certificado F30-1',
+          'Planilla Cotizaciones Previsionales'
+        ],
+        unicos: []
+      }
     },
     'ALIANZA INMOBILIARIO': {
       modalidad: 'Envío directo',
@@ -64,13 +74,18 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       categoria: 'Inmobiliario',
       contacto: 'documentos@alianza.cl',
       frecuencia: 'Mensual',
-      documentos: [
-        'Nómina de Personal',
-        'Certificado F30',
-        'Certificado F30-1',
-        'Liquidación y Transferencias',
-        'Certificado Cotizaciones'
-      ]
+      fechaInicio: '2021-02',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Nómina de Personal',
+          'Certificado F30',
+          'Certificado F30-1',
+          'Liquidación y Transferencias',
+          'Certificado Cotizaciones'
+        ],
+        unicos: []
+      }
     },
     'IMEL': {
       modalidad: 'Envío directo',
@@ -78,13 +93,18 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       categoria: 'Industrial',
       contacto: 'documentos@imel.cl',
       frecuencia: 'Mensual',
-      documentos: [
-        'Certificado F30',
-        'Certificado F30-1',
-        'Planilla Cotizaciones Previsionales',
-        'Liquidaciones',
-        'Transferencias'
-      ]
+      fechaInicio: '2022-01',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado F30',
+          'Certificado F30-1',
+          'Planilla Cotizaciones Previsionales',
+          'Liquidaciones',
+          'Transferencias'
+        ],
+        unicos: []
+      }
     },
     'FULL LOGISTIC': {
       modalidad: 'Envío directo',
@@ -92,10 +112,15 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       categoria: 'Logística',
       contacto: 'documentos@fulllogistic.cl',
       frecuencia: 'Mensual',
-      documentos: [
-        'Certificado F30',
-        'Certificado F30-1'
-      ]
+      fechaInicio: '2020-04',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado F30',
+          'Certificado F30-1'
+        ],
+        unicos: []
+      }
     },
     'JOSÉ MORENO': {
       modalidad: 'Envío directo',
@@ -103,10 +128,15 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       categoria: 'Personal',
       contacto: 'jmoreno@gmail.com',
       frecuencia: 'Mensual',
-      documentos: [
-        'Certificado F30',
-        'Certificado F30-1'
-      ]
+      fechaInicio: '2019-11',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado F30',
+          'Certificado F30-1'
+        ],
+        unicos: []
+      }
     },
     'CAROZZI': {
       modalidad: 'Envío directo',
@@ -114,25 +144,29 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       categoria: 'Alimentario',
       contacto: 'proveedores@carozzi.cl',
       frecuencia: 'Mensual',
-      documentos: [
-        // Documentos de la empresa
-        'Certificado de Adhesión a Seguro de Accidentes (vigente)',
-        'Detalle de Pago de Cotizaciones Previsionales de PreviRed (últimos 3 meses)',
-        'Certificado de la Inspección del Trabajo sobre cumplimiento de obligaciones laborales y previsionales (Ley de subcontratación, F30 y F30-1)',
-        'Reglamento interno de la empresa',
-        'Escritura de la empresa y modificaciones',
-        'Pago del IVA',
-        'Balance',
-        'Estado de resultado',
-        // Documentos de trabajadores
-        'Contrato de Trabajo vigente y sus anexos (No boleta de honorarios)',
-        'Nómina de trabajadores para validarlos',
-        'Fotocopia de cédula de Identidad vigente por ambos lados',
-        'Certificado de antecedentes',
-        'Certificado curso OS10',
-        'Documentación preventiva (recepción EPP, Reglamento interno y Charla de Derecho a Saber) ODI/DAS',
-        'Inducción contratistas martes y jueves online (Obligatoria)'
-      ]
+      fechaInicio: '2023-11',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Detalle de Pago de Cotizaciones Previsionales de PreviRed (últimos 3 meses)',
+          'Nómina de trabajadores para validarlos'
+        ],
+        unicos: [
+          'Certificado de Adhesión a Seguro de Accidentes (vigente)',
+          'Certificado de la Inspección del Trabajo sobre cumplimiento de obligaciones laborales y previsionales (Ley de subcontratación, F30 y F30-1)',
+          'Reglamento interno de la empresa',
+          'Escritura de la empresa y modificaciones',
+          'Pago del IVA',
+          'Balance',
+          'Estado de resultado',
+          'Contrato de Trabajo vigente y sus anexos (No boleta de honorarios)',
+          'Fotocopia de cédula de Identidad vigente por ambos lados',
+          'Certificado de antecedentes',
+          'Certificado curso OS10',
+          'Documentación preventiva (recepción EPP, Reglamento interno y Charla de Derecho a Saber) ODI/DAS',
+          'Inducción contratistas martes y jueves online (Obligatoria)'
+        ]
+      }
     },
     'CIMOLAI': {
       modalidad: 'Envío directo',
@@ -140,73 +174,126 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       categoria: 'Construcción',
       contacto: 'documentos@cimolai.cl',
       frecuencia: 'Mensual',
-      documentos: [
-        // Documentos mensuales
-        'Listado de trabajadores periodo mensual',
-        'Liquidaciones de Sueldo mensual',
-        'Certificado Cumplimientos Laborales F30-1 y Planilla Cotizaciones Previsionales mensual',
-        'Certificado Antecedentes laborales emitido por la Inspección del Trabajo mensual',
-        'Finiquito mensual',
-        'Certificado Siniestralidad mensual 2025',
-        'Planilla Cotizaciones Mutualidad mensual 2025',
-        'Certificado aclaración no aplica comité paritario mensual',
-        'Certificado cotizaciones al día ACHS mensual',
-        // Documentos una sola vez
-        'Certificado Afiliación Mutualidad'
-      ]
+      fechaInicio: '2025-04',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Listado de trabajadores periodo mensual',
+          'Liquidaciones de Sueldo mensual',
+          'Certificado Cumplimientos Laborales F30-1 y Planilla Cotizaciones Previsionales mensual',
+          'Certificado Antecedentes laborales emitido por la Inspección del Trabajo mensual',
+          'Finiquito mensual',
+          'Certificado Siniestralidad mensual 2025',
+          'Planilla Cotizaciones Mutualidad mensual 2025',
+          'Certificado aclaración no aplica comité paritario mensual',
+          'Certificado cotizaciones al día ACHS mensual'
+        ],
+        unicos: [
+          'Certificado Afiliación Mutualidad'
+        ]
+      }
     },
-    'CBB - INACAL Y READY MIX PARGUA': {
+    'CBB - INACAL': {
       modalidad: 'Prevsis',
       icono: '🏗',
       categoria: 'Construcción',
       contacto: 'proveedores@cbb.cl',
       plataforma: 'Prevsis',
       frecuencia: 'Mensual',
-      documentos: [
-        // Documentos de personal
-        'Cédula de Identidad',
-        'Contrato de Trabajo',
-        'Examen Ocupacional Ruido',
-        'Examen Ocupacional Sílice',
-        'Examen Alcohol y drogas (Cannabinoides, Cocaína, Anfetamina, Opiáceos, Benzodiacepinas, Alcohol)',
-        'Obligación de Informar Riesgos -ODI (Derecho a Saber)',
-        'Curso de Herramientas SSO (BCN)',
-        'Curso Alcohol y Drogas (BCN)',
-        'Inducción Planta',
-        'Anexo de vinculación obra - faena',
-        'Registro Entrega Elementos Protección Personal (EPP)',
-        'Recepción Reglamento Interno de Orden, Higiene y Seguridad (RIOHS)',
-        'Difusión procedimiento trabajo seguro',
-        'Anexo de traslado mandante o Finiquito del trabajador',
-        // Documentos de empresa
-        'Calendario Negociaciones Colectivas',
-        'Certificado de tasas o siniestralidad',
-        'Plan de Seguridad y Salud Ocupacional (SSO)',
-        'Procedimiento de trabajo seguro de tarea a realizar por parte de contratista/transportista + carta de validación CBB',
-        'Recepción Reglamento especial de empresas contratistas y subcontratistas (REECS)',
-        'Recepción y adherencia a plan de emergencia CBB',
-        'Reglamento Interno de Orden, Higiene y Seguridad (RIOHS) y formalidades (DT-SEREMI DE SALUD)',
-        // Documentos mensuales
-        'Certificado F30',
-        'Certificado F30-1',
-        'Nómina de personal',
-        'Liquidaciones de Sueldo firmada o Comprobante pago remuneraciones'
-      ]
+      fechaInicio: '2023-04',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado F30',
+          'Certificado F30-1',
+          'Nómina de personal',
+          'Liquidaciones de Sueldo firmada o Comprobante pago remuneraciones'
+        ],
+        unicos: [
+          'Cédula de Identidad',
+          'Contrato de Trabajo',
+          'Examen Ocupacional Ruido',
+          'Examen Ocupacional Sílice',
+          'Examen Alcohol y drogas (Cannabinoides, Cocaína, Anfetamina, Opiáceos, Benzodiacepinas, Alcohol)',
+          'Obligación de Informar Riesgos -ODI (Derecho a Saber)',
+          'Curso de Herramientas SSO (BCN)',
+          'Curso Alcohol y Drogas (BCN)',
+          'Inducción Planta',
+          'Anexo de vinculación obra - faena',
+          'Registro Entrega Elementos Protección Personal (EPP)',
+          'Recepción Reglamento Interno de Orden, Higiene y Seguridad (RIOHS)',
+          'Difusión procedimiento trabajo seguro',
+          'Anexo de traslado mandante o Finiquito del trabajador',
+          'Calendario Negociaciones Colectivas',
+          'Certificado de tasas o siniestralidad',
+          'Plan de Seguridad y Salud Ocupacional (SSO)',
+          'Procedimiento de trabajo seguro de tarea a realizar por parte de contratista/transportista + carta de validación CBB',
+          'Recepción Reglamento especial de empresas contratistas y subcontratistas (REECS)',
+          'Recepción y adherencia a plan de emergencia CBB',
+          'Reglamento Interno de Orden, Higiene y Seguridad (RIOHS) y formalidades (DT-SEREMI DE SALUD)'
+        ]
+      }
     },
-    'TODO MELON': {
+    'CBB - READY MIX PARGUA': {
+      modalidad: 'Prevsis',
+      icono: '🏗',
+      categoria: 'Construcción',
+      contacto: 'proveedores@cbb.cl',
+      plataforma: 'Prevsis',
+      frecuencia: 'Mensual',
+      fechaInicio: '2022-01',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado F30',
+          'Certificado F30-1',
+          'Nómina de personal',
+          'Liquidaciones de Sueldo firmada o Comprobante pago remuneraciones'
+        ],
+        unicos: [
+          'Cédula de Identidad',
+          'Contrato de Trabajo',
+          'Examen Ocupacional Ruido',
+          'Examen Ocupacional Sílice',
+          'Examen Alcohol y drogas (Cannabinoides, Cocaína, Anfetamina, Opiáceos, Benzodiacepinas, Alcohol)',
+          'Obligación de Informar Riesgos -ODI (Derecho a Saber)',
+          'Curso de Herramientas SSO (BCN)',
+          'Curso Alcohol y Drogas (BCN)',
+          'Inducción Planta',
+          'Anexo de vinculación obra - faena',
+          'Registro Entrega Elementos Protección Personal (EPP)',
+          'Recepción Reglamento Interno de Orden, Higiene y Seguridad (RIOHS)',
+          'Difusión procedimiento trabajo seguro',
+          'Anexo de traslado mandante o Finiquito del trabajador',
+          'Calendario Negociaciones Colectivas',
+          'Certificado de tasas o siniestralidad',
+          'Plan de Seguridad y Salud Ocupacional (SSO)',
+          'Procedimiento de trabajo seguro de tarea a realizar por parte de contratista/transportista + carta de validación CBB',
+          'Recepción Reglamento especial de empresas contratistas y subcontratistas (REECS)',
+          'Recepción y adherencia a plan de emergencia CBB',
+          'Reglamento Interno de Orden, Higiene y Seguridad (RIOHS) y formalidades (DT-SEREMI DE SALUD)'
+        ]
+      }
+    },
+    'TODO MELON + INM SAN PATRICIO': {
       modalidad: 'Prevsis + InfoControl',
       icono: '🍈',
       categoria: 'Agrícola',
       contacto: 'documentos@todomelon.cl',
       plataforma: 'Prevsis + InfoControl',
       frecuencia: 'Mensual',
-      documentos: [
-        // Plataforma InfoControl
-        'Cédula de Identidad',
-        'Certificado Cotizaciones Previsionales',
-        'Contrato y Anexos de Trabajo empleado',
-        'Recibo de sueldo o transferencia'
-      ]
+      fechaInicio: '2018-03',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Recibo de sueldo o transferencia'
+        ],
+        unicos: [
+          'Cédula de Identidad',
+          'Certificado Cotizaciones Previsionales',
+          'Contrato y Anexos de Trabajo empleado'
+        ]
+      }
     },
     'NOVASOURCE': {
       modalidad: 'Seyse',
@@ -215,11 +302,193 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       contacto: 'documentos@novasource.cl',
       plataforma: 'Seyse',
       frecuencia: 'Mensual',
-      documentos: [
-        'Certificado de Antecedentes Laborales y Previsionales (F-30)',
-        'Certificado de Cumplimiento de las Obligaciones Laborales y Previsionales (F30-1)',
-        'Certificado de Pago de Cotizaciones Previsionales (PREVIRED)',
-        'Certificado de Siniestralidad y Listado de Accidentados (Indicadores Estadísticos)',
+      fechaInicio: '2023-10',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado de Antecedentes Laborales y Previsionales (F-30)',
+          'Certificado de Cumplimiento de las Obligaciones Laborales y Previsionales (F30-1)',
+          'Certificado de Pago de Cotizaciones Previsionales (PREVIRED)',
+          'Certificado de Siniestralidad y Listado de Accidentados (Indicadores Estadísticos)',
+          'Comprobante de Pago de Remuneraciones',
+          'Nómina de Reporte Mensual de la Empresa'
+        ],
+        unicos: []
+      }
+    },
+    'WALMART': {
+      modalidad: 'SubcontrataLey',
+      icono: '🛒',
+      categoria: 'Retail',
+      contacto: 'proveedores@walmart.cl',
+      plataforma: 'SubcontrataLey',
+      frecuencia: 'Variable',
+      fechaInicio: '2024-12',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Criterios de revisión de la matriz documental (archivo CSV)'
+        ],
+        unicos: []
+      },
+      proximosCambios: {
+        mayo2025: [
+          'Programa de Trabajo Preventivo (SGSST)',
+          'Registro Difusión Trabajador Reglamento Interno',
+          'Toma de Conoc. de Trab. Información de Riesgos Laborales',
+          'Toma Conoc. Trab. Matriz IPER del Contratista',
+          'Toma Conoc. Trab. Programa de Trabajo Preventivo',
+          'Capacitación Uso y Mantención de EPP',
+          'Capacitación de Prevención de Riesgos',
+          'Información de riesgos laborales'
+        ],
+        diciembre2025: [
+          'Evaluación de Desempeño del Programa (SGSST)',
+          'Mejora Continua (SGSST)'
+        ]
+      }
+    },
+    'AGROSUPER': {
+      modalidad: 'KSEC',
+      icono: '🐷',
+      categoria: 'Agrícola',
+      contacto: 'proveedores@agrosuper.cl',
+      plataforma: 'KSEC',
+      frecuencia: 'Mensual',
+      fechaInicio: '2017-05',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado F30',
+          'Certificado F30-1',
+          'Finiquitos'
+        ],
+        unicos: [
+          'Contrato de trabajo',
+          'Anexos'
+        ]
+      }
+    },
+    'EBCO': {
+      modalidad: 'Ebco Conecta',
+      icono: '⚡',
+      categoria: 'Energía',
+      contacto: 'proveedores@ebco.cl',
+      plataforma: 'Ebco Conecta',
+      frecuencia: 'Mensual',
+      fechaInicio: '2023-01',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Liquidaciones',
+          'Libro de asistencia',
+          'Charlas de prevención mensuales',
+          'F-30',
+          'F30-1',
+          'Libro de remuneraciones',
+          'Cotizaciones',
+          'Certificados de la ACHS',
+          'Finiquitos'
+        ],
+        unicos: [
+          'Contrato de trabajo',
+          'Anexos'
+        ]
+      }
+    },
+    'DESARROLLO PAIS': {
+      modalidad: 'Envío directo',
+      icono: '🏛️',
+      categoria: 'Gubernamental',
+      contacto: 'documentos@desarrollopais.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2025-06',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Listado de trabajadores periodos Abril y Mayo',
+          'Liquidaciones de Sueldo y Transferencias',
+          'Certificado Cumplimientos Laborales F30-1 y Planilla Cotizaciones Previsionales',
+          'Certificado Antecedentes laborales emitido por la Inspección del Trabajo',
+          'Finiquito',
+          'Certificado Siniestralidad Abril y Mayo 2025',
+          'Planilla Cotizaciones Mutualidad Abril y Mayo 2025',
+          'Certificado aclaración no aplica comité paritario',
+          'CERTIFICADO COTIZACIONES AL DIA ACHS',
+          'Libro de Remuneraciones',
+          'Control de Asistencia (enviado por Jorge Rojas)'
+        ],
+        unicos: [
+          'Certificado Afiliación Mutualidad'
+        ]
+      }
+    },
+    'SEMPER': {
+      modalidad: 'Sin requerimientos',
+      icono: '❌',
+      categoria: 'Sin categoría',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2022-07',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
+        unicos: []
+      }
+    },
+    'BANCO DE CHILE': {
+      modalidad: 'Sin requerimientos',
+      icono: '❌',
+      categoria: 'Financiero',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2020-03',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
+        unicos: []
+      }
+    },
+    'BIOILS': {
+      modalidad: 'Sin requerimientos',
+      icono: '❌',
+      categoria: 'Energía',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2024-03',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
+        unicos: []
+      }
+    },
+    'ARSA GROUP': {
+      modalidad: 'Sin requerimientos',
+      icono: '❌',
+      categoria: 'Sin categoría',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2024-02',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
+        unicos: []
+      }
+    },
+    'ENERGYA': {
+      modalidad: 'Sin requerimientos',
+      icono: '❌',
+      categoria: 'Energía',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2024-05',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
+        unicos: []
+      }
+    }
+  }; (Indicadores Estadísticos)',
         'Comprobante de Pago de Remuneraciones',
         'Nómina de Reporte Mensual de la Empresa'
       ]
@@ -321,7 +590,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     }
   };
 
-  // Períodos disponibles
+  // Períodos disponibles - solo 2025
   const periodos = [
     { valor: '2025-01', etiqueta: 'Enero 2025' },
     { valor: '2025-02', etiqueta: 'Febrero 2025' },
@@ -341,24 +610,59 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
   const [estadoDocumentos, setEstadoDocumentos] = useState(() => {
     const estadoInicial = {};
     Object.keys(clientes).forEach(cliente => {
-      estadoInicial[cliente] = {};
-      clientes[cliente].documentos.forEach(doc => {
-        estadoInicial[cliente][doc] = Math.random() > 0.6; // 40% completado inicialmente
+      estadoInicial[cliente] = {
+        mensuales: {},
+        unicos: {}
+      };
+      
+      // Inicializar documentos mensuales
+      clientes[cliente].documentos.mensuales.forEach(doc => {
+        estadoInicial[cliente].mensuales[doc] = Math.random() > 0.6;
+      });
+      
+      // Inicializar documentos únicos
+      clientes[cliente].documentos.unicos.forEach(doc => {
+        estadoInicial[cliente].unicos[doc] = Math.random() > 0.7;
       });
     });
     return estadoInicial;
   });
 
-  // Funciones de cálculo
+  // Funciones de cálculo actualizadas
   const calcularPorcentaje = (cliente) => {
-    const documentos = clientes[cliente].documentos;
-    if (documentos.length === 0) return 100;
-    const completados = documentos.filter(doc => estadoDocumentos[cliente]?.[doc]).length;
-    return Math.round((completados / documentos.length) * 100);
+    const data = clientes[cliente];
+    if (!data) return 0;
+    
+    const tipoFiltro = filtroTipoDocumento;
+    let documentosRelevantes = [];
+    let completados = 0;
+    
+    if (tipoFiltro === 'todos') {
+      documentosRelevantes = [...data.documentos.mensuales, ...data.documentos.unicos];
+      completados = [
+        ...data.documentos.mensuales.filter(doc => estadoDocumentos[cliente]?.mensuales?.[doc]),
+        ...data.documentos.unicos.filter(doc => estadoDocumentos[cliente]?.unicos?.[doc])
+      ].length;
+    } else if (tipoFiltro === 'mensuales') {
+      documentosRelevantes = data.documentos.mensuales;
+      completados = data.documentos.mensuales.filter(doc => estadoDocumentos[cliente]?.mensuales?.[doc]).length;
+    } else if (tipoFiltro === 'unicos') {
+      documentosRelevantes = data.documentos.unicos;
+      completados = data.documentos.unicos.filter(doc => estadoDocumentos[cliente]?.unicos?.[doc]).length;
+    }
+    
+    if (documentosRelevantes.length === 0) return 100;
+    return Math.round((completados / documentosRelevantes.length) * 100);
   };
 
   const obtenerEstadisticas = () => {
-    const clientesList = Object.keys(clientes);
+    const clientesList = Object.keys(clientes).filter(cliente => {
+      const data = clientes[cliente];
+      // Filtrar clientes activos en 2025 y excluir INCOPORT que terminó en mayo
+      if (cliente === 'INCOPORT') return false;
+      return data.estado === 'Activo';
+    });
+    
     const total = clientesList.length;
     const criticos = clientesList.filter(cliente => calcularPorcentaje(cliente) < 50).length;
     const proceso = clientesList.filter(cliente => {
@@ -366,9 +670,9 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       return p >= 50 && p < 90;
     }).length;
     const completos = clientesList.filter(cliente => calcularPorcentaje(cliente) >= 90).length;
-    const promedio = Math.round(
+    const promedio = total > 0 ? Math.round(
       clientesList.reduce((sum, cliente) => sum + calcularPorcentaje(cliente), 0) / total
-    );
+    ) : 0;
     
     return { total, criticos, proceso, completos, promedio };
   };
@@ -378,8 +682,11 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
   // Calcular próximos vencimientos (simulado)
   const proximos = Math.floor(Math.random() * 15) + 8;
 
-  // Filtrado de clientes
+  // Filtrado de clientes actualizado
   const clientesFiltrados = Object.entries(clientes).filter(([nombre, data]) => {
+    // Excluir INCOPORT que terminó en mayo 2025
+    if (nombre === 'INCOPORT') return false;
+    
     const cumpleBusqueda = !busqueda || 
       nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
       data.categoria.toLowerCase().includes(busqueda.toLowerCase());
@@ -403,13 +710,39 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     }));
   };
 
-  const toggleDocumento = (cliente, documento) => {
+  const toggleDocumento = (cliente, documento, tipo) => {
     setEstadoDocumentos(prev => ({
       ...prev,
       [cliente]: {
         ...prev[cliente],
-        [documento]: !prev[cliente]?.[documento]
+        [tipo]: {
+          ...prev[cliente]?.[tipo],
+          [documento]: !prev[cliente]?.[tipo]?.[documento]
+        }
       }
+    }));
+    setUltimoGuardado(new Date());
+  };
+
+  // Función para marcar todos los documentos de un cliente
+  const marcarTodosDocumentos = (cliente, estado = true) => {
+    const data = clientes[cliente];
+    const nuevoEstado = {
+      mensuales: {},
+      unicos: {}
+    };
+    
+    data.documentos.mensuales.forEach(doc => {
+      nuevoEstado.mensuales[doc] = estado;
+    });
+    
+    data.documentos.unicos.forEach(doc => {
+      nuevoEstado.unicos[doc] = estado;
+    });
+    
+    setEstadoDocumentos(prev => ({
+      ...prev,
+      [cliente]: nuevoEstado
     }));
     setUltimoGuardado(new Date());
   };
@@ -601,11 +934,11 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
             <div className="flex items-center gap-3">
               <FileCheck size={32} />
               <div>
-                <h1 className="text-2xl font-bold">Dashboard de Cumplimiento de Contratos</h1>
-                <p className="text-blue-100">Control integral de documentación por cliente • Período: Enero 2025 en adelante</p>
+                <h1 className="text-2xl font-bold">Dashboard de Cumplimiento de Contratos 2025</h1>
+                <p className="text-blue-100">Control integral de documentación por cliente • Período: 2025 completo</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-blue-200">Estado inicial: Requiere actualización completa de información</span>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-xs text-blue-200">Activos: {Object.values(clientes).filter(c => c.estado === 'Activo').length} clientes • Terminados: 1 cliente (INCOPORT - Mayo 2025)</span>
                 </div>
               </div>
             </div>
@@ -627,10 +960,10 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 <Calendar size={24} className="text-blue-600" />
                 <div>
                   <h3 className="font-bold text-blue-900">
-                    📅 Período Activo: {periodos.find(p => p.valor === periodoSeleccionado)?.etiqueta}
+                    📅 Período Activo: {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta}
                   </h3>
                   <p className="text-blue-700 text-sm">
-                    Los cambios se guardan automáticamente.
+                    Filtros por tipo de documento y seguimiento mensual. Los cambios se guardan automáticamente.
                   </p>
                 </div>
               </div>
@@ -823,14 +1156,44 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
         <div className="p-6 border-b bg-gray-50">
           <div className="flex flex-wrap items-center gap-4 mb-4">
             <div className="flex items-center gap-2">
+              <Calendar size={20} className="text-gray-600" />
+              <select
+                value={mesSeleccionado}
+                onChange={(e) => setMesSeleccionado(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {periodos.map(periodo => (
+                  <option key={periodo.valor} value={periodo.valor}>
+                    {periodo.etiqueta}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
               <Filter size={20} className="text-gray-600" />
+              <select
+                value={filtroTipoDocumento}
+                onChange={(e) => setFiltroTipoDocumento(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="todos">Todos los documentos</option>
+                <option value="mensuales">Solo Mensuales</option>
+                <option value="unicos">Solo Únicos</option>
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Building size={20} className="text-gray-600" />
               <select
                 value={clienteFiltro}
                 onChange={(e) => setClienteFiltro(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="">Todos los clientes</option>
-                {Object.entries(clientes).map(([nombre, data]) => (
+                <option value="">Todos los clientes activos</option>
+                {Object.entries(clientes)
+                  .filter(([nombre]) => nombre !== 'INCOPORT')
+                  .map(([nombre, data]) => (
                   <option key={nombre} value={nombre}>
                     {data.icono} {nombre}
                   </option>
@@ -898,7 +1261,11 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
             {clientesFiltrados.map(([nombre, data]) => {
               const porcentaje = calcularPorcentaje(nombre);
               const expandido = clientesExpandidos[nombre];
-              const docsCompletados = data.documentos.filter(doc => estadoDocumentos[nombre]?.[doc]).length;
+              const todosDocumentos = data.documentos.mensuales.length + data.documentos.unicos.length;
+              const docsCompletados = [
+                ...data.documentos.mensuales.filter(doc => estadoDocumentos[nombre]?.mensuales?.[doc]),
+                ...data.documentos.unicos.filter(doc => estadoDocumentos[nombre]?.unicos?.[doc])
+              ].length;
               
               return (
                 <div
@@ -926,6 +1293,14 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                             <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
                               {data.modalidad}
                             </span>
+                            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                              Desde: {data.fechaInicio}
+                            </span>
+                            {data.fechaTermino && (
+                              <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">
+                                Terminó: {data.fechaTermino}
+                              </span>
+                            )}
                           </div>
                           
                           <div className="flex items-center gap-4">
@@ -950,7 +1325,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                             </div>
                             
                             <div className="text-sm text-gray-600">
-                              {docsCompletados}/{data.documentos.length} documentos
+                              {docsCompletados}/{todosDocumentos} documentos
                             </div>
                             
                             <div className="text-sm text-gray-500">
@@ -968,6 +1343,26 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                           <CheckCircle className="text-green-500" size={20} />
                         )}
                         <div className="flex gap-1">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              marcarTodosDocumentos(nombre, true);
+                            }}
+                            className="px-3 py-1 text-xs bg-green-100 text-green-700 hover:bg-green-200 rounded transition-colors"
+                            title="Marcar todos como completados"
+                          >
+                            ✓ Todos
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              marcarTodosDocumentos(nombre, false);
+                            }}
+                            className="px-3 py-1 text-xs bg-red-100 text-red-700 hover:bg-red-200 rounded transition-colors"
+                            title="Desmarcar todos"
+                          >
+                            ✗ Limpiar
+                          </button>
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1034,44 +1429,101 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                       )}
                       
                       {/* Lista de documentos */}
-                      {data.documentos.length > 0 ? (
+                      {todosDocumentos > 0 ? (
                         <div className="p-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {data.documentos.map((documento, index) => {
-                              const completado = estadoDocumentos[nombre]?.[documento];
-                              
-                              return (
-                                <div
-                                  key={index}
-                                  className={`p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-sm ${
-                                    completado 
-                                      ? 'bg-green-50 border-green-200 hover:bg-green-100' 
-                                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                                  }`}
-                                  onClick={() => toggleDocumento(nombre, documento)}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 flex-1">
-                                      {completado ? (
-                                        <CheckSquare className="text-green-600 flex-shrink-0" size={16} />
-                                      ) : (
-                                        <Square className="text-gray-400 flex-shrink-0" size={16} />
-                                      )}
-                                      <span className={`text-sm ${completado ? 'text-green-800' : 'text-gray-700'}`}>
-                                        {documento}
-                                      </span>
-                                    </div>
-                                    {completado && (
-                                      <div className="flex items-center gap-1 mt-1">
-                                        <CheckCircle size={12} className="text-green-600" />
-                                        <span className="text-xs text-green-700">Completado</span>
+                          {/* Documentos Mensuales */}
+                          {data.documentos.mensuales.length > 0 && (
+                            <div className="mb-6">
+                              <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                <Calendar size={16} className="text-blue-600" />
+                                Documentos Mensuales ({data.documentos.mensuales.length})
+                                <span className="text-sm text-gray-500">- Requeridos cada mes</span>
+                              </h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {data.documentos.mensuales.map((documento, index) => {
+                                  const completado = estadoDocumentos[nombre]?.mensuales?.[documento];
+                                  
+                                  return (
+                                    <div
+                                      key={index}
+                                      className={`p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-sm ${
+                                        completado 
+                                          ? 'bg-green-50 border-green-200 hover:bg-green-100' 
+                                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                                      }`}
+                                      onClick={() => toggleDocumento(nombre, documento, 'mensuales')}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 flex-1">
+                                          {completado ? (
+                                            <CheckSquare className="text-green-600 flex-shrink-0" size={16} />
+                                          ) : (
+                                            <Square className="text-gray-400 flex-shrink-0" size={16} />
+                                          )}
+                                          <span className={`text-sm ${completado ? 'text-green-800' : 'text-gray-700'}`}>
+                                            {documento}
+                                          </span>
+                                        </div>
+                                        {completado && (
+                                          <div className="flex items-center gap-1">
+                                            <CheckCircle size={12} className="text-green-600" />
+                                            <span className="text-xs text-green-700">✓</span>
+                                          </div>
+                                        )}
                                       </div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Documentos Únicos */}
+                          {data.documentos.unicos.length > 0 && (
+                            <div>
+                              <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                <FileCheck size={16} className="text-purple-600" />
+                                Documentos Únicos ({data.documentos.unicos.length})
+                                <span className="text-sm text-gray-500">- Requeridos una sola vez</span>
+                              </h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {data.documentos.unicos.map((documento, index) => {
+                                  const completado = estadoDocumentos[nombre]?.unicos?.[documento];
+                                  
+                                  return (
+                                    <div
+                                      key={index}
+                                      className={`p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-sm ${
+                                        completado 
+                                          ? 'bg-purple-50 border-purple-200 hover:bg-purple-100' 
+                                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                                      }`}
+                                      onClick={() => toggleDocumento(nombre, documento, 'unicos')}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 flex-1">
+                                          {completado ? (
+                                            <CheckSquare className="text-purple-600 flex-shrink-0" size={16} />
+                                          ) : (
+                                            <Square className="text-gray-400 flex-shrink-0" size={16} />
+                                          )}
+                                          <span className={`text-sm ${completado ? 'text-purple-800' : 'text-gray-700'}`}>
+                                            {documento}
+                                          </span>
+                                        </div>
+                                        {completado && (
+                                          <div className="flex items-center gap-1">
+                                            <CheckCircle size={12} className="text-purple-600" />
+                                            <span className="text-xs text-purple-700">✓</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="p-4 text-center text-gray-500">
