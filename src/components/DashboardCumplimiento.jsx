@@ -42,400 +42,282 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
   const [ultimoGuardado, setUltimoGuardado] = useState(null);
   const [fechasVencimiento, setFechasVencimiento] = useState({});
 
-  // Base de datos completa de clientes
+  // Base de datos real de clientes PGR Seguridad
   const clientes = {
     'INCOPORT': {
       modalidad: 'Envío directo',
       icono: '📋',
       categoria: 'Logística',
       contacto: 'documentos@incoport.cl',
-      plataforma: 'https://proveedores.incoport.cl',
-      frecuencia: 'Trimestral',
+      frecuencia: 'Mensual',
       documentos: [
-        'Certificado F30 vigente',
-        'Planilla trabajadores actualizada',
-        'Seguros de accidentes',
-        'Declaración renta',
-        'Balance general'
-      ],
-      proximosCambios: {
-        mayo2025: ['Certificado ISO 14001', 'Protocolo medioambiental'],
-        diciembre2025: ['Auditoría financiera', 'Plan de contingencia']
-      }
+        'Liquidaciones de Sueldo',
+        'Libro Asistencia',
+        'Certificado F30',
+        'Certificado F30-1',
+        'Planilla Cotizaciones Previsionales'
+      ]
+    },
+    'ALIANZA INMOBILIARIO': {
+      modalidad: 'Envío directo',
+      icono: '🏢',
+      categoria: 'Inmobiliario',
+      contacto: 'documentos@alianza.cl',
+      frecuencia: 'Mensual',
+      documentos: [
+        'Nómina de Personal',
+        'Certificado F30',
+        'Certificado F30-1',
+        'Liquidación y Transferencias',
+        'Certificado Cotizaciones'
+      ]
+    },
+    'IMEL': {
+      modalidad: 'Envío directo',
+      icono: '⚙️',
+      categoria: 'Industrial',
+      contacto: 'documentos@imel.cl',
+      frecuencia: 'Mensual',
+      documentos: [
+        'Certificado F30',
+        'Certificado F30-1',
+        'Planilla Cotizaciones Previsionales',
+        'Liquidaciones',
+        'Transferencias'
+      ]
+    },
+    'FULL LOGISTIC': {
+      modalidad: 'Envío directo',
+      icono: '🚛',
+      categoria: 'Logística',
+      contacto: 'documentos@fulllogistic.cl',
+      frecuencia: 'Mensual',
+      documentos: [
+        'Certificado F30',
+        'Certificado F30-1'
+      ]
+    },
+    'JOSÉ MORENO': {
+      modalidad: 'Envío directo',
+      icono: '👤',
+      categoria: 'Personal',
+      contacto: 'jmoreno@gmail.com',
+      frecuencia: 'Mensual',
+      documentos: [
+        'Certificado F30',
+        'Certificado F30-1'
+      ]
+    },
+    'CAROZZI': {
+      modalidad: 'Envío directo',
+      icono: '🍪',
+      categoria: 'Alimentario',
+      contacto: 'proveedores@carozzi.cl',
+      frecuencia: 'Mensual',
+      documentos: [
+        // Documentos de la empresa
+        'Certificado de Adhesión a Seguro de Accidentes (vigente)',
+        'Detalle de Pago de Cotizaciones Previsionales de PreviRed (últimos 3 meses)',
+        'Certificado de la Inspección del Trabajo sobre cumplimiento de obligaciones laborales y previsionales (Ley de subcontratación, F30 y F30-1)',
+        'Reglamento interno de la empresa',
+        'Escritura de la empresa y modificaciones',
+        'Pago del IVA',
+        'Balance',
+        'Estado de resultado',
+        // Documentos de trabajadores
+        'Contrato de Trabajo vigente y sus anexos (No boleta de honorarios)',
+        'Nómina de trabajadores para validarlos',
+        'Fotocopia de cédula de Identidad vigente por ambos lados',
+        'Certificado de antecedentes',
+        'Certificado curso OS10',
+        'Documentación preventiva (recepción EPP, Reglamento interno y Charla de Derecho a Saber) ODI/DAS',
+        'Inducción contratistas martes y jueves online (Obligatoria)'
+      ]
+    },
+    'CIMOLAI': {
+      modalidad: 'Envío directo',
+      icono: '🏗',
+      categoria: 'Construcción',
+      contacto: 'documentos@cimolai.cl',
+      frecuencia: 'Mensual',
+      documentos: [
+        // Documentos mensuales
+        'Listado de trabajadores periodo mensual',
+        'Liquidaciones de Sueldo mensual',
+        'Certificado Cumplimientos Laborales F30-1 y Planilla Cotizaciones Previsionales mensual',
+        'Certificado Antecedentes laborales emitido por la Inspección del Trabajo mensual',
+        'Finiquito mensual',
+        'Certificado Siniestralidad mensual 2025',
+        'Planilla Cotizaciones Mutualidad mensual 2025',
+        'Certificado aclaración no aplica comité paritario mensual',
+        'Certificado cotizaciones al día ACHS mensual',
+        // Documentos una sola vez
+        'Certificado Afiliación Mutualidad'
+      ]
+    },
+    'CBB - INACAL Y READY MIX PARGUA': {
+      modalidad: 'Prevsis',
+      icono: '🏗',
+      categoria: 'Construcción',
+      contacto: 'proveedores@cbb.cl',
+      plataforma: 'Prevsis',
+      frecuencia: 'Mensual',
+      documentos: [
+        // Documentos de personal
+        'Cédula de Identidad',
+        'Contrato de Trabajo',
+        'Examen Ocupacional Ruido',
+        'Examen Ocupacional Sílice',
+        'Examen Alcohol y drogas (Cannabinoides, Cocaína, Anfetamina, Opiáceos, Benzodiacepinas, Alcohol)',
+        'Obligación de Informar Riesgos -ODI (Derecho a Saber)',
+        'Curso de Herramientas SSO (BCN)',
+        'Curso Alcohol y Drogas (BCN)',
+        'Inducción Planta',
+        'Anexo de vinculación obra - faena',
+        'Registro Entrega Elementos Protección Personal (EPP)',
+        'Recepción Reglamento Interno de Orden, Higiene y Seguridad (RIOHS)',
+        'Difusión procedimiento trabajo seguro',
+        'Anexo de traslado mandante o Finiquito del trabajador',
+        // Documentos de empresa
+        'Calendario Negociaciones Colectivas',
+        'Certificado de tasas o siniestralidad',
+        'Plan de Seguridad y Salud Ocupacional (SSO)',
+        'Procedimiento de trabajo seguro de tarea a realizar por parte de contratista/transportista + carta de validación CBB',
+        'Recepción Reglamento especial de empresas contratistas y subcontratistas (REECS)',
+        'Recepción y adherencia a plan de emergencia CBB',
+        'Reglamento Interno de Orden, Higiene y Seguridad (RIOHS) y formalidades (DT-SEREMI DE SALUD)',
+        // Documentos mensuales
+        'Certificado F30',
+        'Certificado F30-1',
+        'Nómina de personal',
+        'Liquidaciones de Sueldo firmada o Comprobante pago remuneraciones'
+      ]
+    },
+    'TODO MELON': {
+      modalidad: 'Prevsis + InfoControl',
+      icono: '🍈',
+      categoria: 'Agrícola',
+      contacto: 'documentos@todomelon.cl',
+      plataforma: 'Prevsis + InfoControl',
+      frecuencia: 'Mensual',
+      documentos: [
+        // Plataforma InfoControl
+        'Cédula de Identidad',
+        'Certificado Cotizaciones Previsionales',
+        'Contrato y Anexos de Trabajo empleado',
+        'Recibo de sueldo o transferencia'
+      ]
+    },
+    'NOVASOURCE': {
+      modalidad: 'Seyse',
+      icono: '🔧',
+      categoria: 'Tecnología',
+      contacto: 'documentos@novasource.cl',
+      plataforma: 'Seyse',
+      frecuencia: 'Mensual',
+      documentos: [
+        'Certificado de Antecedentes Laborales y Previsionales (F-30)',
+        'Certificado de Cumplimiento de las Obligaciones Laborales y Previsionales (F30-1)',
+        'Certificado de Pago de Cotizaciones Previsionales (PREVIRED)',
+        'Certificado de Siniestralidad y Listado de Accidentados (Indicadores Estadísticos)',
+        'Comprobante de Pago de Remuneraciones',
+        'Nómina de Reporte Mensual de la Empresa'
+      ]
     },
     'WALMART': {
-      modalidad: 'Portal especializado',
+      modalidad: 'SubcontrataLey',
       icono: '🛒',
       categoria: 'Retail',
       contacto: 'proveedores@walmart.cl',
-      plataforma: 'https://supplier.walmart.cl',
+      plataforma: 'SubcontrataLey',
+      frecuencia: 'Variable',
+      documentos: [
+        'Criterios de revisión de la matriz documental (archivo CSV)'
+      ],
+      proximosCambios: {
+        mayo2025: [
+          'Programa de Trabajo Preventivo (SGSST)',
+          'Registro Difusión Trabajador Reglamento Interno',
+          'Toma de Conoc. de Trab. Información de Riesgos Laborales',
+          'Toma Conoc. Trab. Matriz IPER del Contratista',
+          'Toma Conoc. Trab. Programa de Trabajo Preventivo',
+          'Capacitación Uso y Mantención de EPP',
+          'Capacitación de Prevención de Riesgos',
+          'Información de riesgos laborales'
+        ],
+        diciembre2025: [
+          'Evaluación de Desempeño del Programa (SGSST)',
+          'Mejora Continua (SGSST)'
+        ]
+      }
+    },
+    'AGROSUPER': {
+      modalidad: 'KSEC',
+      icono: '🐷',
+      categoria: 'Agrícola',
+      contacto: 'proveedores@agrosuper.cl',
+      plataforma: 'KSEC',
       frecuencia: 'Mensual',
       documentos: [
-        'Certificado calidad ISO',
-        'Registro sanitario vigente',
-        'Póliza seguros',
-        'Declaración patrimonial',
-        'Certificado origen productos',
-        'Plan capacitación personal',
-        'Informe sustentabilidad'
-      ],
-      proximosCambios: {
-        mayo2025: ['Certificado carbono neutral', 'Trazabilidad blockchain'],
-        diciembre2025: ['Auditoría social', 'Protocolo diversidad']
-      }
+        'Certificado F30',
+        'Certificado F30-1',
+        'Contrato de trabajo',
+        'Anexos',
+        'Finiquitos'
+      ]
     },
-    'RIPLEY': {
-      modalidad: 'Sistema integrado',
-      icono: '🏪',
-      categoria: 'Retail',
-      contacto: 'operaciones@ripley.cl',
-      plataforma: 'https://partners.ripley.cl',
-      frecuencia: 'Bimestral',
-      documentos: [
-        'Estados financieros',
-        'Certificación laboral',
-        'Seguros comerciales',
-        'Registro marca',
-        'Plan marketing'
-      ],
-      proximosCambios: {
-        mayo2025: ['Estrategia omnicanal', 'KPIs digitales'],
-        diciembre2025: ['Certificación omnicanalidad', 'Plan expansión']
-      }
-    },
-    'FALABELLA': {
-      modalidad: 'Plataforma corporativa',
-      icono: '🏬',
-      categoria: 'Retail',
-      contacto: 'supply@falabella.cl',
-      plataforma: 'https://business.falabella.com',
-      frecuencia: 'Mensual',
-      documentos: [
-        'Certificación empresarial',
-        'Balance auditado',
-        'Seguros responsabilidad',
-        'Plan desarrollo sostenible',
-        'Certificado productos',
-        'Evaluación riesgos'
-      ],
-      proximosCambios: {
-        mayo2025: ['Programa sustentabilidad avanzada', 'Métricas ESG'],
-        diciembre2025: ['Certificación B-Corp', 'Impacto social']
-      }
-    },
-    'SODIMAC': {
-      modalidad: 'Centro proveedores',
-      icono: '🔨',
-      categoria: 'Construcción',
-      contacto: 'partners@sodimac.cl',
-      plataforma: 'https://proveedores.sodimac.cl',
-      frecuencia: 'Trimestral',
-      documentos: [
-        'Certificados técnicos',
-        'Seguros productos',
-        'Evaluación calidad',
-        'Plan capacitación',
-        'Documentación legal'
-      ],
-      proximosCambios: {
-        mayo2025: ['Certificación construcción sustentable', 'Protocolo seguridad'],
-        diciembre2025: ['Innovation lab partnership', 'Tecnología IoT']
-      }
-    },
-    'HOMECENTER': {
-      modalidad: 'Red colaborativa',
-      icono: '🏠',
-      categoria: 'Construcción',
-      contacto: 'network@homecenter.cl',
-      frecuencia: 'Bimestral',
-      documentos: [
-        'Registro productos hogar',
-        'Certificación calidad',
-        'Seguros comerciales',
-        'Plan distribución'
-      ],
-      proximosCambios: {
-        mayo2025: ['Smart home certification', 'IoT integration'],
-        diciembre2025: ['Sustainability metrics', 'Green building']
-      }
-    },
-    'EASY': {
-      modalidad: 'Portal unified',
-      icono: '🔧',
-      categoria: 'Construcción',
-      contacto: 'unified@easy.cl',
-      frecuencia: 'Mensual',
-      documentos: [
-        'Certificación técnica',
-        'Evaluación productos',
-        'Seguros especializados',
-        'Plan marketing conjunto',
-        'Documentación compliance'
-      ],
-      proximosCambios: {
-        mayo2025: ['Digital transformation tools', 'AI product matching'],
-        diciembre2025: ['Automated logistics', 'Predictive analytics']
-      }
-    },
-    'CENCOSUD': {
-      modalidad: 'Ecosistema digital',
-      icono: '🛍️',
-      categoria: 'Retail',
-      contacto: 'ecosystem@cencosud.cl',
-      plataforma: 'https://business.cencosud.com',
-      frecuencia: 'Mensual',
-      documentos: [
-        'Estrategia omnicanal',
-        'Certificación digital',
-        'Seguros integrales',
-        'Plan innovación',
-        'Métricas performance',
-        'Evaluación sustentabilidad'
-      ],
-      proximosCambios: {
-        mayo2025: ['Advanced analytics platform', 'Customer 360 integration'],
-        diciembre2025: ['Blockchain supply chain', 'AI personalization']
-      }
-    },
-    'LIDER': {
-      modalidad: 'Red inteligente',
-      icono: '🛒',
-      categoria: 'Supermercados',
-      contacto: 'smart@lider.cl',
-      frecuencia: 'Quincenal',
-      documentos: [
-        'Certificación alimentaria',
-        'Trazabilidad productos',
-        'Seguros calidad',
-        'Plan logística',
-        'Evaluación proveedores'
-      ],
-      proximosCambios: {
-        mayo2025: ['Fresh food traceability', 'Cold chain monitoring'],
-        diciembre2025: ['Automated replenishment', 'Demand forecasting']
-      }
-    },
-    'UNIMARC': {
-      modalidad: 'Sistema colaborativo',
-      icono: '🥘',
-      categoria: 'Supermercados',
-      contacto: 'collaborate@unimarc.cl',
-      frecuencia: 'Semanal',
-      documentos: [
-        'Registro sanitario',
-        'Certificación HACCP',
-        'Seguros alimentarios',
-        'Plan distribución regional'
-      ],
-      proximosCambios: {
-        mayo2025: ['Regional sourcing program', 'Local producer network'],
-        diciembre2025: ['Farm to table tracking', 'Organic certification']
-      }
-    },
-    'TOTTUS': {
-      modalidad: 'Plataforma ágil',
-      icono: '🍎',
-      categoria: 'Supermercados',
-      contacto: 'agile@tottus.cl',
-      frecuencia: 'Semanal',
-      documentos: [
-        'Certificación productos frescos',
-        'Plan calidad',
-        'Seguros especializados',
-        'Evaluación continua',
-        'Documentación trazabilidad'
-      ],
-      proximosCambios: {
-        mayo2025: ['Fresh quality sensors', 'Real-time monitoring'],
-        diciembre2025: ['Shelf life optimization', 'Waste reduction program']
-      }
-    },
-    'CODELCO': {
-      modalidad: 'Plataforma minera',
-      icono: '⛏️',
-      categoria: 'Minería',
-      contacto: 'mining@codelco.cl',
-      plataforma: 'https://suppliers.codelco.com',
-      frecuencia: 'Mensual',
-      documentos: [
-        'Certificación seguridad minera',
-        'Plan prevención riesgos',
-        'Seguros especializados',
-        'Evaluación ambiental',
-        'Documentación técnica',
-        'Plan capacitación seguridad'
-      ],
-      proximosCambios: {
-        mayo2025: ['Safety 4.0 protocols', 'IoT monitoring systems'],
-        diciembre2025: ['Autonomous operations support', 'Predictive maintenance']
-      }
-    },
-    'ESCONDIDA': {
-      modalidad: 'Red minera integrada',
-      icono: '💎',
-      categoria: 'Minería',
-      contacto: 'integrated@escondida.cl',
-      frecuencia: 'Trimestral',
-      documentos: [
-        'Certificación operaciones',
-        'Plan sustentabilidad',
-        'Seguros operacionales',
-        'Evaluación impacto',
-        'Documentación ambiental'
-      ],
-      proximosCambios: {
-        mayo2025: ['Carbon neutral operations', 'Water management tech'],
-        diciembre2025: ['Renewable energy integration', 'Circular economy']
-      }
-    },
-    'ANGLOAMERICAN': {
-      modalidad: 'Ecosistema minero',
-      icono: '🏔️',
-      categoria: 'Minería',
-      contacto: 'ecosystem@angloamerican.cl',
-      frecuencia: 'Bimestral',
-      documentos: [
-        'Certificación internacional',
-        'Plan desarrollo sostenible',
-        'Seguros integrales',
-        'Evaluación social',
-        'Documentación compliance',
-        'Plan innovación tecnológica'
-      ],
-      proximosCambios: {
-        mayo2025: ['Digital twin implementation', 'Advanced simulation'],
-        diciembre2025: ['Quantum computing applications', 'AI optimization']
-      }
-    },
-    'ENAMI': {
-      modalidad: 'Red pública minera',
-      icono: '🏭',
-      categoria: 'Minería',
-      contacto: 'public@enami.cl',
-      frecuencia: 'Mensual',
-      documentos: [
-        'Certificación estatal',
-        'Plan desarrollo regional',
-        'Seguros públicos',
-        'Evaluación social',
-        'Documentación transparencia'
-      ],
-      proximosCambios: {
-        mayo2025: ['Public transparency platform', 'Community engagement'],
-        diciembre2025: ['Regional development metrics', 'Social impact measurement']
-      }
-    },
-    'ENAP': {
-      modalidad: 'Plataforma energética',
-      icono: '⛽',
-      categoria: 'Energía',
-      contacto: 'energy@enap.cl',
-      plataforma: 'https://suppliers.enap.cl',
-      frecuencia: 'Trimestral',
-      documentos: [
-        'Certificación energética',
-        'Plan seguridad industrial',
-        'Seguros especializados',
-        'Evaluación ambiental',
-        'Documentación técnica',
-        'Plan transición energética'
-      ],
-      proximosCambios: {
-        mayo2025: ['Green hydrogen projects', 'Renewable integration'],
-        diciembre2025: ['Carbon capture technology', 'Clean energy transition']
-      }
-    },
-    'ENEL': {
-      modalidad: 'Red inteligente',
+    'EBCO': {
+      modalidad: 'Ebco Conecta',
       icono: '⚡',
       categoria: 'Energía',
-      contacto: 'smart@enel.cl',
+      contacto: 'proveedores@ebco.cl',
+      plataforma: 'Ebco Conecta',
       frecuencia: 'Mensual',
       documentos: [
-        'Certificación renovables',
-        'Plan smartgrid',
-        'Seguros energéticos',
-        'Evaluación innovación',
-        'Documentación digital',
-        'Plan descarbonización'
-      ],
-      proximosCambios: {
-        mayo2025: ['Smart grid 3.0', 'Energy storage solutions'],
-        diciembre2025: ['Grid digitalization', 'Demand response systems']
-      }
+        'Liquidaciones',
+        'Libro de asistencia',
+        'Contrato de trabajo',
+        'Charlas de prevención mensuales',
+        'F-30',
+        'F30-1',
+        'Libro de remuneraciones',
+        'Cotizaciones',
+        'Certificados de la ACHS',
+        'Anexos',
+        'Finiquitos'
+      ]
     },
-    'CGE': {
-      modalidad: 'Sistema distribuido',
-      icono: '🔌',
-      categoria: 'Energía',
-      contacto: 'distributed@cge.cl',
-      frecuencia: 'Bimestral',
-      documentos: [
-        'Certificación distribución',
-        'Plan modernización',
-        'Seguros infraestructura',
-        'Evaluación eficiencia',
-        'Documentación regulatoria'
-      ],
-      proximosCambios: {
-        mayo2025: ['Grid modernization', 'Digital metering'],
-        diciembre2025: ['Automated distribution', 'Outage prediction']
-      }
+    'SEMPER': {
+      modalidad: 'Sin requerimientos',
+      icono: '❌',
+      categoria: 'Sin categoría',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      documentos: []
     },
-    'AES GENER': {
-      modalidad: 'Plataforma renovable',
-      icono: '🌱',
-      categoria: 'Energía',
-      contacto: 'renewable@aesgener.cl',
-      frecuencia: 'Trimestral',
-      documentos: [
-        'Certificación verde',
-        'Plan sostenibilidad',
-        'Seguros ambientales',
-        'Evaluación carbono',
-        'Documentación ESG',
-        'Plan energías limpias'
-      ],
-      proximosCambios: {
-        mayo2025: ['100% renewable portfolio', 'Carbon neutral operations'],
-        diciembre2025: ['Green hydrogen production', 'Sustainable finance']
-      }
+    'BANCO DE CHILE': {
+      modalidad: 'Sin requerimientos',
+      icono: '❌',
+      categoria: 'Financiero',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      documentos: []
     },
-    'METROGAS': {
-      modalidad: 'Red gasífera',
-      icono: '🔥',
+    'BIOILS': {
+      modalidad: 'Sin requerimientos',
+      icono: '❌',
       categoria: 'Energía',
-      contacto: 'network@metrogas.cl',
-      frecuencia: 'Mensual',
-      documentos: [
-        'Certificación seguridad gas',
-        'Plan infraestructura',
-        'Seguros especializados',
-        'Evaluación riesgos',
-        'Documentación técnica'
-      ],
-      proximosCambios: {
-        mayo2025: ['Green gas transition', 'Biogas integration'],
-        diciembre2025: ['Hydrogen infrastructure', 'Clean fuel delivery']
-      }
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      documentos: []
     },
-    'LIPIGAS': {
-      modalidad: 'Sistema integral',
-      icono: '🏺',
-      categoria: 'Energía',
-      contacto: 'integral@lipigas.cl',
-      frecuencia: 'Bimestral',
-      documentos: [
-        'Certificación gas licuado',
-        'Plan distribución',
-        'Seguros transporte',
-        'Evaluación logística',
-        'Documentación operacional'
-      ],
-      proximosCambios: {
-        mayo2025: ['Smart cylinder tracking', 'IoT distribution'],
-        diciembre2025: ['Automated delivery', 'Predictive demand']
-      }
+    'ARSA GROUP': {
+      modalidad: 'Sin requerimientos',
+      icono: '❌',
+      categoria: 'Sin categoría',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      documentos: []
     }
   };
 
