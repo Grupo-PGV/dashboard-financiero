@@ -30,7 +30,12 @@ import {
   Archive,
   Award,
   Bookmark,
-  Trash2
+  Trash2,
+  Edit3,
+  Save,
+  XCircle,
+  AlertCircle,
+  Hourglass
 } from 'lucide-react';
 
 const DashboardCumplimiento = ({ onCerrarSesion }) => {
@@ -43,9 +48,19 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
   const [mostrarTablaCriticos, setMostrarTablaCriticos] = useState(true);
   const [clienteFiltro, setClienteFiltro] = useState('');
   const [mostrarMatrizWalmart, setMostrarMatrizWalmart] = useState(false);
-  const [estadoDocumentos, setEstadoDocumentos] = useState({});
+  const [estadoDocumentosPorMes, setEstadoDocumentosPorMes] = useState({});
   const [ultimoGuardado, setUltimoGuardado] = useState(null);
   const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
+  const [guardandoAutomatico, setGuardandoAutomatico] = useState(false);
+
+  // Estados posibles para cada documento
+  const ESTADOS_DOCUMENTO = {
+    PENDIENTE: 'pendiente',
+    CARGADO: 'cargado',
+    EN_REVISION: 'en_revision',
+    RECHAZADO: 'rechazado',
+    ACEPTADO: 'aceptado'
+  };
 
   // Períodos disponibles - solo 2025
   const periodos = [
@@ -63,7 +78,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     { valor: '2025-12', etiqueta: 'Diciembre 2025' }
   ];
 
-  // Base de datos completa de clientes PGR Seguridad - ACTUALIZADA SEGÚN RESUMEN
+  // Base de datos completa de clientes PGR Seguridad
   const clientes = {
     'INCOPORT': {
       modalidad: 'Envío directo',
@@ -499,93 +514,207 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     }
   };
 
-  // Inicializar estado de documentos con datos aleatorios realistas
-  useEffect(() => {
-    const datosGuardados = JSON.parse(localStorage.getItem('pgr_cumplimiento_contratos_v3') || '{}');
+  // Función para inicializar estado de documentos por mes
+  const inicializarEstadoDocumentos = () => {
+    const estadoInicial = {};
     
-    if (Object.keys(datosGuardados).length > 0) {
-      setEstadoDocumentos(datosGuardados.estadoDocumentos || {});
-      setUltimoGuardado(datosGuardados.ultimoGuardado || null);
-    } else {
-      // Inicializar con datos aleatorios realistas
-      const estadoInicial = {};
+    periodos.forEach(periodo => {
+      estadoInicial[periodo.valor] = {};
+      
       Object.entries(clientes).forEach(([cliente, data]) => {
-        estadoInicial[cliente] = {
+        estadoInicial[periodo.valor][cliente] = {
           mensuales: {},
           unicos: {}
         };
         
-        // Inicializar documentos mensuales con porcentajes realistas
+        // Inicializar documentos mensuales
         data.documentos.mensuales.forEach(doc => {
-          estadoInicial[cliente].mensuales[doc] = Math.random() > 0.4; // 60% completado
+          estadoInicial[periodo.valor][cliente].mensuales[doc] = {
+            estado: ESTADOS_DOCUMENTO.PENDIENTE,
+            fechaActualizacion: null,
+            observaciones: ''
+          };
         });
         
-        // Inicializar documentos únicos con porcentajes más altos
+        // Inicializar documentos únicos
         data.documentos.unicos.forEach(doc => {
-          estadoInicial[cliente].unicos[doc] = Math.random() > 0.3; // 70% completado
+          estadoInicial[periodo.valor][cliente].unicos[doc] = {
+            estado: ESTADOS_DOCUMENTO.PENDIENTE,
+            fechaActualizacion: null,
+            observaciones: ''
+          };
         });
       });
-      setEstadoDocumentos(estadoInicial);
+    });
+    
+    return estadoInicial;
+  };
+
+  // Cargar datos del localStorage preservando datos existentes
+  useEffect(() => {
+    const datosGuardados = JSON.parse(localStorage.getItem('pgr_cumplimiento_contratos_v4') || '{}');
+    
+    if (Object.keys(datosGuardados).length > 0 && datosGuardados.estadoDocumentosPorMes) {
+      // Cargar datos existentes
+      const estadoExistente = datosGuardados.estadoDocumentosPorMes;
+      const estadoCompleto = inicializarEstadoDocumentos();
+      
+      // Mezclar datos existentes con estructura completa
+      Object.keys(estadoCompleto).forEach(mes => {
+        if (estadoExistente[mes]) {
+          Object.keys(estadoCompleto[mes]).forEach(cliente => {
+            if (estadoExistente[mes][cliente]) {
+              // Preservar datos existentes
+              estadoCompleto[mes][cliente] = {
+                ...estadoCompleto[mes][cliente],
+                ...estadoExistente[mes][cliente]
+              };
+            }
+          });
+        }
+      });
+      
+      setEstadoDocumentosPorMes(estadoCompleto);
+      setUltimoGuardado(datosGuardados.ultimoGuardado || null);
+    } else {
+      // Inicializar con estructura completa
+      const estadoInicial = inicializarEstadoDocumentos();
+      setEstadoDocumentosPorMes(estadoInicial);
     }
   }, []);
 
-  // Auto-guardado cada 30 segundos
+  // Auto-guardado mejorado con cada cambio
   useEffect(() => {
-    if (Object.keys(estadoDocumentos).length > 0) {
+    if (Object.keys(estadoDocumentosPorMes).length > 0) {
+      setGuardandoAutomatico(true);
+      
       const datosParaGuardar = {
-        estadoDocumentos,
+        estadoDocumentosPorMes,
         ultimoGuardado: new Date().toISOString(),
-        version: '3.0'
+        version: '4.0'
       };
       
-      localStorage.setItem('pgr_cumplimiento_contratos_v3', JSON.stringify(datosParaGuardar));
+      // Guardar inmediatamente
+      localStorage.setItem('pgr_cumplimiento_contratos_v4', JSON.stringify(datosParaGuardar));
       setUltimoGuardado(new Date().toISOString());
+      
+      // Simular tiempo de guardado
+      setTimeout(() => {
+        setGuardandoAutomatico(false);
+      }, 500);
     }
-  }, [estadoDocumentos]);
+  }, [estadoDocumentosPorMes]);
 
-  // Auto-guardado temporal cada 30 segundos
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (ultimoGuardado) {
-        setUltimoGuardado(new Date().toISOString());
+  // Función para obtener estado de documentos del mes actual
+  const obtenerEstadoDocumentos = (mes = mesSeleccionado) => {
+    return estadoDocumentosPorMes[mes] || {};
+  };
+
+  // Función para obtener información de un documento específico
+  const obtenerInfoDocumento = (cliente, documento, tipo, mes = mesSeleccionado) => {
+    const estadoMes = obtenerEstadoDocumentos(mes);
+    return estadoMes[cliente]?.[tipo]?.[documento] || {
+      estado: ESTADOS_DOCUMENTO.PENDIENTE,
+      fechaActualizacion: null,
+      observaciones: ''
+    };
+  };
+
+  // Función para cambiar estado de un documento
+  const cambiarEstadoDocumento = (cliente, documento, tipo, nuevoEstado, observaciones = '') => {
+    setEstadoDocumentosPorMes(prev => ({
+      ...prev,
+      [mesSeleccionado]: {
+        ...prev[mesSeleccionado],
+        [cliente]: {
+          ...prev[mesSeleccionado][cliente],
+          [tipo]: {
+            ...prev[mesSeleccionado][cliente][tipo],
+            [documento]: {
+              estado: nuevoEstado,
+              fechaActualizacion: new Date().toISOString(),
+              observaciones: observaciones
+            }
+          }
+        }
       }
-    }, 30000);
+    }));
+  };
 
-    return () => clearInterval(interval);
-  }, [ultimoGuardado]);
+  // Función para alternar estado de documento (para clicks simples)
+  const toggleDocumento = (cliente, documento, tipo) => {
+    const infoDoc = obtenerInfoDocumento(cliente, documento, tipo);
+    
+    let nuevoEstado;
+    switch (infoDoc.estado) {
+      case ESTADOS_DOCUMENTO.PENDIENTE:
+        nuevoEstado = ESTADOS_DOCUMENTO.CARGADO;
+        break;
+      case ESTADOS_DOCUMENTO.CARGADO:
+        nuevoEstado = ESTADOS_DOCUMENTO.EN_REVISION;
+        break;
+      case ESTADOS_DOCUMENTO.EN_REVISION:
+        nuevoEstado = ESTADOS_DOCUMENTO.ACEPTADO;
+        break;
+      case ESTADOS_DOCUMENTO.RECHAZADO:
+        nuevoEstado = ESTADOS_DOCUMENTO.EN_REVISION;
+        break;
+      case ESTADOS_DOCUMENTO.ACEPTADO:
+        nuevoEstado = ESTADOS_DOCUMENTO.PENDIENTE;
+        break;
+      default:
+        nuevoEstado = ESTADOS_DOCUMENTO.CARGADO;
+    }
+    
+    cambiarEstadoDocumento(cliente, documento, tipo, nuevoEstado);
+  };
 
-  // Función para calcular porcentaje con filtros
+  // Función para rechazar documento
+  const rechazarDocumento = (cliente, documento, tipo, observaciones = '') => {
+    cambiarEstadoDocumento(cliente, documento, tipo, ESTADOS_DOCUMENTO.RECHAZADO, observaciones);
+  };
+
+  // Función para calcular porcentaje considerando estados
   const calcularPorcentaje = (cliente, tipoFiltro = null) => {
     const data = clientes[cliente];
     if (!data) return 0;
     
     const filtroActual = tipoFiltro || filtroTipoDocumento;
     let documentosRelevantes = [];
-    let completados = 0;
+    let aceptados = 0;
+    
+    const estadoMes = obtenerEstadoDocumentos();
     
     if (filtroActual === 'todos') {
       documentosRelevantes = [...data.documentos.mensuales, ...data.documentos.unicos];
-      completados = [
-        ...data.documentos.mensuales.filter(doc => estadoDocumentos[cliente]?.mensuales?.[doc]),
-        ...data.documentos.unicos.filter(doc => estadoDocumentos[cliente]?.unicos?.[doc])
+      aceptados = [
+        ...data.documentos.mensuales.filter(doc => 
+          estadoMes[cliente]?.mensuales?.[doc]?.estado === ESTADOS_DOCUMENTO.ACEPTADO
+        ),
+        ...data.documentos.unicos.filter(doc => 
+          estadoMes[cliente]?.unicos?.[doc]?.estado === ESTADOS_DOCUMENTO.ACEPTADO
+        )
       ].length;
     } else if (filtroActual === 'mensuales') {
       documentosRelevantes = data.documentos.mensuales;
-      completados = data.documentos.mensuales.filter(doc => estadoDocumentos[cliente]?.mensuales?.[doc]).length;
+      aceptados = data.documentos.mensuales.filter(doc => 
+        estadoMes[cliente]?.mensuales?.[doc]?.estado === ESTADOS_DOCUMENTO.ACEPTADO
+      ).length;
     } else if (filtroActual === 'unicos') {
       documentosRelevantes = data.documentos.unicos;
-      completados = data.documentos.unicos.filter(doc => estadoDocumentos[cliente]?.unicos?.[doc]).length;
+      aceptados = data.documentos.unicos.filter(doc => 
+        estadoMes[cliente]?.unicos?.[doc]?.estado === ESTADOS_DOCUMENTO.ACEPTADO
+      ).length;
     }
     
-    if (documentosRelevantes.length === 0) return 100; // Sin requerimientos = 100%
-    return Math.round((completados / documentosRelevantes.length) * 100);
+    if (documentosRelevantes.length === 0) return 100;
+    return Math.round((aceptados / documentosRelevantes.length) * 100);
   };
 
-  // Obtener estadísticas dinámicas
+  // Obtener estadísticas mejoradas
   const obtenerEstadisticas = () => {
     const clientesList = Object.keys(clientes).filter(cliente => {
       const data = clientes[cliente];
-      // Excluir INCOPORT que terminó en mayo 2025
       if (cliente === 'INCOPORT') return false;
       return data.estado === 'Activo';
     });
@@ -601,14 +730,73 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       clientesList.reduce((sum, cliente) => sum + calcularPorcentaje(cliente), 0) / total
     ) : 0;
     
-    // Calcular próximos vencimientos (simulado)
-    const proximos = Math.floor(Math.random() * 15) + 8;
-    const vencidos = Math.floor(Math.random() * 5) + 2;
+    // Contar documentos por estado
+    const estadoMes = obtenerEstadoDocumentos();
+    let enRevision = 0;
+    let rechazados = 0;
     
-    return { total, criticos, proceso, completos, promedio, proximos, vencidos };
+    clientesList.forEach(cliente => {
+      const data = clientes[cliente];
+      [...data.documentos.mensuales, ...data.documentos.unicos].forEach(doc => {
+        const tipo = data.documentos.mensuales.includes(doc) ? 'mensuales' : 'unicos';
+        const estado = estadoMes[cliente]?.[tipo]?.[doc]?.estado;
+        if (estado === ESTADOS_DOCUMENTO.EN_REVISION) enRevision++;
+        if (estado === ESTADOS_DOCUMENTO.RECHAZADO) rechazados++;
+      });
+    });
+    
+    return { total, criticos, proceso, completos, promedio, enRevision, rechazados };
   };
 
   const estadisticas = obtenerEstadisticas();
+
+  // Función para obtener color e ícono según estado
+  const getEstadoDisplay = (estado) => {
+    switch (estado) {
+      case ESTADOS_DOCUMENTO.PENDIENTE:
+        return { 
+          color: 'text-gray-400', 
+          bg: 'bg-gray-50 border-gray-200', 
+          icon: Circle, 
+          text: 'Pendiente' 
+        };
+      case ESTADOS_DOCUMENTO.CARGADO:
+        return { 
+          color: 'text-blue-600', 
+          bg: 'bg-blue-50 border-blue-200', 
+          icon: Upload, 
+          text: 'Cargado' 
+        };
+      case ESTADOS_DOCUMENTO.EN_REVISION:
+        return { 
+          color: 'text-yellow-600', 
+          bg: 'bg-yellow-50 border-yellow-200', 
+          icon: Hourglass, 
+          text: 'En Revisión' 
+        };
+      case ESTADOS_DOCUMENTO.RECHAZADO:
+        return { 
+          color: 'text-red-600', 
+          bg: 'bg-red-50 border-red-200', 
+          icon: XCircle, 
+          text: 'Rechazado' 
+        };
+      case ESTADOS_DOCUMENTO.ACEPTADO:
+        return { 
+          color: 'text-green-600', 
+          bg: 'bg-green-50 border-green-200', 
+          icon: CheckCircle, 
+          text: 'Aceptado' 
+        };
+      default:
+        return { 
+          color: 'text-gray-400', 
+          bg: 'bg-gray-50 border-gray-200', 
+          icon: Circle, 
+          text: 'Pendiente' 
+        };
+    }
+  };
 
   // Función para obtener color según porcentaje
   const getColorPorcentaje = (porcentaje) => {
@@ -627,20 +815,6 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     return <CheckCircle size={16} className="text-gray-600" />;
   };
 
-  // Funciones para manejar estados
-  const toggleDocumento = (cliente, documento, tipo) => {
-    setEstadoDocumentos(prev => ({
-      ...prev,
-      [cliente]: {
-        ...prev[cliente],
-        [tipo]: {
-          ...prev[cliente]?.[tipo],
-          [documento]: !prev[cliente]?.[tipo]?.[documento]
-        }
-      }
-    }));
-  };
-
   const toggleCliente = (cliente) => {
     setClientesExpandidos(prev => ({
       ...prev,
@@ -648,34 +822,18 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     }));
   };
 
-  // Función mejorada para marcar todos los documentos
-  const marcarTodosDocumentos = (cliente, tipo, estado = null) => {
+  // Función para cambiar estado masivo
+  const cambiarEstadoMasivo = (cliente, tipo, nuevoEstado) => {
     const data = clientes[cliente];
     const documentos = data.documentos[tipo];
-    const estadoActual = estadoDocumentos[cliente]?.[tipo] || {};
     
-    // Si no se especifica estado, alternar basado en si todos están marcados
-    const nuevoEstado = estado !== null ? estado : !documentos.every(doc => estadoActual[doc]);
-    
-    setEstadoDocumentos(prev => ({
-      ...prev,
-      [cliente]: {
-        ...prev[cliente],
-        [tipo]: documentos.reduce((acc, doc) => ({
-          ...acc,
-          [doc]: nuevoEstado
-        }), {})
-      }
-    }));
-  };
-
-  const limpiarTodosDocumentos = (cliente, tipo) => {
-    marcarTodosDocumentos(cliente, tipo, false);
+    documentos.forEach(doc => {
+      cambiarEstadoDocumento(cliente, doc, tipo, nuevoEstado);
+    });
   };
 
   // Filtrado de clientes
   const clientesFiltrados = Object.entries(clientes).filter(([nombre, data]) => {
-    // Excluir INCOPORT que terminó en mayo 2025
     if (nombre === 'INCOPORT') return false;
     
     const cumpleBusqueda = !busqueda || 
@@ -693,7 +851,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     return cumpleBusqueda && cumpleFiltroCliente && cumpleFiltroEstado;
   });
 
-  // Matriz Walmart completa con 4 categorías
+  // Matriz Walmart
   const matrizWalmart = [
     {
       categoria: 'Documentos Corporativos',
@@ -802,11 +960,11 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
               <FileCheck size={32} />
               <div>
                 <h1 className="text-2xl font-bold">Dashboard de Cumplimiento de Contratos 2025</h1>
-                <p className="text-blue-100">Control integral de documentación por cliente • Sistema completo PGR Seguridad</p>
+                <p className="text-blue-100">Control integral con estados por documento • Relleno mensual • PGR Seguridad</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <div className={`w-2 h-2 rounded-full ${guardandoAutomatico ? 'bg-yellow-400 animate-pulse' : 'bg-green-400'}`}></div>
                   <span className="text-xs text-blue-200">
-                    Activos: {estadisticas.total} clientes • Terminados: 1 cliente (INCOPORT - Mayo 2025) • Auto-guardado cada 30s
+                    {guardandoAutomatico ? 'Guardando...' : `${estadisticas.total} clientes activos • Auto-guardado activo`}
                   </span>
                 </div>
               </div>
@@ -818,7 +976,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
               >
                 <Bell size={16} />
                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs flex items-center justify-center text-white">
-                  {estadisticas.criticos}
+                  {estadisticas.criticos + estadisticas.rechazados}
                 </span>
               </button>
               <button
@@ -840,21 +998,21 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 <Calendar size={24} className="text-blue-600" />
                 <div>
                   <h3 className="font-bold text-blue-900">
-                    📅 Período Activo: {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta}
+                    📅 {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta} • Relleno Mensual
                   </h3>
                   <p className="text-blue-700 text-sm">
-                    Filtros por tipo de documento mensuales/únicos y seguimiento 2025. Auto-guardado automático cada 30 segundos.
+                    Estados independientes por mes: Pendiente → Cargado → En Revisión → Aceptado/Rechazado
                   </p>
                 </div>
               </div>
               <div className="text-right">
                 <div className="flex items-center gap-2 text-sm text-blue-600">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span>Auto-guardado activo</span>
+                  <Save size={16} />
+                  <span>Guardado continuo</span>
                 </div>
                 {ultimoGuardado && (
                   <p className="text-xs text-blue-500">
-                    Último guardado: {new Date(ultimoGuardado).toLocaleString('es-CL')}
+                    {new Date(ultimoGuardado).toLocaleString('es-CL')}
                   </p>
                 )}
               </div>
@@ -904,25 +1062,25 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 <span className="text-sm font-medium text-purple-900">Promedio</span>
               </div>
               <p className="text-2xl font-bold text-purple-700">{estadisticas.promedio}%</p>
-              <p className="text-xs text-purple-600">General</p>
+              <p className="text-xs text-purple-600">Aceptados</p>
             </div>
 
             <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
               <div className="flex items-center gap-2 mb-2">
-                <CalendarClock size={20} className="text-orange-600" />
-                <span className="text-sm font-medium text-orange-900">Próximos</span>
+                <Hourglass size={20} className="text-orange-600" />
+                <span className="text-sm font-medium text-orange-900">Revisión</span>
               </div>
-              <p className="text-2xl font-bold text-orange-700">{estadisticas.proximos}</p>
-              <p className="text-xs text-orange-600">Vencimientos</p>
+              <p className="text-2xl font-bold text-orange-700">{estadisticas.enRevision}</p>
+              <p className="text-xs text-orange-600">Documentos</p>
             </div>
 
-            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <div className="bg-rose-50 p-4 rounded-lg border border-rose-200">
               <div className="flex items-center gap-2 mb-2">
-                <AlertOctagon size={20} className="text-gray-600" />
-                <span className="text-sm font-medium text-gray-900">Vencidos</span>
+                <XCircle size={20} className="text-rose-600" />
+                <span className="text-sm font-medium text-rose-900">Rechazados</span>
               </div>
-              <p className="text-2xl font-bold text-gray-700">{estadisticas.vencidos}</p>
-              <p className="text-xs text-gray-600">Documentos</p>
+              <p className="text-2xl font-bold text-rose-700">{estadisticas.rechazados}</p>
+              <p className="text-xs text-rose-600">Documentos</p>
             </div>
           </div>
         </div>
@@ -947,7 +1105,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 </select>
               </div>
 
-              {/* Filtro por tipo de documento - MEJORADO */}
+              {/* Filtro por tipo de documento */}
               <div className="flex items-center gap-2">
                 <Filter size={20} className="text-gray-500" />
                 <select
@@ -956,8 +1114,8 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                   className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                 >
                   <option value="todos">📋 Todos los documentos</option>
-                  <option value="mensuales">🗓️ Solo Mensuales (Renovación mensual)</option>
-                  <option value="unicos">📄 Solo Únicos (Carga inicial)</option>
+                  <option value="mensuales">🗓️ Solo Mensuales</option>
+                  <option value="unicos">📄 Solo Únicos</option>
                 </select>
               </div>
 
@@ -970,7 +1128,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                   className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-48"
                 >
                   <option value="">Seleccionar cliente</option>
-                  <option value="todos">📋 Ver todos los clientes activos</option>
+                  <option value="todos">📋 Ver todos los clientes</option>
                   <option disabled>──────────────────</option>
                   {Object.entries(clientes)
                     .filter(([nombre]) => nombre !== 'INCOPORT')
@@ -987,7 +1145,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Buscar cliente o categoría..."
+                  placeholder="Buscar cliente..."
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
                   className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1016,7 +1174,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 }`}
               >
                 <AlertTriangle size={16} />
-                {mostrarTablaCriticos ? 'Ocultar' : 'Mostrar'} Críticos
+                Críticos
               </button>
               
               <button
@@ -1024,7 +1182,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
               >
                 <Eye size={16} />
-                {mostrarDetalles ? 'Ocultar' : 'Mostrar'} Detalles
+                Detalles
               </button>
               
               <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
@@ -1035,7 +1193,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
           </div>
         </div>
 
-        {/* Tabla resumen de clientes críticos */}
+        {/* Tabla de clientes críticos */}
         {mostrarTablaCriticos && estadisticas.criticos > 0 && (
           <div className="mx-6 mt-6 bg-red-50 border border-red-200 rounded-lg overflow-hidden">
             <div className="bg-red-100 px-4 py-3 border-b border-red-200">
@@ -1059,7 +1217,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                     <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Cliente</th>
                     <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Docs</th>
                     <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Estado</th>
-                    <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Modalidad</th>
+                    <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Pendientes</th>
                     <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Acciones</th>
                   </tr>
                 </thead>
@@ -1070,7 +1228,17 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                     .map(([nombre, data], index) => {
                       const porcentaje = calcularPorcentaje(nombre);
                       const totalDocs = data.documentos.mensuales.length + data.documentos.unicos.length;
-                      const docsCompletados = Math.round((porcentaje * totalDocs) / 100);
+                      const estadoMes = obtenerEstadoDocumentos();
+                      
+                      // Contar documentos por estado
+                      const estadosCount = { pendientes: 0, rechazados: 0, revision: 0 };
+                      [...data.documentos.mensuales, ...data.documentos.unicos].forEach(doc => {
+                        const tipo = data.documentos.mensuales.includes(doc) ? 'mensuales' : 'unicos';
+                        const estado = estadoMes[nombre]?.[tipo]?.[doc]?.estado;
+                        if (estado === ESTADOS_DOCUMENTO.PENDIENTE) estadosCount.pendientes++;
+                        if (estado === ESTADOS_DOCUMENTO.RECHAZADO) estadosCount.rechazados++;
+                        if (estado === ESTADOS_DOCUMENTO.EN_REVISION) estadosCount.revision++;
+                      });
                       
                       return (
                         <tr key={nombre} className={index % 2 === 0 ? 'bg-white' : 'bg-red-25'}>
@@ -1079,16 +1247,14 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                               <span className="text-base">{data.icono}</span>
                               <div>
                                 <div className="font-medium text-gray-900 text-sm">{nombre}</div>
-                                <div className="text-xs text-gray-500">{data.categoria} • Desde {data.fechaInicio}</div>
+                                <div className="text-xs text-gray-500">{data.categoria}</div>
                               </div>
                             </div>
                           </td>
                           <td className="px-3 py-2">
                             <div className="text-sm">
-                              <span className="font-medium">{docsCompletados}/{totalDocs}</span>
-                              <div className="text-xs text-gray-500">
-                                {data.documentos.mensuales.length}M + {data.documentos.unicos.length}U
-                              </div>
+                              <span className="font-medium">{Math.round((porcentaje * totalDocs) / 100)}/{totalDocs}</span>
+                              <div className="text-xs text-gray-500">aceptados</div>
                             </div>
                           </td>
                           <td className="px-3 py-2">
@@ -1103,54 +1269,40 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                             </div>
                           </td>
                           <td className="px-3 py-2">
-                            <div className="flex items-center gap-1">
-                              {getIconoModalidad(data.modalidad)}
-                              <span className="text-xs text-gray-600 truncate max-w-20">
-                                {data.modalidad.split(' ')[0]}
-                              </span>
+                            <div className="flex gap-1">
+                              {estadosCount.pendientes > 0 && (
+                                <span className="text-xs bg-gray-100 text-gray-700 px-1 rounded">
+                                  {estadosCount.pendientes}P
+                                </span>
+                              )}
+                              {estadosCount.rechazados > 0 && (
+                                <span className="text-xs bg-red-100 text-red-700 px-1 rounded">
+                                  {estadosCount.rechazados}R
+                                </span>
+                              )}
+                              {estadosCount.revision > 0 && (
+                                <span className="text-xs bg-yellow-100 text-yellow-700 px-1 rounded">
+                                  {estadosCount.revision}Rev
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="px-3 py-2">
-                            <div className="flex gap-1">
-                              <button 
-                                className="p-1 text-blue-600 hover:bg-blue-100 rounded text-xs"
-                                title="Ver detalles"
-                                onClick={() => {
-                                  setClienteFiltro(nombre);
-                                  toggleCliente(nombre);
-                                }}
-                              >
-                                <Eye size={12} />
-                              </button>
-                              <button 
-                                className="p-1 text-green-600 hover:bg-green-100 rounded text-xs"
-                                title="Contactar"
-                              >
-                                <Mail size={12} />
-                              </button>
-                            </div>
+                            <button 
+                              className="p-1 text-blue-600 hover:bg-blue-100 rounded text-xs"
+                              onClick={() => {
+                                setClienteFiltro(nombre);
+                                toggleCliente(nombre);
+                              }}
+                            >
+                              <Eye size={12} />
+                            </button>
                           </td>
                         </tr>
                       );
                     })}
                 </tbody>
               </table>
-            </div>
-            
-            <div className="bg-red-50 px-4 py-2 border-t border-red-200">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-red-700">
-                  📋 Mostrando {Math.min(10, estadisticas.criticos)} de {estadisticas.criticos} clientes críticos en {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta}
-                </span>
-                <div className="flex gap-2">
-                  <button className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors">
-                    📤 Recordatorios
-                  </button>
-                  <button className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 transition-colors">
-                    📊 Exportar
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         )}
@@ -1165,15 +1317,14 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                   📋 INCOPORT <span className="px-2 py-1 bg-gray-200 text-gray-600 rounded-full text-xs">TERMINADO MAYO 2025</span>
                 </h3>
                 <p className="text-gray-600 text-sm">
-                  Cliente finalizado • 4 años de servicio (Enero 2021 - Mayo 2025) • 5 documentos mensuales completados
+                  Cliente finalizado • Documentación archivada • Datos preservados en el sistema
                 </p>
               </div>
             </div>
             <div className="text-right">
-              <div className="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-sm font-medium border">
+              <div className="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-sm font-medium">
                 100% Final
               </div>
-              <p className="text-xs text-gray-500 mt-1">Documentación archivada</p>
             </div>
           </div>
         </div>
@@ -1186,36 +1337,42 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
               <Building size={48} className="mx-auto mb-4 text-blue-400" />
               <h3 className="text-lg font-medium text-blue-900 mb-2">Seleccione un Cliente</h3>
               <p className="text-blue-700 text-sm mb-4">
-                Utilice el filtro de cliente arriba para ver la información detallada de un cliente específico, 
-                o seleccione "Ver todos los clientes activos" para mostrar la lista completa.
+                Utilice el filtro de cliente para ver documentos con estados detallados por mes.
               </p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                 <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg">
-                  <Circle size={16} className="text-red-500" />
+                  <Circle size={16} className="text-gray-400" />
                   <div>
-                    <div className="font-semibold text-red-700">{estadisticas.criticos}</div>
-                    <div className="text-red-600">Críticos</div>
+                    <div className="font-semibold text-gray-700">Pendientes</div>
+                    <div className="text-gray-600">No iniciados</div>
                   </div>
                 </div>
                 <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg">
-                  <Clock size={16} className="text-yellow-500" />
+                  <Upload size={16} className="text-blue-500" />
                   <div>
-                    <div className="font-semibold text-yellow-700">{estadisticas.proceso}</div>
-                    <div className="text-yellow-600">En proceso</div>
+                    <div className="font-semibold text-blue-700">Cargados</div>
+                    <div className="text-blue-600">Subidos</div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg">
+                  <Hourglass size={16} className="text-yellow-500" />
+                  <div>
+                    <div className="font-semibold text-yellow-700">En Revisión</div>
+                    <div className="text-yellow-600">Evaluando</div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg">
+                  <XCircle size={16} className="text-red-500" />
+                  <div>
+                    <div className="font-semibold text-red-700">Rechazados</div>
+                    <div className="text-red-600">A corregir</div>
                   </div>
                 </div>
                 <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg">
                   <CheckCircle size={16} className="text-green-500" />
                   <div>
-                    <div className="font-semibold text-green-700">{estadisticas.completos}</div>
-                    <div className="text-green-600">Completos</div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg">
-                  <Award size={16} className="text-purple-500" />
-                  <div>
-                    <div className="font-semibold text-purple-700">{estadisticas.promedio}%</div>
-                    <div className="text-purple-600">Promedio</div>
+                    <div className="font-semibold text-green-700">Aceptados</div>
+                    <div className="text-green-600">Aprobados</div>
                   </div>
                 </div>
               </div>
@@ -1265,7 +1422,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                             </span>
                             <span className="flex items-center gap-1">
                               <Calendar size={14} />
-                              Desde {data.fechaInicio}
+                              {data.frecuencia}
                             </span>
                             <span>
                               {totalDocumentos > 0 ? `${totalDocumentos} docs (${totalMensuales}M + ${totalUnicos}U)` : 'Sin requerimientos'}
@@ -1297,7 +1454,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                     <div className="border-t bg-white">
                       {mostrarDetalles && (
                         <div className="p-4 border-b bg-gray-50">
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                             <div>
                               <strong>Contacto:</strong> 
                               {data.contacto !== 'N/A' ? (
@@ -1305,7 +1462,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                                   {data.contacto}
                                 </a>
                               ) : (
-                                <span className="text-gray-500 ml-1">Sin contacto específico</span>
+                                <span className="text-gray-500 ml-1">N/A</span>
                               )}
                             </div>
                             {data.plataforma && (
@@ -1315,35 +1472,13 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                               </div>
                             )}
                             <div>
-                              <strong>Frecuencia:</strong> {data.frecuencia}
+                              <strong>Desde:</strong> {data.fechaInicio}
                             </div>
                           </div>
-                          
-                          {data.proximosCambios && (
-                            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                              <h4 className="font-medium text-blue-900 mb-2">📅 Próximos cambios programados:</h4>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                <div>
-                                  <strong>Mayo 2025:</strong> {data.proximosCambios.mayo2025.length} nuevos documentos
-                                  <ul className="text-xs text-blue-700 mt-1 ml-4">
-                                    {data.proximosCambios.mayo2025.slice(0, 2).map((doc, idx) => (
-                                      <li key={idx}>• {doc}</li>
-                                    ))}
-                                    {data.proximosCambios.mayo2025.length > 2 && (
-                                      <li>• ... y {data.proximosCambios.mayo2025.length - 2} más</li>
-                                    )}
-                                  </ul>
-                                </div>
-                                <div>
-                                  <strong>Diciembre 2025:</strong> {data.proximosCambios.diciembre2025.length} documentos adicionales
-                                </div>
-                              </div>
-                            </div>
-                          )}
                         </div>
                       )}
                       
-                      {/* Lista de documentos */}
+                      {/* Lista de documentos con estados */}
                       {totalDocumentos > 0 ? (
                         <div className="p-4">
                           {/* Documentos mensuales */}
@@ -1353,58 +1488,62 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                                 <h4 className="font-semibold text-gray-800 flex items-center gap-2">
                                   <Calendar size={16} className="text-green-600" />
                                   Documentos Mensuales ({data.documentos.mensuales.length})
-                                  <span className="text-sm text-green-600 bg-green-100 px-2 py-1 rounded-full">
-                                    Renovación cada mes
-                                  </span>
                                 </h4>
                                 <div className="flex gap-2">
                                   <button
-                                    onClick={() => marcarTodosDocumentos(nombre, 'mensuales', true)}
-                                    className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors flex items-center gap-1"
+                                    onClick={() => cambiarEstadoMasivo(nombre, 'mensuales', ESTADOS_DOCUMENTO.ACEPTADO)}
+                                    className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors"
                                   >
-                                    <CheckSquare size={14} />
-                                    ✓ Todos
+                                    Aceptar Todos
                                   </button>
                                   <button
-                                    onClick={() => limpiarTodosDocumentos(nombre, 'mensuales')}
-                                    className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 transition-colors flex items-center gap-1"
+                                    onClick={() => cambiarEstadoMasivo(nombre, 'mensuales', ESTADOS_DOCUMENTO.PENDIENTE)}
+                                    className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 transition-colors"
                                   >
-                                    <Trash2 size={14} />
-                                    ✗ Limpiar
+                                    Resetear
                                   </button>
                                 </div>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {data.documentos.mensuales.map((documento, index) => {
-                                  const completado = estadoDocumentos[nombre]?.mensuales?.[documento];
+                                  const infoDoc = obtenerInfoDocumento(nombre, documento, 'mensuales');
+                                  const estadoDisplay = getEstadoDisplay(infoDoc.estado);
+                                  const IconoEstado = estadoDisplay.icon;
                                   
                                   return (
                                     <div
                                       key={index}
-                                      className={`p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-sm ${
-                                        completado 
-                                          ? 'bg-green-50 border-green-200 hover:bg-green-100' 
-                                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                                      }`}
+                                      className={`p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-sm ${estadoDisplay.bg}`}
                                       onClick={() => toggleDocumento(nombre, documento, 'mensuales')}
                                     >
                                       <div className="flex items-start gap-3">
-                                        {completado ? (
-                                          <CheckCircle size={18} className="text-green-600 flex-shrink-0 mt-0.5" />
-                                        ) : (
-                                          <Circle size={18} className="text-gray-400 flex-shrink-0 mt-0.5" />
-                                        )}
+                                        <IconoEstado size={18} className={`${estadoDisplay.color} flex-shrink-0 mt-0.5`} />
                                         <div className="flex-1">
-                                          <span className={`text-sm font-medium ${
-                                            completado ? 'text-green-900' : 'text-gray-700'
-                                          }`}>
+                                          <span className="text-sm font-medium text-gray-900">
                                             {documento}
                                           </span>
                                           <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
-                                              Mensual
+                                            <span className={`text-xs px-2 py-1 rounded-full ${estadoDisplay.bg.replace('bg-', 'text-').replace('-50', '-700')}`}>
+                                              {estadoDisplay.text}
                                             </span>
+                                            {infoDoc.estado === ESTADOS_DOCUMENTO.RECHAZADO && (
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  rechazarDocumento(nombre, documento, 'mensuales', 'Corrección requerida');
+                                                }}
+                                                className="p-1 text-red-600 hover:bg-red-100 rounded"
+                                                title="Rechazar documento"
+                                              >
+                                                <XCircle size={12} />
+                                              </button>
+                                            )}
                                           </div>
+                                          {infoDoc.fechaActualizacion && (
+                                            <div className="text-xs text-gray-500 mt-1">
+                                              {new Date(infoDoc.fechaActualizacion).toLocaleDateString('es-CL')}
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                     </div>
@@ -1421,58 +1560,62 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                                 <h4 className="font-semibold text-gray-800 flex items-center gap-2">
                                   <FileText size={16} className="text-purple-600" />
                                   Documentos Únicos ({data.documentos.unicos.length})
-                                  <span className="text-sm text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
-                                    Carga inicial una sola vez
-                                  </span>
                                 </h4>
                                 <div className="flex gap-2">
                                   <button
-                                    onClick={() => marcarTodosDocumentos(nombre, 'unicos', true)}
-                                    className="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 transition-colors flex items-center gap-1"
+                                    onClick={() => cambiarEstadoMasivo(nombre, 'unicos', ESTADOS_DOCUMENTO.ACEPTADO)}
+                                    className="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 transition-colors"
                                   >
-                                    <CheckSquare size={14} />
-                                    ✓ Todos
+                                    Aceptar Todos
                                   </button>
                                   <button
-                                    onClick={() => limpiarTodosDocumentos(nombre, 'unicos')}
-                                    className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 transition-colors flex items-center gap-1"
+                                    onClick={() => cambiarEstadoMasivo(nombre, 'unicos', ESTADOS_DOCUMENTO.PENDIENTE)}
+                                    className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 transition-colors"
                                   >
-                                    <Trash2 size={14} />
-                                    ✗ Limpiar
+                                    Resetear
                                   </button>
                                 </div>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {data.documentos.unicos.map((documento, index) => {
-                                  const completado = estadoDocumentos[nombre]?.unicos?.[documento];
+                                  const infoDoc = obtenerInfoDocumento(nombre, documento, 'unicos');
+                                  const estadoDisplay = getEstadoDisplay(infoDoc.estado);
+                                  const IconoEstado = estadoDisplay.icon;
                                   
                                   return (
                                     <div
                                       key={index}
-                                      className={`p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-sm ${
-                                        completado 
-                                          ? 'bg-green-50 border-green-200 hover:bg-green-100' 
-                                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                                      }`}
+                                      className={`p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-sm ${estadoDisplay.bg}`}
                                       onClick={() => toggleDocumento(nombre, documento, 'unicos')}
                                     >
                                       <div className="flex items-start gap-3">
-                                        {completado ? (
-                                          <CheckCircle size={18} className="text-green-600 flex-shrink-0 mt-0.5" />
-                                        ) : (
-                                          <Circle size={18} className="text-gray-400 flex-shrink-0 mt-0.5" />
-                                        )}
+                                        <IconoEstado size={18} className={`${estadoDisplay.color} flex-shrink-0 mt-0.5`} />
                                         <div className="flex-1">
-                                          <span className={`text-sm font-medium ${
-                                            completado ? 'text-green-900' : 'text-gray-700'
-                                          }`}>
+                                          <span className="text-sm font-medium text-gray-900">
                                             {documento}
                                           </span>
                                           <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
-                                              Único
+                                            <span className={`text-xs px-2 py-1 rounded-full ${estadoDisplay.bg.replace('bg-', 'text-').replace('-50', '-700')}`}>
+                                              {estadoDisplay.text}
                                             </span>
+                                            {infoDoc.estado === ESTADOS_DOCUMENTO.RECHAZADO && (
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  rechazarDocumento(nombre, documento, 'unicos', 'Corrección requerida');
+                                                }}
+                                                className="p-1 text-red-600 hover:bg-red-100 rounded"
+                                                title="Rechazar documento"
+                                              >
+                                                <XCircle size={12} />
+                                              </button>
+                                            )}
                                           </div>
+                                          {infoDoc.fechaActualizacion && (
+                                            <div className="text-xs text-gray-500 mt-1">
+                                              {new Date(infoDoc.fechaActualizacion).toLocaleDateString('es-CL')}
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                     </div>
@@ -1487,15 +1630,15 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                             <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                               <div className="flex items-center justify-between">
                                 <div>
-                                  <h4 className="font-semibold text-blue-900">Matriz de Documentos Detallada</h4>
-                                  <p className="text-blue-700 text-sm">Ver 4 categorías con criterios específicos de validación</p>
+                                  <h4 className="font-semibold text-blue-900">Matriz de Documentos</h4>
+                                  <p className="text-blue-700 text-sm">4 categorías con criterios específicos</p>
                                 </div>
                                 <button
                                   onClick={() => setMostrarMatrizWalmart(true)}
                                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                                 >
                                   <FileText size={16} />
-                                  Ver Matriz Completa
+                                  Ver Matriz
                                 </button>
                               </div>
                             </div>
@@ -1504,8 +1647,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                       ) : (
                         <div className="p-4 text-center text-gray-500">
                           <CheckCircle size={24} className="mx-auto mb-2 text-green-600" />
-                          <p className="font-medium">Cliente sin requerimientos documentales</p>
-                          <p className="text-sm mt-1">Este cliente no requiere envío de documentación específica</p>
+                          <p className="font-medium">Cliente sin requerimientos</p>
                         </div>
                       )}
                     </div>
@@ -1514,204 +1656,73 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
               );
             })}
           </div>
-
-          {/* Mensajes cuando no hay resultados */}
-          {clientesFiltrados.length === 0 && clienteFiltro && (
-            <div className="text-center py-12 text-gray-500">
-              <Search size={48} className="mx-auto mb-4 text-gray-300" />
-              <h3 className="text-lg font-medium mb-2">Cliente no encontrado</h3>
-              <p>Intenta ajustar los filtros de búsqueda o selecciona otro cliente</p>
-            </div>
-          )}
-
-          {clientesFiltrados.length === 0 && !clienteFiltro && busqueda && (
-            <div className="text-center py-12 text-gray-500">
-              <Search size={48} className="mx-auto mb-4 text-gray-300" />
-              <h3 className="text-lg font-medium mb-2">No se encontraron resultados</h3>
-              <p>Intenta ajustar la búsqueda o selecciona un cliente específico</p>
-            </div>
-          )}
         </div>
 
-        {/* Footer con información adicional */}
+        {/* Footer */}
         <div className="border-t bg-gray-50 p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-gray-600">
-            <div>
-              <h4 className="font-medium text-gray-900 mb-2">📊 Distribución por Modalidad</h4>
-              <ul className="space-y-1">
-                <li>• Envío directo: {Object.values(clientes).filter(c => c.modalidad === 'Envío directo' && c.estado === 'Activo').length} clientes</li>
-                <li>• Plataformas digitales: {Object.values(clientes).filter(c => c.modalidad.includes('Plataforma') || c.modalidad.includes('Prevsis') || c.modalidad.includes('Seyse') || c.modalidad.includes('SubcontrataLey') || c.modalidad.includes('KSEC') || c.modalidad.includes('Ebco')).filter(c => c.estado === 'Activo').length} clientes</li>
-                <li>• Sin requerimientos: {Object.values(clientes).filter(c => c.modalidad === 'Sin requerimientos' && c.estado === 'Activo').length} clientes</li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-medium text-gray-900 mb-2">🏢 Distribución por Categorías</h4>
-              <ul className="space-y-1">
-                {[...new Set(Object.values(clientes).filter(c => c.estado === 'Activo').map(c => c.categoria))].map(categoria => (
-                  <li key={categoria}>
-                    • {categoria}: {Object.values(clientes).filter(c => c.categoria === categoria && c.estado === 'Activo').length} clientes
-                  </li>
-                ))}
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-medium text-gray-900 mb-2">⚡ Acciones Rápidas</h4>
-              <div className="space-y-2">
-                <button className="block w-full text-left px-3 py-2 bg-white rounded border hover:bg-gray-50 transition-colors">
-                  📤 Enviar recordatorios masivos a críticos
-                </button>
-                <button className="block w-full text-left px-3 py-2 bg-white rounded border hover:bg-gray-50 transition-colors">
-                  📋 Generar reporte mensual de cumplimiento
-                </button>
-                <button className="block w-full text-left px-3 py-2 bg-white rounded border hover:bg-gray-50 transition-colors">
-                  🔄 Actualizar estados automáticamente
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          <div className="mt-6 pt-4 border-t text-center text-xs text-gray-500">
+          <div className="text-center text-xs text-gray-500">
             <div className="flex items-center justify-center gap-2 mb-1">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="font-medium">PERÍODO ACTIVO: {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta.toUpperCase()}</span>
+              <Save size={16} className="text-green-500" />
+              <span className="font-medium">
+                {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta.toUpperCase()} • PERSISTENCIA COMPLETA
+              </span>
             </div>
             <div className="flex items-center justify-center gap-4 text-xs">
-              <span>Dashboard PGR Seguridad 2025 • {estadisticas.total} clientes activos</span>
+              <span>Relleno mensual independiente</span>
               <span>•</span>
-              <span>Auto-guardado: {ultimoGuardado ? 'Activo cada 30s' : 'Inicializando'}</span>
+              <span>Estados: Pendiente → Cargado → Revisión → Aceptado/Rechazado</span>
               <span>•</span>
-              <span>Última sincronización: {new Date().toLocaleString('es-CL')}</span>
+              <span>Guardado automático con cada cambio</span>
             </div>
           </div>
         </div>
 
-        {/* Modal de Matriz de Documentos de Walmart */}
+        {/* Modal Matriz Walmart */}
         {mostrarMatrizWalmart && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
-              {/* Header del Modal */}
+            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
               <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <FileText size={32} />
                     <div>
-                      <h2 className="text-2xl font-bold">Matriz de Documentos - WALMART</h2>
-                      <p className="text-blue-100">4 categorías con criterios específicos de validación por documento</p>
+                      <h2 className="text-2xl font-bold">Matriz Walmart</h2>
+                      <p className="text-blue-100">Criterios de validación</p>
                     </div>
                   </div>
                   <button
                     onClick={() => setMostrarMatrizWalmart(false)}
-                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                    className="p-2 hover:bg-white/20 rounded-lg"
                   >
                     <X size={24} />
                   </button>
                 </div>
               </div>
-
-              {/* Contenido del Modal */}
+              
               <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-                <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <ExternalLink size={20} className="text-blue-600" />
-                    <span className="font-semibold text-blue-900">Plataforma: SubcontrataLey</span>
-                  </div>
-                  <p className="text-blue-700 text-sm">
-                    Todos los documentos deben subirse a través de la plataforma oficial de Walmart Chile.
-                    <br />URL: <span className="font-mono bg-blue-100 px-1 rounded">https://subcontrataley.cl</span>
-                  </p>
-                </div>
-
-                <div className="space-y-6">
+                <div className="space-y-4">
                   {matrizWalmart.map((categoria, catIndex) => (
-                    <div key={catIndex} className="border border-gray-200 rounded-lg overflow-hidden">
-                      <div className="bg-gray-50 px-4 py-3 border-b">
-                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                          <Building size={20} className="text-gray-600" />
-                          {categoria.categoria}
-                        </h3>
+                    <div key={catIndex} className="border rounded-lg overflow-hidden">
+                      <div className="bg-gray-50 px-4 py-3">
+                        <h3 className="font-bold text-gray-900">{categoria.categoria}</h3>
                       </div>
-                      
-                      <div className="divide-y divide-gray-200">
+                      <div className="p-4">
                         {categoria.documentos.map((documento, docIndex) => (
-                          <div key={docIndex} className="p-4">
-                            <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                              <FileText size={18} className="text-blue-600" />
-                              {documento.nombre}
-                            </h4>
-                            
-                            <div className="bg-gray-50 rounded-lg p-3">
-                              <h5 className="text-sm font-medium text-gray-700 mb-2">Criterios de Validación:</h5>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                {documento.criterios.map((criterio, critIndex) => (
-                                  <div key={critIndex} className="flex items-start gap-2 text-sm">
-                                    <CheckCircle size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
-                                    <span className="text-gray-700">{criterio}</span>
-                                  </div>
-                                ))}
-                              </div>
+                          <div key={docIndex} className="mb-4">
+                            <h4 className="font-semibold text-gray-800 mb-2">{documento.nombre}</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {documento.criterios.map((criterio, critIndex) => (
+                                <div key={critIndex} className="flex items-start gap-2 text-sm">
+                                  <CheckCircle size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
+                                  <span className="text-gray-700">{criterio}</span>
+                                </div>
+                              ))}
                             </div>
                           </div>
                         ))}
                       </div>
                     </div>
                   ))}
-                </div>
-
-                {/* Información adicional */}
-                <div className="mt-8 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <h3 className="font-bold text-yellow-900 mb-2">📋 Información Importante</h3>
-                  <ul className="text-yellow-800 text-sm space-y-1">
-                    <li>• Todos los documentos deben estar vigentes y legibles</li>
-                    <li>• Los certificados F30 y F30-1 no deben tener más de 60 días de antigüedad</li>
-                    <li>• Verificar que el nombre y RUT de la empresa aparezcan correctamente</li>
-                    <li>• Los documentos deben estar completos y sin páginas faltantes</li>
-                    <li>• Las firmas de ambas partes son obligatorias en contratos y anexos</li>
-                  </ul>
-                </div>
-
-                {/* Próximos cambios */}
-                <div className="mt-6 bg-orange-50 border border-orange-200 rounded-lg p-4">
-                  <h3 className="font-bold text-orange-900 mb-2">🔄 Próximos Cambios Programados</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <h4 className="font-semibold text-orange-800 mb-1">Mayo 2025:</h4>
-                      <ul className="text-orange-700 space-y-1 text-xs">
-                        <li>• Programa de Trabajo Preventivo (SGSST)</li>
-                        <li>• Registro Difusión Trabajador Reglamento Interno</li>
-                        <li>• Capacitación Uso y Mantención de EPP</li>
-                        <li>• Información de riesgos laborales</li>
-                        <li>• ... y 4 documentos adicionales</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-orange-800 mb-1">Diciembre 2025:</h4>
-                      <ul className="text-orange-700 space-y-1 text-xs">
-                        <li>• Evaluación de Desempeño del Programa (SGSST)</li>
-                        <li>• Mejora Continua (SGSST)</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer del Modal */}
-              <div className="bg-gray-50 px-6 py-4 border-t flex justify-between items-center">
-                <span className="text-sm text-gray-600">
-                  Matriz basada en criterios oficiales de Walmart Chile S.A. • 4 categorías documentales
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setMostrarMatrizWalmart(false)}
-                    className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                  >
-                    Cerrar
-                  </button>
-                  <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
-                    <Download size={16} />
-                    Exportar Matriz
-                  </button>
                 </div>
               </div>
             </div>
@@ -1720,7 +1731,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
 
         {/* Panel de notificaciones */}
         {mostrarNotificaciones && (
-          <div className="fixed top-20 right-6 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-40">
+          <div className="fixed top-20 right-6 w-80 bg-white rounded-xl shadow-2xl border z-40">
             <div className="p-4 border-b">
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-gray-900 flex items-center gap-2">
@@ -1735,7 +1746,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 </button>
               </div>
             </div>
-            <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
+            <div className="p-4 space-y-3">
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                 <div className="flex items-start gap-2">
                   <AlertTriangle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
@@ -1744,49 +1755,35 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                       {estadisticas.criticos} clientes críticos
                     </p>
                     <p className="text-xs text-red-700">
-                      Requieren atención inmediata (&lt;50% documentación)
+                      Menos del 50% de documentos aceptados
                     </p>
                   </div>
                 </div>
               </div>
               
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <XCircle size={16} className="text-rose-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-rose-900">
+                      {estadisticas.rechazados} documentos rechazados
+                    </p>
+                    <p className="text-xs text-rose-700">
+                      Requieren corrección y reenvío
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <div className="flex items-start gap-2">
-                  <Clock size={16} className="text-yellow-600 flex-shrink-0 mt-0.5" />
+                  <Hourglass size={16} className="text-yellow-600 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-medium text-yellow-900">
-                      {estadisticas.proximos} próximos vencimientos
+                      {estadisticas.enRevision} en revisión
                     </p>
                     <p className="text-xs text-yellow-700">
-                      Documentos por vencer en {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <AlertOctagon size={16} className="text-gray-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {estadisticas.vencidos} documentos vencidos
-                    </p>
-                    <p className="text-xs text-gray-700">
-                      Requieren renovación urgente
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <CalendarClock size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-blue-900">
-                      Cambios programados
-                    </p>
-                    <p className="text-xs text-blue-700">
-                      Walmart: 8 nuevos documentos en mayo 2025
+                      Documentos pendientes de aprobación
                     </p>
                   </div>
                 </div>
@@ -1794,13 +1791,13 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
 
               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex items-start gap-2">
-                  <CheckCircle size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
+                  <Save size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-medium text-green-900">
-                      Sistema funcionando
+                      Sistema actualizado
                     </p>
                     <p className="text-xs text-green-700">
-                      Auto-guardado activo • {estadisticas.total} clientes monitoreados
+                      Datos guardados automáticamente
                     </p>
                   </div>
                 </div>
