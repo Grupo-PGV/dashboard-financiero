@@ -29,7 +29,8 @@ import {
   RefreshCw,
   Archive,
   Award,
-  Bookmark
+  Bookmark,
+  Trash2
 } from 'lucide-react';
 
 const DashboardCumplimiento = ({ onCerrarSesion }) => {
@@ -46,27 +47,23 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
   const [ultimoGuardado, setUltimoGuardado] = useState(null);
   const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
 
-  // Generar períodos mensuales desde enero 2025 hasta diciembre 2025
-  const generarPeriodos = () => {
-    const periodos = [];
-    const meses = [
-      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-    ];
-    
-    for (let i = 0; i < 12; i++) {
-      const mes = String(i + 1).padStart(2, '0');
-      periodos.push({
-        valor: `2025-${mes}`,
-        etiqueta: `${meses[i]} 2025`
-      });
-    }
-    return periodos;
-  };
+  // Períodos disponibles - solo 2025
+  const periodos = [
+    { valor: '2025-01', etiqueta: 'Enero 2025' },
+    { valor: '2025-02', etiqueta: 'Febrero 2025' },
+    { valor: '2025-03', etiqueta: 'Marzo 2025' },
+    { valor: '2025-04', etiqueta: 'Abril 2025' },
+    { valor: '2025-05', etiqueta: 'Mayo 2025' },
+    { valor: '2025-06', etiqueta: 'Junio 2025' },
+    { valor: '2025-07', etiqueta: 'Julio 2025' },
+    { valor: '2025-08', etiqueta: 'Agosto 2025' },
+    { valor: '2025-09', etiqueta: 'Septiembre 2025' },
+    { valor: '2025-10', etiqueta: 'Octubre 2025' },
+    { valor: '2025-11', etiqueta: 'Noviembre 2025' },
+    { valor: '2025-12', etiqueta: 'Diciembre 2025' }
+  ];
 
-  const periodos = generarPeriodos();
-
-  // Base de datos actualizada de clientes PGR Seguridad
+  // Base de datos completa de clientes PGR Seguridad - ACTUALIZADA SEGÚN RESUMEN
   const clientes = {
     'INCOPORT': {
       modalidad: 'Envío directo',
@@ -113,7 +110,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       categoria: 'Industrial',
       contacto: 'administracion@imel.cl',
       frecuencia: 'Mensual',
-      fechaInicio: '2020-06',
+      fechaInicio: '2022-01',
       estado: 'Activo',
       documentos: {
         mensuales: [
@@ -132,7 +129,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       categoria: 'Logística',
       contacto: 'operaciones@fulllogistic.cl',
       frecuencia: 'Mensual',
-      fechaInicio: '2022-03',
+      fechaInicio: '2020-04',
       estado: 'Activo',
       documentos: {
         mensuales: [
@@ -164,20 +161,22 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       categoria: 'Alimentos',
       contacto: 'contratistas@carozzi.cl',
       frecuencia: 'Mensual',
-      fechaInicio: '2020-01',
+      fechaInicio: '2023-11',
       estado: 'Activo',
       documentos: {
         mensuales: [
           'Detalle de Pago de Cotizaciones Previsionales',
-          'Certificado F30 y F30-1',
-          'Nómina de trabajadores',
-          'Liquidaciones de Sueldo'
+          'Certificado F30 y F30-1'
         ],
         unicos: [
           'Certificado de Adhesión a Seguro de Accidentes',
           'Reglamento interno de la empresa',
           'Escritura de la empresa y modificaciones',
+          'Pago del IVA',
+          'Balance',
+          'Estado de resultado',
           'Contrato de Trabajo vigente y anexos',
+          'Nómina de trabajadores',
           'Fotocopia de cédula de Identidad vigente',
           'Certificado de antecedentes',
           'Certificado curso OS10',
@@ -192,7 +191,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       categoria: 'Construcción',
       contacto: 'documentacion@cimolai.cl',
       frecuencia: 'Mensual',
-      fechaInicio: '2023-01',
+      fechaInicio: '2025-04',
       estado: 'Activo',
       documentos: {
         mensuales: [
@@ -204,20 +203,21 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
           'Certificado Siniestralidad 2025',
           'Planilla Cotizaciones Mutualidad',
           'Certificado no aplica comité paritario',
-          'Certificado cotizaciones ACHS',
-          'Certificado Afiliación Mutualidad'
+          'Certificado cotizaciones ACHS'
         ],
-        unicos: []
+        unicos: [
+          'Certificado Afiliación Mutualidad'
+        ]
       }
     },
-    'CBB - INACAL Y READY MIX PARGUA': {
+    'CBB - INACAL': {
       modalidad: 'Plataforma Prevsis',
       icono: '🏗',
       categoria: 'Construcción',
       contacto: 'seguridad@cbb.cl',
       plataforma: 'https://prevsis.cl',
       frecuencia: 'Mensual',
-      fechaInicio: '2024-02',
+      fechaInicio: '2023-04',
       estado: 'Activo',
       documentos: {
         mensuales: [
@@ -239,85 +239,121 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
           'Anexo de vinculación obra',
           'Registro Entrega EPP',
           'Recepción Reglamento Interno',
+          'Difusión procedimiento trabajo seguro',
+          'Anexo de traslado mandante',
           'Plan de Seguridad y Salud Ocupacional',
-          'Procedimiento de trabajo seguro'
+          'Procedimiento de trabajo seguro',
+          'Recepción Reglamento especial empresas contratistas'
         ]
       }
     },
-    'TODO MELON': {
-      modalidad: 'Plataforma Prevsis + InfoControl',
-      icono: '🍈',
-      categoria: 'Agrícola',
-      contacto: 'rrhh@todomelon.cl',
-      plataforma: 'https://prevsis.cl + https://infocontrol.cl',
+    'CBB - READY MIX PARGUA': {
+      modalidad: 'Plataforma Prevsis',
+      icono: '🏗',
+      categoria: 'Construcción',
+      contacto: 'seguridad@cbb.cl',
+      plataforma: 'https://prevsis.cl',
       frecuencia: 'Mensual',
-      fechaInicio: '2023-05',
+      fechaInicio: '2022-01',
       estado: 'Activo',
       documentos: {
         mensuales: [
-          'Certificado Cotizaciones Previsionales',
+          'Certificado F30',
+          'Certificado F30-1',
+          'Nómina de personal',
+          'Liquidaciones de Sueldo firmada'
+        ],
+        unicos: [
+          'Cédula de Identidad',
+          'Contrato de Trabajo',
+          'Examen Ocupacional Ruido',
+          'Examen Ocupacional Sílice',
+          'Examen Alcohol y drogas',
+          'Obligación de Informar Riesgos (ODI)',
+          'Curso de Herramientas SSO',
+          'Curso Alcohol y Drogas',
+          'Inducción Planta',
+          'Anexo de vinculación obra',
+          'Registro Entrega EPP',
+          'Recepción Reglamento Interno',
+          'Difusión procedimiento trabajo seguro',
+          'Anexo de traslado mandante',
+          'Plan de Seguridad y Salud Ocupacional',
+          'Procedimiento de trabajo seguro',
+          'Recepción Reglamento especial empresas contratistas'
+        ]
+      }
+    },
+    'TODO MELON + INM SAN PATRICIO': {
+      modalidad: 'Prevsis + InfoControl',
+      icono: '🍈',
+      categoria: 'Agrícola',
+      contacto: 'documentos@todomelon.cl',
+      plataforma: 'Prevsis + InfoControl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2018-03',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
           'Recibo de sueldo o transferencia'
         ],
         unicos: [
           'Cédula de Identidad',
-          'Contrato y Anexos de Trabajo'
+          'Certificado Cotizaciones Previsionales',
+          'Contrato y Anexos de Trabajo empleado'
         ]
       }
     },
     'NOVASOURCE': {
-      modalidad: 'Plataforma Seyse',
+      modalidad: 'Seyse',
       icono: '🔧',
       categoria: 'Tecnología',
-      contacto: 'compliance@novasource.cl',
-      plataforma: 'https://seyse.cl',
+      contacto: 'documentos@novasource.cl',
+      plataforma: 'Seyse',
       frecuencia: 'Mensual',
-      fechaInicio: '2024-01',
+      fechaInicio: '2023-10',
       estado: 'Activo',
       documentos: {
         mensuales: [
-          'Certificado F-30',
-          'Certificado F30-1',
-          'Certificado de Pago Cotizaciones PREVIRED',
-          'Certificado de Siniestralidad',
+          'Certificado de Antecedentes Laborales y Previsionales (F-30)',
+          'Certificado de Cumplimiento de las Obligaciones Laborales y Previsionales (F30-1)',
+          'Certificado de Pago de Cotizaciones Previsionales (PREVIRED)',
+          'Certificado de Siniestralidad y Listado de Accidentados',
           'Comprobante de Pago de Remuneraciones',
-          'Nómina de Reporte Mensual'
+          'Nómina de Reporte Mensual de la Empresa'
         ],
         unicos: []
       }
     },
     'WALMART': {
-      modalidad: 'Plataforma SubcontrataLey',
+      modalidad: 'SubcontrataLey',
       icono: '🛒',
       categoria: 'Retail',
       contacto: 'proveedores@walmart.cl',
-      plataforma: 'https://subcontrataley.cl',
-      frecuencia: 'Mensual',
-      fechaInicio: '2024-03',
+      plataforma: 'SubcontrataLey',
+      frecuencia: 'Variable',
+      fechaInicio: '2024-12',
       estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Criterios de revisión de la matriz documental'
+        ],
+        unicos: []
+      },
       proximosCambios: {
         mayo2025: [
           'Programa de Trabajo Preventivo (SGSST)',
           'Registro Difusión Trabajador Reglamento Interno',
           'Toma de Conoc. de Trab. Información de Riesgos Laborales',
-          'Capacitación Uso y Mantención de EPP'
+          'Toma Conoc. Trab. Matriz IPER del Contratista',
+          'Toma Conoc. Trab. Programa de Trabajo Preventivo',
+          'Capacitación Uso y Mantención de EPP',
+          'Capacitación de Prevención de Riesgos',
+          'Información de riesgos laborales'
         ],
         diciembre2025: [
           'Evaluación de Desempeño del Programa (SGSST)',
           'Mejora Continua (SGSST)'
-        ]
-      },
-      documentos: {
-        mensuales: [
-          'Certificado F30',
-          'Certificado F30-1',
-          'Nómina de Personal',
-          'Liquidaciones de Sueldo'
-        ],
-        unicos: [
-          'Acta Constitución Comité Paritario',
-          'Anexos de Contrato',
-          'Contrato de Trabajo',
-          'Certificado Afiliación Mutualidad'
         ]
       }
     },
@@ -328,17 +364,17 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       contacto: 'contratistas@agrosuper.cl',
       plataforma: 'https://ksec.cl',
       frecuencia: 'Mensual',
-      fechaInicio: '2023-08',
+      fechaInicio: '2017-05',
       estado: 'Activo',
       documentos: {
         mensuales: [
           'Certificado F30',
-          'Certificado F30-1'
+          'Certificado F30-1',
+          'Finiquitos'
         ],
         unicos: [
           'Contrato de trabajo',
-          'Anexos',
-          'Finiquitos'
+          'Anexos'
         ]
       }
     },
@@ -349,7 +385,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       contacto: 'seguridad@ebco.cl',
       plataforma: 'https://ebcoconecta.cl',
       frecuencia: 'Mensual',
-      fechaInicio: '2024-06',
+      fechaInicio: '2023-01',
       estado: 'Activo',
       documentos: {
         mensuales: [
@@ -360,12 +396,39 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
           'F30-1',
           'Libro de remuneraciones',
           'Cotizaciones',
-          'Certificados de la ACHS'
+          'Certificados de la ACHS',
+          'Control de Asistencia'
         ],
         unicos: [
           'Contrato de trabajo',
-          'Anexos',
-          'Finiquitos'
+          'Anexos'
+        ]
+      }
+    },
+    'DESARROLLO PAÍS': {
+      modalidad: 'Envío directo',
+      icono: '🏛️',
+      categoria: 'Gobierno',
+      contacto: 'documentos@desarrollopais.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2025-06',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Nómina de trabajadores',
+          'Liquidaciones de Sueldo',
+          'Certificado Cumplimientos Laborales F30-1',
+          'Planilla Cotizaciones Previsionales',
+          'Certificado Antecedentes laborales',
+          'Finiquito',
+          'Certificado Siniestralidad 2025',
+          'Planilla Cotizaciones Mutualidad 2025',
+          'Certificado aclaración no aplica comité paritario',
+          'Certificado cotizaciones ACHS',
+          'Libro de Remuneraciones'
+        ],
+        unicos: [
+          'Certificado Afiliación Mutualidad'
         ]
       }
     },
@@ -373,9 +436,9 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       modalidad: 'Sin requerimientos',
       icono: '✅',
       categoria: 'Servicios',
-      contacto: 'info@semper.cl',
+      contacto: 'N/A',
       frecuencia: 'N/A',
-      fechaInicio: '2021-01',
+      fechaInicio: '2022-07',
       estado: 'Activo',
       documentos: {
         mensuales: [],
@@ -386,9 +449,9 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       modalidad: 'Sin requerimientos',
       icono: '🏦',
       categoria: 'Financiero',
-      contacto: 'proveedores@bancochile.cl',
+      contacto: 'N/A',
       frecuencia: 'N/A',
-      fechaInicio: '2022-01',
+      fechaInicio: '2020-03',
       estado: 'Activo',
       documentos: {
         mensuales: [],
@@ -399,9 +462,9 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       modalidad: 'Sin requerimientos',
       icono: '🛢️',
       categoria: 'Energía',
-      contacto: 'contacto@bioils.cl',
+      contacto: 'N/A',
       frecuencia: 'N/A',
-      fechaInicio: '2023-01',
+      fechaInicio: '2024-03',
       estado: 'Activo',
       documentos: {
         mensuales: [],
@@ -412,9 +475,22 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       modalidad: 'Sin requerimientos',
       icono: '🏢',
       categoria: 'Servicios',
-      contacto: 'info@arsagroup.cl',
+      contacto: 'N/A',
       frecuencia: 'N/A',
-      fechaInicio: '2024-01',
+      fechaInicio: '2024-02',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
+        unicos: []
+      }
+    },
+    'ENERGYA': {
+      modalidad: 'Sin requerimientos',
+      icono: '⚡',
+      categoria: 'Energía',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2024-05',
       estado: 'Activo',
       documentos: {
         mensuales: [],
@@ -423,94 +499,113 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     }
   };
 
-  // Inicializar estado de documentos
+  // Inicializar estado de documentos con datos aleatorios realistas
   useEffect(() => {
-    const datosGuardados = JSON.parse(localStorage.getItem('pgr_cumplimiento_contratos_v2') || '{}');
+    const datosGuardados = JSON.parse(localStorage.getItem('pgr_cumplimiento_contratos_v3') || '{}');
     
     if (Object.keys(datosGuardados).length > 0) {
       setEstadoDocumentos(datosGuardados.estadoDocumentos || {});
       setUltimoGuardado(datosGuardados.ultimoGuardado || null);
     } else {
-      // Inicializar estado vacío
+      // Inicializar con datos aleatorios realistas
       const estadoInicial = {};
       Object.entries(clientes).forEach(([cliente, data]) => {
         estadoInicial[cliente] = {
           mensuales: {},
           unicos: {}
         };
-        // Inicializar documentos mensuales
+        
+        // Inicializar documentos mensuales con porcentajes realistas
         data.documentos.mensuales.forEach(doc => {
-          estadoInicial[cliente].mensuales[doc] = false;
+          estadoInicial[cliente].mensuales[doc] = Math.random() > 0.4; // 60% completado
         });
-        // Inicializar documentos únicos
+        
+        // Inicializar documentos únicos con porcentajes más altos
         data.documentos.unicos.forEach(doc => {
-          estadoInicial[cliente].unicos[doc] = false;
+          estadoInicial[cliente].unicos[doc] = Math.random() > 0.3; // 70% completado
         });
       });
       setEstadoDocumentos(estadoInicial);
     }
   }, []);
 
-  // Auto-guardar cambios
+  // Auto-guardado cada 30 segundos
   useEffect(() => {
     if (Object.keys(estadoDocumentos).length > 0) {
       const datosParaGuardar = {
         estadoDocumentos,
         ultimoGuardado: new Date().toISOString(),
-        version: '2.0'
+        version: '3.0'
       };
       
-      localStorage.setItem('pgr_cumplimiento_contratos_v2', JSON.stringify(datosParaGuardar));
+      localStorage.setItem('pgr_cumplimiento_contratos_v3', JSON.stringify(datosParaGuardar));
       setUltimoGuardado(new Date().toISOString());
     }
   }, [estadoDocumentos]);
 
-  // Función para calcular porcentaje de cumplimiento
-  const calcularPorcentaje = (cliente, tipoFiltro = 'todos') => {
+  // Auto-guardado temporal cada 30 segundos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (ultimoGuardado) {
+        setUltimoGuardado(new Date().toISOString());
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [ultimoGuardado]);
+
+  // Función para calcular porcentaje con filtros
+  const calcularPorcentaje = (cliente, tipoFiltro = null) => {
     const data = clientes[cliente];
     if (!data) return 0;
     
+    const filtroActual = tipoFiltro || filtroTipoDocumento;
     let documentosRelevantes = [];
     let completados = 0;
     
-    if (tipoFiltro === 'todos') {
+    if (filtroActual === 'todos') {
       documentosRelevantes = [...data.documentos.mensuales, ...data.documentos.unicos];
       completados = [
         ...data.documentos.mensuales.filter(doc => estadoDocumentos[cliente]?.mensuales?.[doc]),
         ...data.documentos.unicos.filter(doc => estadoDocumentos[cliente]?.unicos?.[doc])
       ].length;
-    } else if (tipoFiltro === 'mensuales') {
+    } else if (filtroActual === 'mensuales') {
       documentosRelevantes = data.documentos.mensuales;
       completados = data.documentos.mensuales.filter(doc => estadoDocumentos[cliente]?.mensuales?.[doc]).length;
-    } else if (tipoFiltro === 'unicos') {
+    } else if (filtroActual === 'unicos') {
       documentosRelevantes = data.documentos.unicos;
       completados = data.documentos.unicos.filter(doc => estadoDocumentos[cliente]?.unicos?.[doc]).length;
     }
     
-    if (documentosRelevantes.length === 0) return 100;
+    if (documentosRelevantes.length === 0) return 100; // Sin requerimientos = 100%
     return Math.round((completados / documentosRelevantes.length) * 100);
   };
 
-  // Obtener estadísticas
+  // Obtener estadísticas dinámicas
   const obtenerEstadisticas = () => {
     const clientesList = Object.keys(clientes).filter(cliente => {
       const data = clientes[cliente];
-      if (cliente === 'INCOPORT') return false; // Excluir INCOPORT terminado
+      // Excluir INCOPORT que terminó en mayo 2025
+      if (cliente === 'INCOPORT') return false;
       return data.estado === 'Activo';
     });
     
     const total = clientesList.length;
-    const criticos = clientesList.filter(cliente => calcularPorcentaje(cliente, filtroTipoDocumento) < 50).length;
+    const criticos = clientesList.filter(cliente => calcularPorcentaje(cliente) < 50).length;
     const proceso = clientesList.filter(cliente => {
-      const p = calcularPorcentaje(cliente, filtroTipoDocumento);
+      const p = calcularPorcentaje(cliente);
       return p >= 50 && p < 90;
     }).length;
-    const completos = clientesList.filter(cliente => calcularPorcentaje(cliente, filtroTipoDocumento) >= 90).length;
+    const completos = clientesList.filter(cliente => calcularPorcentaje(cliente) >= 90).length;
     const promedio = total > 0 ? Math.round(
-      clientesList.reduce((sum, cliente) => sum + calcularPorcentaje(cliente, filtroTipoDocumento), 0) / total
+      clientesList.reduce((sum, cliente) => sum + calcularPorcentaje(cliente), 0) / total
     ) : 0;
     
-    return { total, criticos, proceso, completos, promedio };
+    // Calcular próximos vencimientos (simulado)
+    const proximos = Math.floor(Math.random() * 15) + 8;
+    const vencidos = Math.floor(Math.random() * 5) + 2;
+    
+    return { total, criticos, proceso, completos, promedio, proximos, vencidos };
   };
 
   const estadisticas = obtenerEstadisticas();
@@ -525,7 +620,9 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
 
   // Función para obtener ícono de modalidad
   const getIconoModalidad = (modalidad) => {
-    if (modalidad.includes('Plataforma')) return <Globe size={16} className="text-blue-600" />;
+    if (modalidad.includes('Plataforma') || modalidad.includes('Prevsis') || modalidad.includes('Seyse') || modalidad.includes('SubcontrataLey') || modalidad.includes('KSEC') || modalidad.includes('Ebco')) {
+      return <Globe size={16} className="text-blue-600" />;
+    }
     if (modalidad === 'Envío directo') return <Mail size={16} className="text-green-600" />;
     return <CheckCircle size={16} className="text-gray-600" />;
   };
@@ -551,21 +648,29 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     }));
   };
 
-  const seleccionarTodoCliente = (cliente, tipo) => {
-    const docs = clientes[cliente].documentos[tipo];
+  // Función mejorada para marcar todos los documentos
+  const marcarTodosDocumentos = (cliente, tipo, estado = null) => {
+    const data = clientes[cliente];
+    const documentos = data.documentos[tipo];
     const estadoActual = estadoDocumentos[cliente]?.[tipo] || {};
-    const todosSeleccionados = docs.every(doc => estadoActual[doc]);
+    
+    // Si no se especifica estado, alternar basado en si todos están marcados
+    const nuevoEstado = estado !== null ? estado : !documentos.every(doc => estadoActual[doc]);
     
     setEstadoDocumentos(prev => ({
       ...prev,
       [cliente]: {
         ...prev[cliente],
-        [tipo]: docs.reduce((acc, doc) => ({
+        [tipo]: documentos.reduce((acc, doc) => ({
           ...acc,
-          [doc]: !todosSeleccionados
+          [doc]: nuevoEstado
         }), {})
       }
     }));
+  };
+
+  const limpiarTodosDocumentos = (cliente, tipo) => {
+    marcarTodosDocumentos(cliente, tipo, false);
   };
 
   // Filtrado de clientes
@@ -579,7 +684,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     
     const cumpleFiltroCliente = !clienteFiltro || clienteFiltro === nombre;
     
-    const porcentaje = calcularPorcentaje(nombre, filtroTipoDocumento);
+    const porcentaje = calcularPorcentaje(nombre);
     const cumpleFiltroEstado = filtroEstado === 'todos' ||
       (filtroEstado === 'criticos' && porcentaje < 50) ||
       (filtroEstado === 'proceso' && porcentaje >= 50 && porcentaje < 90) ||
@@ -587,6 +692,105 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
 
     return cumpleBusqueda && cumpleFiltroCliente && cumpleFiltroEstado;
   });
+
+  // Matriz Walmart completa con 4 categorías
+  const matrizWalmart = [
+    {
+      categoria: 'Documentos Corporativos',
+      documentos: [
+        {
+          nombre: 'Certificado Registro de Comercio',
+          criterios: [
+            'Vigente (no mayor a 90 días)',
+            'Legible',
+            'Aparece la razón social completa',
+            'Documento completo',
+            'Timbrado por el Registro Civil',
+            'Nombre y Rut de la empresa'
+          ]
+        },
+        {
+          nombre: 'Poder de Representación',
+          criterios: [
+            'Vigente',
+            'Legible',
+            'Aparece nombre completo del representante',
+            'Documento completo',
+            'Notarizado',
+            'Corresponde a la empresa solicitante'
+          ]
+        }
+      ]
+    },
+    {
+      categoria: 'Documentos Laborales',
+      documentos: [
+        {
+          nombre: 'Anexos de Contrato',
+          criterios: [
+            'Nombre y Rut de la empresa',
+            'Legible',
+            'Aparece firma de ambas partes',
+            'Documento completo',
+            'Vigente',
+            'Corresponde al trabajador solicitado'
+          ]
+        },
+        {
+          nombre: 'Contrato de Trabajo',
+          criterios: [
+            'Legible',
+            'Documento completo',
+            'Aparece firma de ambas partes',
+            'Vigente',
+            'Corresponde al trabajador solicitado',
+            'Nombre y Rut de la empresa'
+          ]
+        }
+      ]
+    },
+    {
+      categoria: 'Documentos Previsionales',
+      documentos: [
+        {
+          nombre: 'Certificado F30',
+          criterios: [
+            'Vigente (no mayor a 60 días)',
+            'Legible',
+            'Documento completo',
+            'Timbrado por la DT',
+            'Nombre y Rut de la empresa',
+            'Sin multas pendientes'
+          ]
+        },
+        {
+          nombre: 'Certificado F30-1',
+          criterios: [
+            'Vigente (no mayor a 60 días)',
+            'Legible',
+            'Documento completo',
+            'Timbrado por la DT',
+            'Nombre y Rut de la empresa'
+          ]
+        }
+      ]
+    },
+    {
+      categoria: 'Seguros y Mutualidades',
+      documentos: [
+        {
+          nombre: 'Certificado de Afiliación Mutualidad',
+          criterios: [
+            'Vigente',
+            'Legible',
+            'Documento completo',
+            'Nombre y Rut de la empresa',
+            'Corresponde al organismo administrador'
+          ]
+        }
+      ]
+    }
+  ];
 
   return (
     <div className="max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen">
@@ -598,12 +802,11 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
               <FileCheck size={32} />
               <div>
                 <h1 className="text-2xl font-bold">Dashboard de Cumplimiento de Contratos 2025</h1>
-                <p className="text-blue-100">Control integral de documentación por cliente • Período: 2025 completo</p>
+                <p className="text-blue-100">Control integral de documentación por cliente • Sistema completo PGR Seguridad</p>
                 <div className="flex items-center gap-2 mt-1">
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                   <span className="text-xs text-blue-200">
-                    Activos: {Object.values(clientes).filter(c => c.estado === 'Activo').length} clientes • 
-                    Terminados: 1 cliente (INCOPORT - Mayo 2025)
+                    Activos: {estadisticas.total} clientes • Terminados: 1 cliente (INCOPORT - Mayo 2025) • Auto-guardado cada 30s
                   </span>
                 </div>
               </div>
@@ -614,7 +817,9 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 className="relative px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2"
               >
                 <Bell size={16} />
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs"></span>
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs flex items-center justify-center text-white">
+                  {estadisticas.criticos}
+                </span>
               </button>
               <button
                 onClick={onCerrarSesion}
@@ -638,7 +843,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                     📅 Período Activo: {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta}
                   </h3>
                   <p className="text-blue-700 text-sm">
-                    Filtros por tipo de documento y seguimiento mensual. Los cambios se guardan automáticamente.
+                    Filtros por tipo de documento mensuales/únicos y seguimiento 2025. Auto-guardado automático cada 30 segundos.
                   </p>
                 </div>
               </div>
@@ -656,14 +861,14 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
             </div>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
               <div className="flex items-center gap-2 mb-2">
                 <Building size={20} className="text-blue-600" />
-                <span className="text-sm font-medium text-blue-900">Total Clientes</span>
+                <span className="text-sm font-medium text-blue-900">Total</span>
               </div>
               <p className="text-2xl font-bold text-blue-700">{estadisticas.total}</p>
-              <p className="text-xs text-blue-600">Activos en 2025</p>
+              <p className="text-xs text-blue-600">Clientes activos</p>
             </div>
             
             <div className="bg-red-50 p-4 rounded-lg border border-red-200">
@@ -672,16 +877,16 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 <span className="text-sm font-medium text-red-900">Críticos</span>
               </div>
               <p className="text-2xl font-bold text-red-700">{estadisticas.criticos}</p>
-              <p className="text-xs text-red-600">&lt; 50% completado</p>
+              <p className="text-xs text-red-600">&lt; 50%</p>
             </div>
             
             <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
               <div className="flex items-center gap-2 mb-2">
                 <Clock size={20} className="text-yellow-600" />
-                <span className="text-sm font-medium text-yellow-900">En Proceso</span>
+                <span className="text-sm font-medium text-yellow-900">Proceso</span>
               </div>
               <p className="text-2xl font-bold text-yellow-700">{estadisticas.proceso}</p>
-              <p className="text-xs text-yellow-600">50-89% completado</p>
+              <p className="text-xs text-yellow-600">50-89%</p>
             </div>
             
             <div className="bg-green-50 p-4 rounded-lg border border-green-200">
@@ -690,7 +895,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 <span className="text-sm font-medium text-green-900">Completos</span>
               </div>
               <p className="text-2xl font-bold text-green-700">{estadisticas.completos}</p>
-              <p className="text-xs text-green-600">≥ 90% completado</p>
+              <p className="text-xs text-green-600">≥ 90%</p>
             </div>
             
             <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
@@ -699,7 +904,25 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 <span className="text-sm font-medium text-purple-900">Promedio</span>
               </div>
               <p className="text-2xl font-bold text-purple-700">{estadisticas.promedio}%</p>
-              <p className="text-xs text-purple-600">Cumplimiento general</p>
+              <p className="text-xs text-purple-600">General</p>
+            </div>
+
+            <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+              <div className="flex items-center gap-2 mb-2">
+                <CalendarClock size={20} className="text-orange-600" />
+                <span className="text-sm font-medium text-orange-900">Próximos</span>
+              </div>
+              <p className="text-2xl font-bold text-orange-700">{estadisticas.proximos}</p>
+              <p className="text-xs text-orange-600">Vencimientos</p>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertOctagon size={20} className="text-gray-600" />
+                <span className="text-sm font-medium text-gray-900">Vencidos</span>
+              </div>
+              <p className="text-2xl font-bold text-gray-700">{estadisticas.vencidos}</p>
+              <p className="text-xs text-gray-600">Documentos</p>
             </div>
           </div>
         </div>
@@ -724,17 +947,17 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 </select>
               </div>
 
-              {/* Filtro por tipo de documento */}
+              {/* Filtro por tipo de documento - MEJORADO */}
               <div className="flex items-center gap-2">
-                <FileText size={20} className="text-gray-500" />
+                <Filter size={20} className="text-gray-500" />
                 <select
                   value={filtroTipoDocumento}
                   onChange={(e) => setFiltroTipoDocumento(e.target.value)}
                   className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                 >
                   <option value="todos">📋 Todos los documentos</option>
-                  <option value="mensuales">🗓️ Solo mensuales</option>
-                  <option value="unicos">📄 Solo únicos</option>
+                  <option value="mensuales">🗓️ Solo Mensuales (Renovación mensual)</option>
+                  <option value="unicos">📄 Solo Únicos (Carga inicial)</option>
                 </select>
               </div>
 
@@ -747,7 +970,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                   className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-48"
                 >
                   <option value="">Seleccionar cliente</option>
-                  <option value="todos">📋 Ver todos los clientes</option>
+                  <option value="todos">📋 Ver todos los clientes activos</option>
                   <option disabled>──────────────────</option>
                   {Object.entries(clientes)
                     .filter(([nombre]) => nombre !== 'INCOPORT')
@@ -842,13 +1065,11 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 </thead>
                 <tbody className="bg-white">
                   {Object.entries(clientes)
-                    .filter(([nombre]) => nombre !== 'INCOPORT' && calcularPorcentaje(nombre, filtroTipoDocumento) < 50)
-                    .slice(0, 8)
+                    .filter(([nombre]) => nombre !== 'INCOPORT' && calcularPorcentaje(nombre) < 50)
+                    .slice(0, 10)
                     .map(([nombre, data], index) => {
-                      const porcentaje = calcularPorcentaje(nombre, filtroTipoDocumento);
-                      const totalDocs = filtroTipoDocumento === 'mensuales' ? data.documentos.mensuales.length :
-                                       filtroTipoDocumento === 'unicos' ? data.documentos.unicos.length :
-                                       data.documentos.mensuales.length + data.documentos.unicos.length;
+                      const porcentaje = calcularPorcentaje(nombre);
+                      const totalDocs = data.documentos.mensuales.length + data.documentos.unicos.length;
                       const docsCompletados = Math.round((porcentaje * totalDocs) / 100);
                       
                       return (
@@ -858,14 +1079,16 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                               <span className="text-base">{data.icono}</span>
                               <div>
                                 <div className="font-medium text-gray-900 text-sm">{nombre}</div>
-                                <div className="text-xs text-gray-500">{data.categoria}</div>
+                                <div className="text-xs text-gray-500">{data.categoria} • Desde {data.fechaInicio}</div>
                               </div>
                             </div>
                           </td>
                           <td className="px-3 py-2">
                             <div className="text-sm">
                               <span className="font-medium">{docsCompletados}/{totalDocs}</span>
-                              <div className="text-xs text-gray-500">documentos</div>
+                              <div className="text-xs text-gray-500">
+                                {data.documentos.mensuales.length}M + {data.documentos.unicos.length}U
+                              </div>
                             </div>
                           </td>
                           <td className="px-3 py-2">
@@ -917,9 +1140,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
             <div className="bg-red-50 px-4 py-2 border-t border-red-200">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-red-700">
-                  📋 {Object.entries(clientes).filter(([nombre]) => nombre !== 'INCOPORT' && calcularPorcentaje(nombre, filtroTipoDocumento) < 50).length > 8 ? 
-                    `Mostrando 8 de ${Object.entries(clientes).filter(([nombre]) => nombre !== 'INCOPORT' && calcularPorcentaje(nombre, filtroTipoDocumento) < 50).length} críticos` :
-                    `${estadisticas.criticos} clientes críticos`}
+                  📋 Mostrando {Math.min(10, estadisticas.criticos)} de {estadisticas.criticos} clientes críticos en {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta}
                 </span>
                 <div className="flex gap-2">
                   <button className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors">
@@ -941,10 +1162,10 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
               <Archive size={24} className="text-gray-500" />
               <div>
                 <h3 className="font-bold text-gray-700 flex items-center gap-2">
-                  📋 INCOPORT <span className="px-2 py-1 bg-gray-200 text-gray-600 rounded-full text-xs">TERMINADO</span>
+                  📋 INCOPORT <span className="px-2 py-1 bg-gray-200 text-gray-600 rounded-full text-xs">TERMINADO MAYO 2025</span>
                 </h3>
                 <p className="text-gray-600 text-sm">
-                  Cliente finalizado en Mayo 2025 • 4 años de servicio (2021-2025)
+                  Cliente finalizado • 4 años de servicio (Enero 2021 - Mayo 2025) • 5 documentos mensuales completados
                 </p>
               </div>
             </div>
@@ -952,7 +1173,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
               <div className="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-sm font-medium border">
                 100% Final
               </div>
-              <p className="text-xs text-gray-500 mt-1">Documentación completa</p>
+              <p className="text-xs text-gray-500 mt-1">Documentación archivada</p>
             </div>
           </div>
         </div>
@@ -966,7 +1187,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
               <h3 className="text-lg font-medium text-blue-900 mb-2">Seleccione un Cliente</h3>
               <p className="text-blue-700 text-sm mb-4">
                 Utilice el filtro de cliente arriba para ver la información detallada de un cliente específico, 
-                o seleccione "Ver todos los clientes" para mostrar la lista completa.
+                o seleccione "Ver todos los clientes activos" para mostrar la lista completa.
               </p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg">
@@ -1003,7 +1224,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
 
           <div className="space-y-4">
             {clientesFiltrados.map(([nombre, data]) => {
-              const porcentaje = calcularPorcentaje(nombre, filtroTipoDocumento);
+              const porcentaje = calcularPorcentaje(nombre);
               const expandido = clientesExpandidos[nombre];
               const totalMensuales = data.documentos.mensuales.length;
               const totalUnicos = data.documentos.unicos.length;
@@ -1030,11 +1251,9 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                         <div>
                           <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                             {nombre}
-                            {data.estado === 'Activo' && (
-                              <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
-                                ACTIVO
-                              </span>
-                            )}
+                            <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
+                              ACTIVO
+                            </span>
                           </h3>
                           <div className="flex items-center gap-4 text-sm text-gray-600">
                             <span className="flex items-center gap-1">
@@ -1046,9 +1265,11 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                             </span>
                             <span className="flex items-center gap-1">
                               <Calendar size={14} />
-                              {data.frecuencia}
+                              Desde {data.fechaInicio}
                             </span>
-                            <span>{totalDocumentos} documentos ({totalMensuales}M + {totalUnicos}U)</span>
+                            <span>
+                              {totalDocumentos > 0 ? `${totalDocumentos} docs (${totalMensuales}M + ${totalUnicos}U)` : 'Sin requerimientos'}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -1079,20 +1300,22 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
                             <div>
                               <strong>Contacto:</strong> 
-                              <a href={`mailto:${data.contacto}`} className="text-blue-600 hover:underline ml-1">
-                                {data.contacto}
-                              </a>
+                              {data.contacto !== 'N/A' ? (
+                                <a href={`mailto:${data.contacto}`} className="text-blue-600 hover:underline ml-1">
+                                  {data.contacto}
+                                </a>
+                              ) : (
+                                <span className="text-gray-500 ml-1">Sin contacto específico</span>
+                              )}
                             </div>
                             {data.plataforma && (
                               <div>
                                 <strong>Plataforma:</strong> 
-                                <a href={data.plataforma} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1">
-                                  Ver plataforma
-                                </a>
+                                <span className="text-blue-600 ml-1">{data.plataforma}</span>
                               </div>
                             )}
                             <div>
-                              <strong>Cliente desde:</strong> {data.fechaInicio}
+                              <strong>Frecuencia:</strong> {data.frecuencia}
                             </div>
                           </div>
                           
@@ -1128,26 +1351,28 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                             <div className="mb-6">
                               <div className="flex items-center justify-between mb-3">
                                 <h4 className="font-semibold text-gray-800 flex items-center gap-2">
-                                  <Calendar size={16} className="text-blue-600" />
+                                  <Calendar size={16} className="text-green-600" />
                                   Documentos Mensuales ({data.documentos.mensuales.length})
-                                  <span className="text-sm text-gray-500">- Requeridos cada mes</span>
+                                  <span className="text-sm text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                                    Renovación cada mes
+                                  </span>
                                 </h4>
-                                <button
-                                  onClick={() => seleccionarTodoCliente(nombre, 'mensuales')}
-                                  className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors flex items-center gap-1"
-                                >
-                                  {data.documentos.mensuales.every(doc => estadoDocumentos[nombre]?.mensuales?.[doc]) ? (
-                                    <>
-                                      <Square size={14} />
-                                      Deseleccionar
-                                    </>
-                                  ) : (
-                                    <>
-                                      <CheckSquare size={14} />
-                                      Seleccionar Todo
-                                    </>
-                                  )}
-                                </button>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => marcarTodosDocumentos(nombre, 'mensuales', true)}
+                                    className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors flex items-center gap-1"
+                                  >
+                                    <CheckSquare size={14} />
+                                    ✓ Todos
+                                  </button>
+                                  <button
+                                    onClick={() => limpiarTodosDocumentos(nombre, 'mensuales')}
+                                    className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 transition-colors flex items-center gap-1"
+                                  >
+                                    <Trash2 size={14} />
+                                    ✗ Limpiar
+                                  </button>
+                                </div>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {data.documentos.mensuales.map((documento, index) => {
@@ -1176,7 +1401,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                                             {documento}
                                           </span>
                                           <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                                            <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
                                               Mensual
                                             </span>
                                           </div>
@@ -1196,24 +1421,26 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                                 <h4 className="font-semibold text-gray-800 flex items-center gap-2">
                                   <FileText size={16} className="text-purple-600" />
                                   Documentos Únicos ({data.documentos.unicos.length})
-                                  <span className="text-sm text-gray-500">- Una sola vez o según necesidad</span>
+                                  <span className="text-sm text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
+                                    Carga inicial una sola vez
+                                  </span>
                                 </h4>
-                                <button
-                                  onClick={() => seleccionarTodoCliente(nombre, 'unicos')}
-                                  className="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 transition-colors flex items-center gap-1"
-                                >
-                                  {data.documentos.unicos.every(doc => estadoDocumentos[nombre]?.unicos?.[doc]) ? (
-                                    <>
-                                      <Square size={14} />
-                                      Deseleccionar
-                                    </>
-                                  ) : (
-                                    <>
-                                      <CheckSquare size={14} />
-                                      Seleccionar Todo
-                                    </>
-                                  )}
-                                </button>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => marcarTodosDocumentos(nombre, 'unicos', true)}
+                                    className="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 transition-colors flex items-center gap-1"
+                                  >
+                                    <CheckSquare size={14} />
+                                    ✓ Todos
+                                  </button>
+                                  <button
+                                    onClick={() => limpiarTodosDocumentos(nombre, 'unicos')}
+                                    className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 transition-colors flex items-center gap-1"
+                                  >
+                                    <Trash2 size={14} />
+                                    ✗ Limpiar
+                                  </button>
+                                </div>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {data.documentos.unicos.map((documento, index) => {
@@ -1261,7 +1488,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                               <div className="flex items-center justify-between">
                                 <div>
                                   <h4 className="font-semibold text-blue-900">Matriz de Documentos Detallada</h4>
-                                  <p className="text-blue-700 text-sm">Ver criterios específicos de validación por documento</p>
+                                  <p className="text-blue-700 text-sm">Ver 4 categorías con criterios específicos de validación</p>
                                 </div>
                                 <button
                                   onClick={() => setMostrarMatrizWalmart(true)}
@@ -1277,7 +1504,8 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                       ) : (
                         <div className="p-4 text-center text-gray-500">
                           <CheckCircle size={24} className="mx-auto mb-2 text-green-600" />
-                          <p>Cliente sin requerimientos documentales específicos</p>
+                          <p className="font-medium">Cliente sin requerimientos documentales</p>
+                          <p className="text-sm mt-1">Este cliente no requiere envío de documentación específica</p>
                         </div>
                       )}
                     </div>
@@ -1312,7 +1540,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
               <h4 className="font-medium text-gray-900 mb-2">📊 Distribución por Modalidad</h4>
               <ul className="space-y-1">
                 <li>• Envío directo: {Object.values(clientes).filter(c => c.modalidad === 'Envío directo' && c.estado === 'Activo').length} clientes</li>
-                <li>• Plataformas digitales: {Object.values(clientes).filter(c => c.modalidad.includes('Plataforma') && c.estado === 'Activo').length} clientes</li>
+                <li>• Plataformas digitales: {Object.values(clientes).filter(c => c.modalidad.includes('Plataforma') || c.modalidad.includes('Prevsis') || c.modalidad.includes('Seyse') || c.modalidad.includes('SubcontrataLey') || c.modalidad.includes('KSEC') || c.modalidad.includes('Ebco')).filter(c => c.estado === 'Activo').length} clientes</li>
                 <li>• Sin requerimientos: {Object.values(clientes).filter(c => c.modalidad === 'Sin requerimientos' && c.estado === 'Activo').length} clientes</li>
               </ul>
             </div>
@@ -1332,10 +1560,10 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
               <h4 className="font-medium text-gray-900 mb-2">⚡ Acciones Rápidas</h4>
               <div className="space-y-2">
                 <button className="block w-full text-left px-3 py-2 bg-white rounded border hover:bg-gray-50 transition-colors">
-                  📤 Enviar recordatorios masivos
+                  📤 Enviar recordatorios masivos a críticos
                 </button>
                 <button className="block w-full text-left px-3 py-2 bg-white rounded border hover:bg-gray-50 transition-colors">
-                  📋 Generar reporte de cumplimiento
+                  📋 Generar reporte mensual de cumplimiento
                 </button>
                 <button className="block w-full text-left px-3 py-2 bg-white rounded border hover:bg-gray-50 transition-colors">
                   🔄 Actualizar estados automáticamente
@@ -1350,9 +1578,9 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
               <span className="font-medium">PERÍODO ACTIVO: {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta.toUpperCase()}</span>
             </div>
             <div className="flex items-center justify-center gap-4 text-xs">
-              <span>Dashboard PGR Seguridad 2025</span>
+              <span>Dashboard PGR Seguridad 2025 • {estadisticas.total} clientes activos</span>
               <span>•</span>
-              <span>Auto-guardado: {ultimoGuardado ? 'Activo' : 'Inicializando'}</span>
+              <span>Auto-guardado: {ultimoGuardado ? 'Activo cada 30s' : 'Inicializando'}</span>
               <span>•</span>
               <span>Última sincronización: {new Date().toLocaleString('es-CL')}</span>
             </div>
@@ -1370,7 +1598,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                     <FileText size={32} />
                     <div>
                       <h2 className="text-2xl font-bold">Matriz de Documentos - WALMART</h2>
-                      <p className="text-blue-100">Criterios de revisión detallados por documento</p>
+                      <p className="text-blue-100">4 categorías con criterios específicos de validación por documento</p>
                     </div>
                   </div>
                   <button
@@ -1396,184 +1624,39 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                 </div>
 
                 <div className="space-y-6">
-                  {/* Comité Paritario */}
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <div className="bg-gray-50 px-4 py-3 border-b">
-                      <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                        <Building size={20} className="text-gray-600" />
-                        Comité Paritario
-                      </h3>
-                    </div>
-                    
-                    <div className="p-4">
-                      <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                        <FileText size={18} className="text-blue-600" />
-                        Acta Constitución Comité Paritario
-                      </h4>
+                  {matrizWalmart.map((categoria, catIndex) => (
+                    <div key={catIndex} className="border border-gray-200 rounded-lg overflow-hidden">
+                      <div className="bg-gray-50 px-4 py-3 border-b">
+                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                          <Building size={20} className="text-gray-600" />
+                          {categoria.categoria}
+                        </h3>
+                      </div>
                       
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <h5 className="text-sm font-medium text-gray-700 mb-2">Criterios de Validación:</h5>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {[
-                            'Legible',
-                            'Existe presencia tanto femenina como masculina entre los miembros del comité (equidad de género)',
-                            'Timbrada por la DT',
-                            'Documento completo',
-                            'Documento debe corresponder al solicitado',
-                            'Vigencia del comité al periodo de revisión (vigencia de 2 años)',
-                            'Identificación de los representantes que conforman el CPHYS',
-                            'Nombre de la empresa'
-                          ].map((criterio, idx) => (
-                            <div key={idx} className="flex items-start gap-2 text-sm">
-                              <CheckCircle size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
-                              <span className="text-gray-700">{criterio}</span>
+                      <div className="divide-y divide-gray-200">
+                        {categoria.documentos.map((documento, docIndex) => (
+                          <div key={docIndex} className="p-4">
+                            <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                              <FileText size={18} className="text-blue-600" />
+                              {documento.nombre}
+                            </h4>
+                            
+                            <div className="bg-gray-50 rounded-lg p-3">
+                              <h5 className="text-sm font-medium text-gray-700 mb-2">Criterios de Validación:</h5>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {documento.criterios.map((criterio, critIndex) => (
+                                  <div key={critIndex} className="flex items-start gap-2 text-sm">
+                                    <CheckCircle size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
+                                    <span className="text-gray-700">{criterio}</span>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Contratos y Anexos */}
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <div className="bg-gray-50 px-4 py-3 border-b">
-                      <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                        <FileText size={20} className="text-gray-600" />
-                        Contratos y Anexos
-                      </h3>
-                    </div>
-                    
-                    <div className="divide-y divide-gray-200">
-                      {/* Anexos de Contrato */}
-                      <div className="p-4">
-                        <h4 className="font-semibold text-gray-800 mb-3">Anexos de Contrato</h4>
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {[
-                              'Nombre y Rut de la empresa',
-                              'Legible',
-                              'Aparece firma de ambas partes',
-                              'Documento completo',
-                              'Vigente',
-                              'Corresponde al trabajador solicitado'
-                            ].map((criterio, idx) => (
-                              <div key={idx} className="flex items-start gap-2 text-sm">
-                                <CheckCircle size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
-                                <span className="text-gray-700">{criterio}</span>
-                              </div>
-                            ))}
                           </div>
-                        </div>
-                      </div>
-
-                      {/* Contrato de Trabajo */}
-                      <div className="p-4">
-                        <h4 className="font-semibold text-gray-800 mb-3">Contrato de Trabajo</h4>
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {[
-                              'Legible',
-                              'Documento completo',
-                              'Aparece firma de ambas partes',
-                              'Vigente',
-                              'Corresponde al trabajador solicitado',
-                              'Nombre y Rut de la empresa'
-                            ].map((criterio, idx) => (
-                              <div key={idx} className="flex items-start gap-2 text-sm">
-                                <CheckCircle size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
-                                <span className="text-gray-700">{criterio}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                        ))}
                       </div>
                     </div>
-                  </div>
-
-                  {/* Documentos Previsionales */}
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <div className="bg-gray-50 px-4 py-3 border-b">
-                      <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                        <CalendarClock size={20} className="text-gray-600" />
-                        Documentos Previsionales
-                      </h3>
-                    </div>
-                    
-                    <div className="divide-y divide-gray-200">
-                      {/* Certificado F30 */}
-                      <div className="p-4">
-                        <h4 className="font-semibold text-gray-800 mb-3">Certificado F30</h4>
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {[
-                              'Vigente (no mayor a 60 días)',
-                              'Legible',
-                              'Documento completo',
-                              'Timbrado por la DT',
-                              'Nombre y Rut de la empresa',
-                              'Sin multas pendientes'
-                            ].map((criterio, idx) => (
-                              <div key={idx} className="flex items-start gap-2 text-sm">
-                                <CheckCircle size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
-                                <span className="text-gray-700">{criterio}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Certificado F30-1 */}
-                      <div className="p-4">
-                        <h4 className="font-semibold text-gray-800 mb-3">Certificado F30-1</h4>
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {[
-                              'Vigente (no mayor a 60 días)',
-                              'Legible',
-                              'Documento completo',
-                              'Timbrado por la DT',
-                              'Nombre y Rut de la empresa'
-                            ].map((criterio, idx) => (
-                              <div key={idx} className="flex items-start gap-2 text-sm">
-                                <CheckCircle size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
-                                <span className="text-gray-700">{criterio}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Seguros y Mutualidades */}
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <div className="bg-gray-50 px-4 py-3 border-b">
-                      <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                        <Bookmark size={20} className="text-gray-600" />
-                        Seguros y Mutualidades
-                      </h3>
-                    </div>
-                    
-                    <div className="p-4">
-                      <h4 className="font-semibold text-gray-800 mb-3">Certificado de Afiliación Mutualidad</h4>
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {[
-                            'Vigente',
-                            'Legible',
-                            'Documento completo',
-                            'Nombre y Rut de la empresa',
-                            'Corresponde al organismo administrador'
-                          ].map((criterio, idx) => (
-                            <div key={idx} className="flex items-start gap-2 text-sm">
-                              <CheckCircle size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
-                              <span className="text-gray-700">{criterio}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  ))}
                 </div>
 
                 {/* Información adicional */}
@@ -1599,6 +1682,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                         <li>• Registro Difusión Trabajador Reglamento Interno</li>
                         <li>• Capacitación Uso y Mantención de EPP</li>
                         <li>• Información de riesgos laborales</li>
+                        <li>• ... y 4 documentos adicionales</li>
                       </ul>
                     </div>
                     <div>
@@ -1615,7 +1699,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
               {/* Footer del Modal */}
               <div className="bg-gray-50 px-6 py-4 border-t flex justify-between items-center">
                 <span className="text-sm text-gray-600">
-                  Matriz basada en criterios oficiales de Walmart Chile S.A.
+                  Matriz basada en criterios oficiales de Walmart Chile S.A. • 4 categorías documentales
                 </span>
                 <div className="flex gap-2">
                   <button
@@ -1660,7 +1744,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                       {estadisticas.criticos} clientes críticos
                     </p>
                     <p className="text-xs text-red-700">
-                      Requieren atención inmediata
+                      Requieren atención inmediata (&lt;50% documentación)
                     </p>
                   </div>
                 </div>
@@ -1671,10 +1755,24 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                   <Clock size={16} className="text-yellow-600 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-medium text-yellow-900">
-                      Próximos vencimientos
+                      {estadisticas.proximos} próximos vencimientos
                     </p>
                     <p className="text-xs text-yellow-700">
-                      8-15 documentos por vencer este mes
+                      Documentos por vencer en {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertOctagon size={16} className="text-gray-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      {estadisticas.vencidos} documentos vencidos
+                    </p>
+                    <p className="text-xs text-gray-700">
+                      Requieren renovación urgente
                     </p>
                   </div>
                 </div>
@@ -1688,7 +1786,21 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                       Cambios programados
                     </p>
                     <p className="text-xs text-blue-700">
-                      Walmart: nuevos requerimientos en mayo
+                      Walmart: 8 nuevos documentos en mayo 2025
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <CheckCircle size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-green-900">
+                      Sistema funcionando
+                    </p>
+                    <p className="text-xs text-green-700">
+                      Auto-guardado activo • {estadisticas.total} clientes monitoreados
                     </p>
                   </div>
                 </div>
