@@ -555,7 +555,6 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     const datosGuardados = JSON.parse(localStorage.getItem('pgr_cumplimiento_contratos_v4') || '{}');
     
     if (Object.keys(datosGuardados).length > 0 && datosGuardados.estadoDocumentosPorMes) {
-      // Cargar datos existentes
       const estadoExistente = datosGuardados.estadoDocumentosPorMes;
       const estadoCompleto = inicializarEstadoDocumentos();
       
@@ -564,7 +563,6 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
         if (estadoExistente[mes]) {
           Object.keys(estadoCompleto[mes]).forEach(cliente => {
             if (estadoExistente[mes][cliente]) {
-              // Preservar datos existentes
               estadoCompleto[mes][cliente] = {
                 ...estadoCompleto[mes][cliente],
                 ...estadoExistente[mes][cliente]
@@ -577,7 +575,6 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       setEstadoDocumentosPorMes(estadoCompleto);
       setUltimoGuardado(datosGuardados.ultimoGuardado || null);
     } else {
-      // Inicializar con estructura completa
       const estadoInicial = inicializarEstadoDocumentos();
       setEstadoDocumentosPorMes(estadoInicial);
     }
@@ -594,11 +591,9 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
         version: '4.0'
       };
       
-      // Guardar inmediatamente
       localStorage.setItem('pgr_cumplimiento_contratos_v4', JSON.stringify(datosParaGuardar));
       setUltimoGuardado(new Date().toISOString());
       
-      // Simular tiempo de guardado
       setTimeout(() => {
         setGuardandoAutomatico(false);
       }, 500);
@@ -641,7 +636,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     }));
   };
 
-  // Función para alternar estado de documento (para clicks simples)
+  // Función para alternar estado de documento
   const toggleDocumento = (cliente, documento, tipo) => {
     const infoDoc = obtenerInfoDocumento(cliente, documento, tipo);
     
@@ -851,888 +846,741 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     return cumpleBusqueda && cumpleFiltroCliente && cumpleFiltroEstado;
   });
 
-  // Matriz Walmart
-  const matrizWalmart = [
-    {
-      categoria: 'Documentos Corporativos',
-      documentos: [
-        {
-          nombre: 'Certificado Registro de Comercio',
-          criterios: [
-            'Vigente (no mayor a 90 días)',
-            'Legible',
-            'Aparece la razón social completa',
-            'Documento completo',
-            'Timbrado por el Registro Civil',
-            'Nombre y Rut de la empresa'
-          ]
-        },
-        {
-          nombre: 'Poder de Representación',
-          criterios: [
-            'Vigente',
-            'Legible',
-            'Aparece nombre completo del representante',
-            'Documento completo',
-            'Notarizado',
-            'Corresponde a la empresa solicitante'
-          ]
-        }
-      ]
-    },
-    {
-      categoria: 'Documentos Laborales',
-      documentos: [
-        {
-          nombre: 'Anexos de Contrato',
-          criterios: [
-            'Nombre y Rut de la empresa',
-            'Legible',
-            'Aparece firma de ambas partes',
-            'Documento completo',
-            'Vigente',
-            'Corresponde al trabajador solicitado'
-          ]
-        },
-        {
-          nombre: 'Contrato de Trabajo',
-          criterios: [
-            'Legible',
-            'Documento completo',
-            'Aparece firma de ambas partes',
-            'Vigente',
-            'Corresponde al trabajador solicitado',
-            'Nombre y Rut de la empresa'
-          ]
-        }
-      ]
-    },
-    {
-      categoria: 'Documentos Previsionales',
-      documentos: [
-        {
-          nombre: 'Certificado F30',
-          criterios: [
-            'Vigente (no mayor a 60 días)',
-            'Legible',
-            'Documento completo',
-            'Timbrado por la DT',
-            'Nombre y Rut de la empresa',
-            'Sin multas pendientes'
-          ]
-        },
-        {
-          nombre: 'Certificado F30-1',
-          criterios: [
-            'Vigente (no mayor a 60 días)',
-            'Legible',
-            'Documento completo',
-            'Timbrado por la DT',
-            'Nombre y Rut de la empresa'
-          ]
-        }
-      ]
-    },
-    {
-      categoria: 'Seguros y Mutualidades',
-      documentos: [
-        {
-          nombre: 'Certificado de Afiliación Mutualidad',
-          criterios: [
-            'Vigente',
-            'Legible',
-            'Documento completo',
-            'Nombre y Rut de la empresa',
-            'Corresponde al organismo administrador'
-          ]
-        }
-      ]
-    }
-  ];
-
   return (
-    <div className="max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen">
-      <div className="bg-white rounded-xl shadow-lg">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 rounded-t-xl">
-          <div className="flex items-center justify-between text-white">
-            <div className="flex items-center gap-3">
-              <FileCheck size={32} />
-              <div>
-                <h1 className="text-2xl font-bold">Dashboard de Cumplimiento de Contratos 2025</h1>
-                <p className="text-blue-100">Control integral con estados por documento • Relleno mensual • PGR Seguridad</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className={`w-2 h-2 rounded-full ${guardandoAutomatico ? 'bg-yellow-400 animate-pulse' : 'bg-green-400'}`}></div>
-                  <span className="text-xs text-blue-200">
-                    {guardandoAutomatico ? 'Guardando...' : `${estadisticas.total} clientes activos • Auto-guardado activo`}
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto p-4">
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6">
+            <div className="flex items-center justify-between text-white">
+              <div className="flex items-center gap-3">
+                <FileCheck size={32} />
+                <div>
+                  <h1 className="text-2xl font-bold">Dashboard de Cumplimiento de Contratos 2025</h1>
+                  <p className="text-blue-100">Control integral con estados por documento • Relleno mensual • PGR Seguridad</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className={`w-2 h-2 rounded-full ${guardandoAutomatico ? 'bg-yellow-400 animate-pulse' : 'bg-green-400'}`}></div>
+                    <span className="text-xs text-blue-200">
+                      {guardandoAutomatico ? 'Guardando...' : `${estadisticas.total} clientes activos • Auto-guardado activo`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setMostrarNotificaciones(!mostrarNotificaciones)}
+                  className="relative px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <Bell size={16} />
+                  {(estadisticas.criticos + estadisticas.rechazados) > 0 && (
+                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs flex items-center justify-center text-white">
+                      {estadisticas.criticos + estadisticas.rechazados}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={onCerrarSesion}
+                  className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+                >
+                  Volver al Inicio
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Estadísticas generales */}
+          <div className="p-6 border-b border-gray-200">
+            {/* Banner de período actual */}
+            <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Calendar size={24} className="text-blue-600" />
+                  <div>
+                    <h3 className="font-bold text-blue-900">
+                      📅 {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta} • Relleno Mensual
+                    </h3>
+                    <p className="text-blue-700 text-sm">
+                      Estados independientes por mes: Pendiente → Cargado → En Revisión → Aceptado/Rechazado
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="flex items-center gap-2 text-sm text-blue-600">
+                    <Save size={16} />
+                    <span>Guardado continuo</span>
+                  </div>
+                  {ultimoGuardado && (
+                    <p className="text-xs text-blue-500">
+                      {new Date(ultimoGuardado).toLocaleString('es-CL')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <Building size={20} className="text-blue-600" />
+                  <span className="text-sm font-medium text-blue-900">Total</span>
+                </div>
+                <p className="text-2xl font-bold text-blue-700">{estadisticas.total}</p>
+                <p className="text-xs text-blue-600">Clientes activos</p>
+              </div>
+              
+              <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle size={20} className="text-red-600" />
+                  <span className="text-sm font-medium text-red-900">Críticos</span>
+                </div>
+                <p className="text-2xl font-bold text-red-700">{estadisticas.criticos}</p>
+                <p className="text-xs text-red-600">&lt; 50%</p>
+              </div>
+              
+              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock size={20} className="text-yellow-600" />
+                  <span className="text-sm font-medium text-yellow-900">Proceso</span>
+                </div>
+                <p className="text-2xl font-bold text-yellow-700">{estadisticas.proceso}</p>
+                <p className="text-xs text-yellow-600">50-89%</p>
+              </div>
+              
+              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle size={20} className="text-green-600" />
+                  <span className="text-sm font-medium text-green-900">Completos</span>
+                </div>
+                <p className="text-2xl font-bold text-green-700">{estadisticas.completos}</p>
+                <p className="text-xs text-green-600">≥ 90%</p>
+              </div>
+              
+              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users size={20} className="text-purple-600" />
+                  <span className="text-sm font-medium text-purple-900">Promedio</span>
+                </div>
+                <p className="text-2xl font-bold text-purple-700">{estadisticas.promedio}%</p>
+                <p className="text-xs text-purple-600">Aceptados</p>
+              </div>
+
+              <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <Hourglass size={20} className="text-orange-600" />
+                  <span className="text-sm font-medium text-orange-900">Revisión</span>
+                </div>
+                <p className="text-2xl font-bold text-orange-700">{estadisticas.enRevision}</p>
+                <p className="text-xs text-orange-600">Documentos</p>
+              </div>
+
+              <div className="bg-rose-50 p-4 rounded-lg border border-rose-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <XCircle size={20} className="text-rose-600" />
+                  <span className="text-sm font-medium text-rose-900">Rechazados</span>
+                </div>
+                <p className="text-2xl font-bold text-rose-700">{estadisticas.rechazados}</p>
+                <p className="text-xs text-rose-600">Documentos</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Controles y filtros */}
+          <div className="p-6 border-b border-gray-200 bg-gray-50">
+            <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+              <div className="flex flex-col sm:flex-row gap-3 flex-1">
+                {/* Filtro de período */}
+                <div className="flex items-center gap-2">
+                  <Calendar size={20} className="text-gray-500" />
+                  <select
+                    value={mesSeleccionado}
+                    onChange={(e) => setMesSeleccionado(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  >
+                    {periodos.map(periodo => (
+                      <option key={periodo.valor} value={periodo.valor}>
+                        {periodo.etiqueta}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Filtro por tipo de documento */}
+                <div className="flex items-center gap-2">
+                  <Filter size={20} className="text-gray-500" />
+                  <select
+                    value={filtroTipoDocumento}
+                    onChange={(e) => setFiltroTipoDocumento(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  >
+                    <option value="todos">📋 Todos los documentos</option>
+                    <option value="mensuales">🗓️ Solo Mensuales</option>
+                    <option value="unicos">📄 Solo Únicos</option>
+                  </select>
+                </div>
+
+                {/* Filtro de cliente específico */}
+                <div className="flex items-center gap-2">
+                  <Building size={20} className="text-gray-500" />
+                  <select
+                    value={clienteFiltro}
+                    onChange={(e) => setClienteFiltro(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-48"
+                  >
+                    <option value="">Seleccionar cliente</option>
+                    <option value="todos">📋 Ver todos los clientes</option>
+                    <option disabled>──────────────────</option>
+                    {Object.entries(clientes)
+                      .filter(([nombre]) => nombre !== 'INCOPORT')
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([nombre, data]) => (
+                        <option key={nombre} value={nombre}>
+                          {data.icono} {nombre}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                
+                <div className="relative">
+                  <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar cliente..."
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                
+                <select
+                  value={filtroEstado}
+                  onChange={(e) => setFiltroEstado(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="todos">Todos los estados</option>
+                  <option value="criticos">Críticos (&lt;50%)</option>
+                  <option value="proceso">En proceso (50-89%)</option>
+                  <option value="completos">Completos (≥90%)</option>
+                </select>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setMostrarTablaCriticos(!mostrarTablaCriticos)}
+                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    mostrarTablaCriticos 
+                      ? 'bg-red-600 text-white hover:bg-red-700' 
+                      : 'bg-red-100 text-red-700 hover:bg-red-200'
+                  }`}
+                >
+                  <AlertTriangle size={16} />
+                  Críticos
+                </button>
+                
+                <button
+                  onClick={() => setMostrarDetalles(!mostrarDetalles)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  <Eye size={16} />
+                  Detalles
+                </button>
+                
+                <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
+                  <Download size={16} />
+                  Exportar
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabla de clientes críticos */}
+          {mostrarTablaCriticos && estadisticas.criticos > 0 && (
+            <div className="mx-6 mt-6 bg-red-50 border border-red-200 rounded-lg overflow-hidden">
+              <div className="bg-red-100 px-4 py-3 border-b border-red-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="text-red-600" size={20} />
+                    <h3 className="font-bold text-red-900">
+                      Clientes Críticos - {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta}
+                    </h3>
+                  </div>
+                  <span className="px-2 py-1 bg-red-200 text-red-800 rounded-full text-sm font-medium">
+                    {estadisticas.criticos} clientes
                   </span>
                 </div>
               </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setMostrarNotificaciones(!mostrarNotificaciones)}
-                className="relative px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <Bell size={16} />
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs flex items-center justify-center text-white">
-                  {estadisticas.criticos + estadisticas.rechazados}
-                </span>
-              </button>
-              <button
-                onClick={onCerrarSesion}
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-              >
-                Volver al Inicio
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Estadísticas generales */}
-        <div className="p-6 border-b">
-          {/* Banner de período actual */}
-          <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Calendar size={24} className="text-blue-600" />
-                <div>
-                  <h3 className="font-bold text-blue-900">
-                    📅 {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta} • Relleno Mensual
-                  </h3>
-                  <p className="text-blue-700 text-sm">
-                    Estados independientes por mes: Pendiente → Cargado → En Revisión → Aceptado/Rechazado
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="flex items-center gap-2 text-sm text-blue-600">
-                  <Save size={16} />
-                  <span>Guardado continuo</span>
-                </div>
-                {ultimoGuardado && (
-                  <p className="text-xs text-blue-500">
-                    {new Date(ultimoGuardado).toLocaleString('es-CL')}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <div className="flex items-center gap-2 mb-2">
-                <Building size={20} className="text-blue-600" />
-                <span className="text-sm font-medium text-blue-900">Total</span>
-              </div>
-              <p className="text-2xl font-bold text-blue-700">{estadisticas.total}</p>
-              <p className="text-xs text-blue-600">Clientes activos</p>
-            </div>
-            
-            <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle size={20} className="text-red-600" />
-                <span className="text-sm font-medium text-red-900">Críticos</span>
-              </div>
-              <p className="text-2xl font-bold text-red-700">{estadisticas.criticos}</p>
-              <p className="text-xs text-red-600">&lt; 50%</p>
-            </div>
-            
-            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock size={20} className="text-yellow-600" />
-                <span className="text-sm font-medium text-yellow-900">Proceso</span>
-              </div>
-              <p className="text-2xl font-bold text-yellow-700">{estadisticas.proceso}</p>
-              <p className="text-xs text-yellow-600">50-89%</p>
-            </div>
-            
-            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle size={20} className="text-green-600" />
-                <span className="text-sm font-medium text-green-900">Completos</span>
-              </div>
-              <p className="text-2xl font-bold text-green-700">{estadisticas.completos}</p>
-              <p className="text-xs text-green-600">≥ 90%</p>
-            </div>
-            
-            <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-              <div className="flex items-center gap-2 mb-2">
-                <Users size={20} className="text-purple-600" />
-                <span className="text-sm font-medium text-purple-900">Promedio</span>
-              </div>
-              <p className="text-2xl font-bold text-purple-700">{estadisticas.promedio}%</p>
-              <p className="text-xs text-purple-600">Aceptados</p>
-            </div>
-
-            <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-              <div className="flex items-center gap-2 mb-2">
-                <Hourglass size={20} className="text-orange-600" />
-                <span className="text-sm font-medium text-orange-900">Revisión</span>
-              </div>
-              <p className="text-2xl font-bold text-orange-700">{estadisticas.enRevision}</p>
-              <p className="text-xs text-orange-600">Documentos</p>
-            </div>
-
-            <div className="bg-rose-50 p-4 rounded-lg border border-rose-200">
-              <div className="flex items-center gap-2 mb-2">
-                <XCircle size={20} className="text-rose-600" />
-                <span className="text-sm font-medium text-rose-900">Rechazados</span>
-              </div>
-              <p className="text-2xl font-bold text-rose-700">{estadisticas.rechazados}</p>
-              <p className="text-xs text-rose-600">Documentos</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Controles y filtros */}
-        <div className="p-6 border-b bg-gray-50">
-          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-            <div className="flex flex-col sm:flex-row gap-3 flex-1">
-              {/* Filtro de período */}
-              <div className="flex items-center gap-2">
-                <Calendar size={20} className="text-gray-500" />
-                <select
-                  value={mesSeleccionado}
-                  onChange={(e) => setMesSeleccionado(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                >
-                  {periodos.map(periodo => (
-                    <option key={periodo.valor} value={periodo.valor}>
-                      {periodo.etiqueta}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Filtro por tipo de documento */}
-              <div className="flex items-center gap-2">
-                <Filter size={20} className="text-gray-500" />
-                <select
-                  value={filtroTipoDocumento}
-                  onChange={(e) => setFiltroTipoDocumento(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                >
-                  <option value="todos">📋 Todos los documentos</option>
-                  <option value="mensuales">🗓️ Solo Mensuales</option>
-                  <option value="unicos">📄 Solo Únicos</option>
-                </select>
-              </div>
-
-              {/* Filtro de cliente específico */}
-              <div className="flex items-center gap-2">
-                <Building size={20} className="text-gray-500" />
-                <select
-                  value={clienteFiltro}
-                  onChange={(e) => setClienteFiltro(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-48"
-                >
-                  <option value="">Seleccionar cliente</option>
-                  <option value="todos">📋 Ver todos los clientes</option>
-                  <option disabled>──────────────────</option>
-                  {Object.entries(clientes)
-                    .filter(([nombre]) => nombre !== 'INCOPORT')
-                    .sort(([a], [b]) => a.localeCompare(b))
-                    .map(([nombre, data]) => (
-                      <option key={nombre} value={nombre}>
-                        {data.icono} {nombre}
-                      </option>
-                    ))}
-                </select>
-              </div>
               
-              <div className="relative">
-                <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Buscar cliente..."
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-              
-              <select
-                value={filtroEstado}
-                onChange={(e) => setFiltroEstado(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="todos">Todos los estados</option>
-                <option value="criticos">Críticos (&lt;50%)</option>
-                <option value="proceso">En proceso (50-89%)</option>
-                <option value="completos">Completos (≥90%)</option>
-              </select>
-            </div>
-            
-            <div className="flex gap-2">
-              <button
-                onClick={() => setMostrarTablaCriticos(!mostrarTablaCriticos)}
-                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                  mostrarTablaCriticos 
-                    ? 'bg-red-600 text-white hover:bg-red-700' 
-                    : 'bg-red-100 text-red-700 hover:bg-red-200'
-                }`}
-              >
-                <AlertTriangle size={16} />
-                Críticos
-              </button>
-              
-              <button
-                onClick={() => setMostrarDetalles(!mostrarDetalles)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-              >
-                <Eye size={16} />
-                Detalles
-              </button>
-              
-              <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
-                <Download size={16} />
-                Exportar
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Tabla de clientes críticos */}
-        {mostrarTablaCriticos && estadisticas.criticos > 0 && (
-          <div className="mx-6 mt-6 bg-red-50 border border-red-200 rounded-lg overflow-hidden">
-            <div className="bg-red-100 px-4 py-3 border-b border-red-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="text-red-600" size={20} />
-                  <h3 className="font-bold text-red-900">
-                    Clientes Críticos - {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta}
-                  </h3>
-                </div>
-                <span className="px-2 py-1 bg-red-200 text-red-800 rounded-full text-sm font-medium">
-                  {estadisticas.criticos} clientes
-                </span>
-              </div>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-red-100">
-                  <tr>
-                    <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Cliente</th>
-                    <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Docs</th>
-                    <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Estado</th>
-                    <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Pendientes</th>
-                    <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white">
-                  {Object.entries(clientes)
-                    .filter(([nombre]) => nombre !== 'INCOPORT' && calcularPorcentaje(nombre) < 50)
-                    .slice(0, 10)
-                    .map(([nombre, data], index) => {
-                      const porcentaje = calcularPorcentaje(nombre);
-                      const totalDocs = data.documentos.mensuales.length + data.documentos.unicos.length;
-                      const estadoMes = obtenerEstadoDocumentos();
-                      
-                      // Contar documentos por estado
-                      const estadosCount = { pendientes: 0, rechazados: 0, revision: 0 };
-                      [...data.documentos.mensuales, ...data.documentos.unicos].forEach(doc => {
-                        const tipo = data.documentos.mensuales.includes(doc) ? 'mensuales' : 'unicos';
-                        const estado = estadoMes[nombre]?.[tipo]?.[doc]?.estado;
-                        if (estado === ESTADOS_DOCUMENTO.PENDIENTE) estadosCount.pendientes++;
-                        if (estado === ESTADOS_DOCUMENTO.RECHAZADO) estadosCount.rechazados++;
-                        if (estado === ESTADOS_DOCUMENTO.EN_REVISION) estadosCount.revision++;
-                      });
-                      
-                      return (
-                        <tr key={nombre} className={index % 2 === 0 ? 'bg-white' : 'bg-red-25'}>
-                          <td className="px-3 py-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-base">{data.icono}</span>
-                              <div>
-                                <div className="font-medium text-gray-900 text-sm">{nombre}</div>
-                                <div className="text-xs text-gray-500">{data.categoria}</div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-red-100">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Cliente</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Docs</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Estado</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Pendientes</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-red-900">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {Object.entries(clientes)
+                      .filter(([nombre]) => nombre !== 'INCOPORT' && calcularPorcentaje(nombre) < 50)
+                      .slice(0, 10)
+                      .map(([nombre, data], index) => {
+                        const porcentaje = calcularPorcentaje(nombre);
+                        const totalDocs = data.documentos.mensuales.length + data.documentos.unicos.length;
+                        const estadoMes = obtenerEstadoDocumentos();
+                        
+                        // Contar documentos por estado
+                        const estadosCount = { pendientes: 0, rechazados: 0, revision: 0 };
+                        [...data.documentos.mensuales, ...data.documentos.unicos].forEach(doc => {
+                          const tipo = data.documentos.mensuales.includes(doc) ? 'mensuales' : 'unicos';
+                          const estado = estadoMes[nombre]?.[tipo]?.[doc]?.estado;
+                          if (estado === ESTADOS_DOCUMENTO.PENDIENTE) estadosCount.pendientes++;
+                          if (estado === ESTADOS_DOCUMENTO.RECHAZADO) estadosCount.rechazados++;
+                          if (estado === ESTADOS_DOCUMENTO.EN_REVISION) estadosCount.revision++;
+                        });
+                        
+                        return (
+                          <tr key={nombre}>
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-base">{data.icono}</span>
+                                <div>
+                                  <div className="font-medium text-gray-900 text-sm">{nombre}</div>
+                                  <div className="text-xs text-gray-500">{data.categoria}</div>
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2">
-                            <div className="text-sm">
-                              <span className="font-medium">{Math.round((porcentaje * totalDocs) / 100)}/{totalDocs}</span>
-                              <div className="text-xs text-gray-500">aceptados</div>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2">
-                            <div className="flex items-center gap-2">
-                              <div className="w-12 bg-gray-200 rounded-full h-1.5">
-                                <div 
-                                  className="h-1.5 rounded-full bg-red-600"
-                                  style={{ width: `${porcentaje}%` }}
-                                ></div>
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="text-sm">
+                                <span className="font-medium">{Math.round((porcentaje * totalDocs) / 100)}/{totalDocs}</span>
+                                <div className="text-xs text-gray-500">aceptados</div>
                               </div>
-                              <span className="text-xs font-medium text-red-700">{porcentaje}%</span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2">
-                            <div className="flex gap-1">
-                              {estadosCount.pendientes > 0 && (
-                                <span className="text-xs bg-gray-100 text-gray-700 px-1 rounded">
-                                  {estadosCount.pendientes}P
-                                </span>
-                              )}
-                              {estadosCount.rechazados > 0 && (
-                                <span className="text-xs bg-red-100 text-red-700 px-1 rounded">
-                                  {estadosCount.rechazados}R
-                                </span>
-                              )}
-                              {estadosCount.revision > 0 && (
-                                <span className="text-xs bg-yellow-100 text-yellow-700 px-1 rounded">
-                                  {estadosCount.revision}Rev
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2">
-                            <button 
-                              className="p-1 text-blue-600 hover:bg-blue-100 rounded text-xs"
-                              onClick={() => {
-                                setClienteFiltro(nombre);
-                                toggleCliente(nombre);
-                              }}
-                            >
-                              <Eye size={12} />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Cliente terminado - INCOPORT */}
-        <div className="mx-6 mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Archive size={24} className="text-gray-500" />
-              <div>
-                <h3 className="font-bold text-gray-700 flex items-center gap-2">
-                  📋 INCOPORT <span className="px-2 py-1 bg-gray-200 text-gray-600 rounded-full text-xs">TERMINADO MAYO 2025</span>
-                </h3>
-                <p className="text-gray-600 text-sm">
-                  Cliente finalizado • Documentación archivada • Datos preservados en el sistema
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-sm font-medium">
-                100% Final
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Lista de clientes */}
-        <div className="p-6">
-          {/* Mensaje cuando no hay cliente seleccionado */}
-          {!clienteFiltro && (
-            <div className="text-center py-12 bg-blue-50 rounded-lg border border-blue-200 mb-6">
-              <Building size={48} className="mx-auto mb-4 text-blue-400" />
-              <h3 className="text-lg font-medium text-blue-900 mb-2">Seleccione un Cliente</h3>
-              <p className="text-blue-700 text-sm mb-4">
-                Utilice el filtro de cliente para ver documentos con estados detallados por mes.
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg">
-                  <Circle size={16} className="text-gray-400" />
-                  <div>
-                    <div className="font-semibold text-gray-700">Pendientes</div>
-                    <div className="text-gray-600">No iniciados</div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg">
-                  <Upload size={16} className="text-blue-500" />
-                  <div>
-                    <div className="font-semibold text-blue-700">Cargados</div>
-                    <div className="text-blue-600">Subidos</div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg">
-                  <Hourglass size={16} className="text-yellow-500" />
-                  <div>
-                    <div className="font-semibold text-yellow-700">En Revisión</div>
-                    <div className="text-yellow-600">Evaluando</div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg">
-                  <XCircle size={16} className="text-red-500" />
-                  <div>
-                    <div className="font-semibold text-red-700">Rechazados</div>
-                    <div className="text-red-600">A corregir</div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg">
-                  <CheckCircle size={16} className="text-green-500" />
-                  <div>
-                    <div className="font-semibold text-green-700">Aceptados</div>
-                    <div className="text-green-600">Aprobados</div>
-                  </div>
-                </div>
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                <div className="w-12 bg-gray-200 rounded-full h-1.5">
+                                  <div 
+                                    className="h-1.5 rounded-full bg-red-600"
+                                    style={{ width: `${porcentaje}%` }}
+                                  ></div>
+                                </div>
+                                <span className="text-xs font-medium text-red-700">{porcentaje}%</span>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="flex gap-1">
+                                {estadosCount.pendientes > 0 && (
+                                  <span className="text-xs bg-gray-100 text-gray-700 px-1 rounded">
+                                    {estadosCount.pendientes}P
+                                  </span>
+                                )}
+                                {estadosCount.rechazados > 0 && (
+                                  <span className="text-xs bg-red-100 text-red-700 px-1 rounded">
+                                    {estadosCount.rechazados}R
+                                  </span>
+                                )}
+                                {estadosCount.revision > 0 && (
+                                  <span className="text-xs bg-yellow-100 text-yellow-700 px-1 rounded">
+                                    {estadosCount.revision}Rev
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2">
+                              <button 
+                                className="p-1 text-blue-600 hover:bg-blue-100 rounded text-xs"
+                                onClick={() => {
+                                  setClienteFiltro(nombre);
+                                  toggleCliente(nombre);
+                                }}
+                              >
+                                <Eye size={12} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
-          <div className="space-y-4">
-            {clientesFiltrados.map(([nombre, data]) => {
-              const porcentaje = calcularPorcentaje(nombre);
-              const expandido = clientesExpandidos[nombre];
-              const totalMensuales = data.documentos.mensuales.length;
-              const totalUnicos = data.documentos.unicos.length;
-              const totalDocumentos = totalMensuales + totalUnicos;
-              
-              return (
-                <div key={nombre} className={`border rounded-lg overflow-hidden transition-all ${
-                  porcentaje < 50 ? 'border-red-300 bg-red-50' : 
-                  porcentaje < 90 ? 'border-yellow-300 bg-yellow-50' : 
-                  'border-green-300 bg-green-50'
-                }`}>
-                  {/* Header del cliente */}
-                  <div 
-                    className="p-4 cursor-pointer hover:bg-white/50 transition-colors"
-                    onClick={() => toggleCliente(nombre)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          {expandido ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                          <span className="text-2xl">{data.icono}</span>
+          {/* Cliente terminado - INCOPORT */}
+          <div className="mx-6 mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Archive size={24} className="text-gray-500" />
+                <div>
+                  <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                    📋 INCOPORT <span className="px-2 py-1 bg-gray-200 text-gray-600 rounded-full text-xs">TERMINADO MAYO 2025</span>
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    Cliente finalizado • Documentación archivada • Datos preservados en el sistema
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-sm font-medium">
+                  100% Final
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Lista de clientes */}
+          <div className="p-6">
+            {/* Mensaje cuando no hay cliente seleccionado */}
+            {!clienteFiltro && (
+              <div className="text-center py-12 bg-blue-50 rounded-lg border border-blue-200 mb-6">
+                <Building size={48} className="mx-auto mb-4 text-blue-400" />
+                <h3 className="text-lg font-medium text-blue-900 mb-2">Seleccione un Cliente</h3>
+                <p className="text-blue-700 text-sm mb-4">
+                  Utilice el filtro de cliente para ver documentos con estados detallados por mes.
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                  <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg border border-blue-100">
+                    <Circle size={16} className="text-gray-400" />
+                    <div>
+                      <div className="font-semibold text-gray-700">Pendientes</div>
+                      <div className="text-gray-600">No iniciados</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg border border-blue-100">
+                    <Upload size={16} className="text-blue-500" />
+                    <div>
+                      <div className="font-semibold text-blue-700">Cargados</div>
+                      <div className="text-blue-600">Subidos</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg border border-blue-100">
+                    <Hourglass size={16} className="text-yellow-500" />
+                    <div>
+                      <div className="font-semibold text-yellow-700">En Revisión</div>
+                      <div className="text-yellow-600">Evaluando</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg border border-blue-100">
+                    <XCircle size={16} className="text-red-500" />
+                    <div>
+                      <div className="font-semibold text-red-700">Rechazados</div>
+                      <div className="text-red-600">A corregir</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 p-3 bg-white rounded-lg border border-blue-100">
+                    <CheckCircle size={16} className="text-green-500" />
+                    <div>
+                      <div className="font-semibold text-green-700">Aceptados</div>
+                      <div className="text-green-600">Aprobados</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {clientesFiltrados.map(([nombre, data]) => {
+                const porcentaje = calcularPorcentaje(nombre);
+                const expandido = clientesExpandidos[nombre];
+                const totalMensuales = data.documentos.mensuales.length;
+                const totalUnicos = data.documentos.unicos.length;
+                const totalDocumentos = totalMensuales + totalUnicos;
+                
+                return (
+                  <div key={nombre} className={`border rounded-lg overflow-hidden transition-all ${
+                    porcentaje < 50 ? 'border-red-300 bg-red-50' : 
+                    porcentaje < 90 ? 'border-yellow-300 bg-yellow-50' : 
+                    'border-green-300 bg-green-50'
+                  }`}>
+                    {/* Header del cliente */}
+                    <div 
+                      className="p-4 cursor-pointer hover:bg-white/50 transition-colors"
+                      onClick={() => toggleCliente(nombre)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            {expandido ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                            <span className="text-2xl">{data.icono}</span>
+                          </div>
+                          
+                          <div>
+                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                              {nombre}
+                              <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
+                                ACTIVO
+                              </span>
+                            </h3>
+                            <div className="flex items-center gap-4 text-sm text-gray-600">
+                              <span className="flex items-center gap-1">
+                                {getIconoModalidad(data.modalidad)}
+                                {data.modalidad}
+                              </span>
+                              <span className="px-2 py-1 bg-gray-200 rounded-full text-xs">
+                                {data.categoria}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Calendar size={14} />
+                                {data.frecuencia}
+                              </span>
+                              <span>
+                                {totalDocumentos > 0 ? `${totalDocumentos} docs (${totalMensuales}M + ${totalUnicos}U)` : 'Sin requerimientos'}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                         
-                        <div>
-                          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                            {nombre}
-                            <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
-                              ACTIVO
-                            </span>
-                          </h3>
-                          <div className="flex items-center gap-4 text-sm text-gray-600">
-                            <span className="flex items-center gap-1">
-                              {getIconoModalidad(data.modalidad)}
-                              {data.modalidad}
-                            </span>
-                            <span className="px-2 py-1 bg-gray-200 rounded-full text-xs">
-                              {data.categoria}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Calendar size={14} />
-                              {data.frecuencia}
-                            </span>
-                            <span>
-                              {totalDocumentos > 0 ? `${totalDocumentos} docs (${totalMensuales}M + ${totalUnicos}U)` : 'Sin requerimientos'}
-                            </span>
+                        <div className="text-right">
+                          <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getColorPorcentaje(porcentaje)}`}>
+                            {porcentaje}%
+                          </div>
+                          <div className="w-32 bg-gray-200 rounded-full h-2 mt-2">
+                            <div 
+                              className={`h-2 rounded-full transition-all ${
+                                porcentaje >= 90 ? 'bg-green-600' :
+                                porcentaje >= 70 ? 'bg-blue-600' :
+                                porcentaje >= 50 ? 'bg-yellow-600' : 'bg-red-600'
+                              }`}
+                              style={{ width: `${porcentaje}%` }}
+                            ></div>
                           </div>
                         </div>
                       </div>
-                      
-                      <div className="text-right">
-                        <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getColorPorcentaje(porcentaje)}`}>
-                          {porcentaje}%
-                        </div>
-                        <div className="w-32 bg-gray-200 rounded-full h-2 mt-2">
-                          <div 
-                            className={`h-2 rounded-full transition-all ${
-                              porcentaje >= 90 ? 'bg-green-600' :
-                              porcentaje >= 70 ? 'bg-blue-600' :
-                              porcentaje >= 50 ? 'bg-yellow-600' : 'bg-red-600'
-                            }`}
-                            style={{ width: `${porcentaje}%` }}
-                          ></div>
-                        </div>
-                      </div>
                     </div>
-                  </div>
 
-                  {/* Detalles expandidos */}
-                  {expandido && (
-                    <div className="border-t bg-white">
-                      {mostrarDetalles && (
-                        <div className="p-4 border-b bg-gray-50">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                            <div>
-                              <strong>Contacto:</strong> 
-                              {data.contacto !== 'N/A' ? (
-                                <a href={`mailto:${data.contacto}`} className="text-blue-600 hover:underline ml-1">
-                                  {data.contacto}
-                                </a>
-                              ) : (
-                                <span className="text-gray-500 ml-1">N/A</span>
-                              )}
-                            </div>
-                            {data.plataforma && (
+                    {/* Detalles expandidos */}
+                    {expandido && (
+                      <div className="border-t bg-white border-gray-200">
+                        {mostrarDetalles && (
+                          <div className="p-4 border-b border-gray-200 bg-gray-50">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                               <div>
-                                <strong>Plataforma:</strong> 
-                                <span className="text-blue-600 ml-1">{data.plataforma}</span>
+                                <strong>Contacto:</strong> 
+                                {data.contacto !== 'N/A' ? (
+                                  <a href={`mailto:${data.contacto}`} className="text-blue-600 hover:underline ml-1">
+                                    {data.contacto}
+                                  </a>
+                                ) : (
+                                  <span className="text-gray-500 ml-1">N/A</span>
+                                )}
+                              </div>
+                              {data.plataforma && (
+                                <div>
+                                  <strong>Plataforma:</strong> 
+                                  <span className="text-blue-600 ml-1">{data.plataforma}</span>
+                                </div>
+                              )}
+                              <div>
+                                <strong>Desde:</strong> {data.fechaInicio}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Lista de documentos con estados */}
+                        {totalDocumentos > 0 ? (
+                          <div className="p-4">
+                            {/* Documentos mensuales */}
+                            {data.documentos.mensuales.length > 0 && (
+                              <div className="mb-6">
+                                <div className="flex items-center justify-between mb-3">
+                                  <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+                                    <Calendar size={16} className="text-green-600" />
+                                    Documentos Mensuales ({data.documentos.mensuales.length})
+                                  </h4>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => cambiarEstadoMasivo(nombre, 'mensuales', ESTADOS_DOCUMENTO.ACEPTADO)}
+                                      className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors"
+                                    >
+                                      Aceptar Todos
+                                    </button>
+                                    <button
+                                      onClick={() => cambiarEstadoMasivo(nombre, 'mensuales', ESTADOS_DOCUMENTO.PENDIENTE)}
+                                      className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 transition-colors"
+                                    >
+                                      Resetear
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  {data.documentos.mensuales.map((documento, index) => {
+                                    const infoDoc = obtenerInfoDocumento(nombre, documento, 'mensuales');
+                                    const estadoDisplay = getEstadoDisplay(infoDoc.estado);
+                                    const IconoEstado = estadoDisplay.icon;
+                                    
+                                    return (
+                                      <div
+                                        key={index}
+                                        className={`p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-sm ${estadoDisplay.bg}`}
+                                        onClick={() => toggleDocumento(nombre, documento, 'mensuales')}
+                                      >
+                                        <div className="flex items-start gap-3">
+                                          <IconoEstado size={18} className={`${estadoDisplay.color} flex-shrink-0 mt-0.5`} />
+                                          <div className="flex-1">
+                                            <span className="text-sm font-medium text-gray-900">
+                                              {documento}
+                                            </span>
+                                            <div className="flex items-center gap-2 mt-1">
+                                              <span className={`text-xs px-2 py-1 rounded-full ${estadoDisplay.bg.replace('bg-', 'text-').replace('-50', '-700')}`}>
+                                                {estadoDisplay.text}
+                                              </span>
+                                              {infoDoc.estado === ESTADOS_DOCUMENTO.RECHAZADO && (
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    rechazarDocumento(nombre, documento, 'mensuales', 'Corrección requerida');
+                                                  }}
+                                                  className="p-1 text-red-600 hover:bg-red-100 rounded"
+                                                  title="Rechazar documento"
+                                                >
+                                                  <XCircle size={12} />
+                                                </button>
+                                              )}
+                                            </div>
+                                            {infoDoc.fechaActualizacion && (
+                                              <div className="text-xs text-gray-500 mt-1">
+                                                {new Date(infoDoc.fechaActualizacion).toLocaleDateString('es-CL')}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             )}
-                            <div>
-                              <strong>Desde:</strong> {data.fechaInicio}
-                            </div>
+
+                            {/* Documentos únicos */}
+                            {data.documentos.unicos.length > 0 && (
+                              <div>
+                                <div className="flex items-center justify-between mb-3">
+                                  <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+                                    <FileText size={16} className="text-purple-600" />
+                                    Documentos Únicos ({data.documentos.unicos.length})
+                                  </h4>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => cambiarEstadoMasivo(nombre, 'unicos', ESTADOS_DOCUMENTO.ACEPTADO)}
+                                      className="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 transition-colors"
+                                    >
+                                      Aceptar Todos
+                                    </button>
+                                    <button
+                                      onClick={() => cambiarEstadoMasivo(nombre, 'unicos', ESTADOS_DOCUMENTO.PENDIENTE)}
+                                      className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 transition-colors"
+                                    >
+                                      Resetear
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  {data.documentos.unicos.map((documento, index) => {
+                                    const infoDoc = obtenerInfoDocumento(nombre, documento, 'unicos');
+                                    const estadoDisplay = getEstadoDisplay(infoDoc.estado);
+                                    const IconoEstado = estadoDisplay.icon;
+                                    
+                                    return (
+                                      <div
+                                        key={index}
+                                        className={`p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-sm ${estadoDisplay.bg}`}
+                                        onClick={() => toggleDocumento(nombre, documento, 'unicos')}
+                                      >
+                                        <div className="flex items-start gap-3">
+                                          <IconoEstado size={18} className={`${estadoDisplay.color} flex-shrink-0 mt-0.5`} />
+                                          <div className="flex-1">
+                                            <span className="text-sm font-medium text-gray-900">
+                                              {documento}
+                                            </span>
+                                            <div className="flex items-center gap-2 mt-1">
+                                              <span className={`text-xs px-2 py-1 rounded-full ${estadoDisplay.bg.replace('bg-', 'text-').replace('-50', '-700')}`}>
+                                                {estadoDisplay.text}
+                                              </span>
+                                              {infoDoc.estado === ESTADOS_DOCUMENTO.RECHAZADO && (
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    rechazarDocumento(nombre, documento, 'unicos', 'Corrección requerida');
+                                                  }}
+                                                  className="p-1 text-red-600 hover:bg-red-100 rounded"
+                                                  title="Rechazar documento"
+                                                >
+                                                  <XCircle size={12} />
+                                                </button>
+                                              )}
+                                            </div>
+                                            {infoDoc.fechaActualizacion && (
+                                              <div className="text-xs text-gray-500 mt-1">
+                                                {new Date(infoDoc.fechaActualizacion).toLocaleDateString('es-CL')}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Botón especial para Walmart */}
+                            {nombre === 'WALMART' && (
+                              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <h4 className="font-semibold text-blue-900">Matriz de Documentos</h4>
+                                    <p className="text-blue-700 text-sm">4 categorías con criterios específicos</p>
+                                  </div>
+                                  <button
+                                    onClick={() => setMostrarMatrizWalmart(true)}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                                  >
+                                    <FileText size={16} />
+                                    Ver Matriz
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      )}
-                      
-                      {/* Lista de documentos con estados */}
-                      {totalDocumentos > 0 ? (
-                        <div className="p-4">
-                          {/* Documentos mensuales */}
-                          {data.documentos.mensuales.length > 0 && (
-                            <div className="mb-6">
-                              <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-semibold text-gray-800 flex items-center gap-2">
-                                  <Calendar size={16} className="text-green-600" />
-                                  Documentos Mensuales ({data.documentos.mensuales.length})
-                                </h4>
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => cambiarEstadoMasivo(nombre, 'mensuales', ESTADOS_DOCUMENTO.ACEPTADO)}
-                                    className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors"
-                                  >
-                                    Aceptar Todos
-                                  </button>
-                                  <button
-                                    onClick={() => cambiarEstadoMasivo(nombre, 'mensuales', ESTADOS_DOCUMENTO.PENDIENTE)}
-                                    className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 transition-colors"
-                                  >
-                                    Resetear
-                                  </button>
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {data.documentos.mensuales.map((documento, index) => {
-                                  const infoDoc = obtenerInfoDocumento(nombre, documento, 'mensuales');
-                                  const estadoDisplay = getEstadoDisplay(infoDoc.estado);
-                                  const IconoEstado = estadoDisplay.icon;
-                                  
-                                  return (
-                                    <div
-                                      key={index}
-                                      className={`p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-sm ${estadoDisplay.bg}`}
-                                      onClick={() => toggleDocumento(nombre, documento, 'mensuales')}
-                                    >
-                                      <div className="flex items-start gap-3">
-                                        <IconoEstado size={18} className={`${estadoDisplay.color} flex-shrink-0 mt-0.5`} />
-                                        <div className="flex-1">
-                                          <span className="text-sm font-medium text-gray-900">
-                                            {documento}
-                                          </span>
-                                          <div className="flex items-center gap-2 mt-1">
-                                            <span className={`text-xs px-2 py-1 rounded-full ${estadoDisplay.bg.replace('bg-', 'text-').replace('-50', '-700')}`}>
-                                              {estadoDisplay.text}
-                                            </span>
-                                            {infoDoc.estado === ESTADOS_DOCUMENTO.RECHAZADO && (
-                                              <button
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  rechazarDocumento(nombre, documento, 'mensuales', 'Corrección requerida');
-                                                }}
-                                                className="p-1 text-red-600 hover:bg-red-100 rounded"
-                                                title="Rechazar documento"
-                                              >
-                                                <XCircle size={12} />
-                                              </button>
-                                            )}
-                                          </div>
-                                          {infoDoc.fechaActualizacion && (
-                                            <div className="text-xs text-gray-500 mt-1">
-                                              {new Date(infoDoc.fechaActualizacion).toLocaleDateString('es-CL')}
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Documentos únicos */}
-                          {data.documentos.unicos.length > 0 && (
-                            <div>
-                              <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-semibold text-gray-800 flex items-center gap-2">
-                                  <FileText size={16} className="text-purple-600" />
-                                  Documentos Únicos ({data.documentos.unicos.length})
-                                </h4>
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => cambiarEstadoMasivo(nombre, 'unicos', ESTADOS_DOCUMENTO.ACEPTADO)}
-                                    className="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 transition-colors"
-                                  >
-                                    Aceptar Todos
-                                  </button>
-                                  <button
-                                    onClick={() => cambiarEstadoMasivo(nombre, 'unicos', ESTADOS_DOCUMENTO.PENDIENTE)}
-                                    className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 transition-colors"
-                                  >
-                                    Resetear
-                                  </button>
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {data.documentos.unicos.map((documento, index) => {
-                                  const infoDoc = obtenerInfoDocumento(nombre, documento, 'unicos');
-                                  const estadoDisplay = getEstadoDisplay(infoDoc.estado);
-                                  const IconoEstado = estadoDisplay.icon;
-                                  
-                                  return (
-                                    <div
-                                      key={index}
-                                      className={`p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-sm ${estadoDisplay.bg}`}
-                                      onClick={() => toggleDocumento(nombre, documento, 'unicos')}
-                                    >
-                                      <div className="flex items-start gap-3">
-                                        <IconoEstado size={18} className={`${estadoDisplay.color} flex-shrink-0 mt-0.5`} />
-                                        <div className="flex-1">
-                                          <span className="text-sm font-medium text-gray-900">
-                                            {documento}
-                                          </span>
-                                          <div className="flex items-center gap-2 mt-1">
-                                            <span className={`text-xs px-2 py-1 rounded-full ${estadoDisplay.bg.replace('bg-', 'text-').replace('-50', '-700')}`}>
-                                              {estadoDisplay.text}
-                                            </span>
-                                            {infoDoc.estado === ESTADOS_DOCUMENTO.RECHAZADO && (
-                                              <button
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  rechazarDocumento(nombre, documento, 'unicos', 'Corrección requerida');
-                                                }}
-                                                className="p-1 text-red-600 hover:bg-red-100 rounded"
-                                                title="Rechazar documento"
-                                              >
-                                                <XCircle size={12} />
-                                              </button>
-                                            )}
-                                          </div>
-                                          {infoDoc.fechaActualizacion && (
-                                            <div className="text-xs text-gray-500 mt-1">
-                                              {new Date(infoDoc.fechaActualizacion).toLocaleDateString('es-CL')}
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Botón especial para Walmart */}
-                          {nombre === 'WALMART' && (
-                            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <h4 className="font-semibold text-blue-900">Matriz de Documentos</h4>
-                                  <p className="text-blue-700 text-sm">4 categorías con criterios específicos</p>
-                                </div>
-                                <button
-                                  onClick={() => setMostrarMatrizWalmart(true)}
-                                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                                >
-                                  <FileText size={16} />
-                                  Ver Matriz
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="p-4 text-center text-gray-500">
-                          <CheckCircle size={24} className="mx-auto mb-2 text-green-600" />
-                          <p className="font-medium">Cliente sin requerimientos</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="border-t bg-gray-50 p-6">
-          <div className="text-center text-xs text-gray-500">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <Save size={16} className="text-green-500" />
-              <span className="font-medium">
-                {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta.toUpperCase()} • PERSISTENCIA COMPLETA
-              </span>
-            </div>
-            <div className="flex items-center justify-center gap-4 text-xs">
-              <span>Relleno mensual independiente</span>
-              <span>•</span>
-              <span>Estados: Pendiente → Cargado → Revisión → Aceptado/Rechazado</span>
-              <span>•</span>
-              <span>Guardado automático con cada cambio</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Modal Matriz Walmart */}
-        {mostrarMatrizWalmart && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <FileText size={32} />
-                    <div>
-                      <h2 className="text-2xl font-bold">Matriz Walmart</h2>
-                      <p className="text-blue-100">Criterios de validación</p>
-                    </div>
+                        ) : (
+                          <div className="p-4 text-center text-gray-500">
+                            <CheckCircle size={24} className="mx-auto mb-2 text-green-600" />
+                            <p className="font-medium">Cliente sin requerimientos</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <button
-                    onClick={() => setMostrarMatrizWalmart(false)}
-                    className="p-2 hover:bg-white/20 rounded-lg"
-                  >
-                    <X size={24} />
-                  </button>
-                </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="border-t border-gray-200 bg-gray-50 p-6">
+            <div className="text-center text-xs text-gray-500">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <Save size={16} className="text-green-500" />
+                <span className="font-medium">
+                  {periodos.find(p => p.valor === mesSeleccionado)?.etiqueta.toUpperCase()} • PERSISTENCIA COMPLETA
+                </span>
               </div>
-              
-              <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-                <div className="space-y-4">
-                  {matrizWalmart.map((categoria, catIndex) => (
-                    <div key={catIndex} className="border rounded-lg overflow-hidden">
-                      <div className="bg-gray-50 px-4 py-3">
-                        <h3 className="font-bold text-gray-900">{categoria.categoria}</h3>
-                      </div>
-                      <div className="p-4">
-                        {categoria.documentos.map((documento, docIndex) => (
-                          <div key={docIndex} className="mb-4">
-                            <h4 className="font-semibold text-gray-800 mb-2">{documento.nombre}</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              {documento.criterios.map((criterio, critIndex) => (
-                                <div key={critIndex} className="flex items-start gap-2 text-sm">
-                                  <CheckCircle size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
-                                  <span className="text-gray-700">{criterio}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="flex items-center justify-center gap-4 text-xs">
+                <span>Relleno mensual independiente</span>
+                <span>•</span>
+                <span>Estados: Pendiente → Cargado → Revisión → Aceptado/Rechazado</span>
+                <span>•</span>
+                <span>Guardado automático con cada cambio</span>
               </div>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Panel de notificaciones */}
         {mostrarNotificaciones && (
-          <div className="fixed top-20 right-6 w-80 bg-white rounded-xl shadow-2xl border z-40">
-            <div className="p-4 border-b">
+          <div className="fixed top-20 right-6 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-50">
+            <div className="p-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-gray-900 flex items-center gap-2">
                   <Bell size={20} className="text-blue-600" />
