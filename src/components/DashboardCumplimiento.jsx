@@ -38,7 +38,8 @@ import {
   Hourglass,
   UserCheck,
   FileSpreadsheet,
-  PersonStanding
+  PersonStanding,
+  Shield
 } from 'lucide-react';
 
 const DashboardCumplimiento = ({ onCerrarSesion }) => {
