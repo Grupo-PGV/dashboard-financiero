@@ -157,72 +157,337 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     'JOSÉ MORENO': {
       modalidad: 'Envío directo',
       icono: '👤',
-      categoria: 'Servicios',
-      contacto: 'j.moreno@email.com',
+      categoria: 'Persona Natural',
+      contacto: 'jose.moreno@email.cl',
       frecuencia: 'Mensual',
-      fechaInicio: '2022-03',
+      fechaInicio: '2019-11',
       estado: 'Activo',
       documentos: {
         mensuales: [
           'Certificado F30',
-          'Certificado F30-1',
-          'Planilla Cotizaciones Previsionales'
+          'Certificado F30-1'
         ],
         unicos: []
       }
     },
-    'CORMECH': {
+    'CAROZZI': {
       modalidad: 'Envío directo',
-      icono: '🔧',
-      categoria: 'Mecánica',
-      contacto: 'documentos@cormech.cl',
+      icono: '🍪',
+      categoria: 'Alimentos',
+      contacto: 'contratistas@carozzi.cl',
       frecuencia: 'Mensual',
-      fechaInicio: '2020-06',
+      fechaInicio: '2023-11',
       estado: 'Activo',
       documentos: {
         mensuales: [
-          'Certificado F30',
-          'Certificado F30-1',
-          'Planilla Cotizaciones Previsionales'
+          'Detalle de Pago de Cotizaciones Previsionales',
+          'Certificado F30 y F30-1'
         ],
-        unicos: []
+        unicos: [
+          'Certificado de Adhesión a Seguro de Accidentes',
+          'Reglamento interno de la empresa',
+          'Escritura de la empresa y modificaciones',
+          'Pago del IVA',
+          'Balance',
+          'Estado de resultado',
+          'Contrato de Trabajo vigente y anexos',
+          'Nómina de trabajadores',
+          'Fotocopia de cédula de Identidad vigente',
+          'Certificado de antecedentes',
+          'Certificado curso OS10',
+          'Documentación preventiva (EPP, Reglamento)',
+          'Inducción contratistas (Obligatoria)'
+        ]
       }
     },
-    'INGETEAM': {
-      modalidad: 'Plataforma SubcontrataLey',
-      icono: '⚙️',
-      categoria: 'Ingeniería',
-      contacto: 'contratos@ingeteam.cl',
+    'CIMOLAI': {
+      modalidad: 'Envío directo',
+      icono: '🏗',
+      categoria: 'Construcción',
+      contacto: 'documentacion@cimolai.cl',
       frecuencia: 'Mensual',
-      fechaInicio: '2021-01',
+      fechaInicio: '2025-04',
       estado: 'Activo',
       documentos: {
         mensuales: [
-          'Certificado F30',
-          'Certificado F30-1',
+          'Listado de trabajadores periodo mensual',
+          'Liquidaciones de Sueldo mensual',
+          'Certificado F30-1 y Planilla Cotizaciones',
+          'Certificado Antecedentes laborales',
+          'Finiquito mensual',
+          'Certificado Siniestralidad 2025',
+          'Planilla Cotizaciones Mutualidad',
+          'Certificado no aplica comité paritario',
+          'Certificado cotizaciones ACHS'
+        ],
+        unicos: [
+          'Certificado Afiliación Mutualidad'
+        ]
+      }
+    },
+    'CBB - INACAL': {
+      modalidad: 'Envío directo',
+      icono: '🏗',
+      categoria: 'Construcción',
+      contacto: 'seguridad@cbb.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2023-04',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado Finiquitos',
+          'Certificado Antecedentes laborales',
           'Planilla Cotizaciones Previsionales',
-          'Liquidaciones',
-          'Transferencias'
+          'Liquidaciones de Sueldo'
+        ],
+        unicos: [
+          'Política del Sistema de Gestión Seguridad',
+          'Reglamento Interno de Orden',
+          'Certificado de adhesión trabajadores',
+          'Declaración Jurada DL 2763',
+          'Matriz de identificación',
+          'Derecho de información a los trabajadores',
+          'Registro de entrega información',
+          'Anexo de traslado mandante',
+          'Nombramiento y constitución Comité Paritario',
+          'Certificado de capacitación trabajadores',
+          'Derecho información trabajadores',
+          'Reglamento especial para empresas contratistas',
+          'Check List Elementos de Protección',
+          'Registro de entrega de elementos de protección',
+          'Programa de capacitación anual',
+          'Procedimiento trabajo seguro',
+          'Anexo de traslado mandante',
+          'Plan de Seguridad y Salud Ocupacional',
+          'Procedimiento de trabajo seguro',
+          'Recepción Reglamento especial empresas contratistas'
+        ]
+      }
+    },
+    'CBB - READY MIX PARGUA': {
+      modalidad: 'Envío directo',
+      icono: '🚛',
+      categoria: 'Construcción',
+      contacto: 'documentos@cbb.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2022-01',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Nómina de trabajadores',
+          'Liquidaciones de Sueldo',
+          'Certificado Cumplimientos Laborales F30-1',
+          'Planilla Cotizaciones Previsionales',
+          'Certificado Antecedentes laborales',
+          'Finiquito',
+          'Certificado Siniestralidad 2025',
+          'Planilla Cotizaciones Mutualidad 2025',
+          'Certificado aclaración no aplica comité paritario',
+          'Certificado cotizaciones ACHS',
+          'Libro de Remuneraciones'
+        ],
+        unicos: [
+          'Certificado Afiliación Mutualidad'
+        ]
+      }
+    },
+    'TODO MELON + INM SAN PATRICIO': {
+      modalidad: 'Prevsis + InfoControl',
+      icono: '🍈',
+      categoria: 'Agrícola',
+      contacto: 'documentos@todomelon.cl',
+      plataforma: 'Prevsis + InfoControl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2018-03',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Recibo de sueldo o transferencia'
+        ],
+        unicos: [
+          'Cédula de Identidad',
+          'Certificado Cotizaciones Previsionales',
+          'Contrato y Anexos de Trabajo empleado'
+        ]
+      }
+    },
+    'NOVASOURCE': {
+      modalidad: 'Seyse',
+      icono: '🔧',
+      categoria: 'Tecnología',
+      contacto: 'documentos@novasource.cl',
+      plataforma: 'Seyse',
+      frecuencia: 'Mensual',
+      fechaInicio: '2023-10',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado de Antecedentes Laborales y Previsionales (F-30)',
+          'Certificado de Cumplimiento de las Obligaciones Laborales y Previsionales (F30-1)',
+          'Certificado de Pago de Cotizaciones Previsionales (PREVIRED)',
+          'Certificado de Siniestralidad y Listado de Accidentados',
+          'Comprobante de Pago de Remuneraciones',
+          'Nómina de Reporte Mensual de la Empresa'
         ],
         unicos: []
       }
     },
     'WALMART': {
-      modalidad: 'Plataforma Prevsis',
+      modalidad: 'SubcontrataLey',
       icono: '🛒',
       categoria: 'Retail',
-      contacto: 'prevsis@walmart.com',
+      contacto: 'proveedores@walmart.cl',
+      plataforma: 'SubcontrataLey',
+      frecuencia: 'Variable',
+      fechaInicio: '2024-12',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Criterios de revisión de la matriz documental'
+        ],
+        unicos: []
+      },
+      proximosCambios: {
+        mayo2025: [
+          'Programa de Trabajo Preventivo (SGSST)',
+          'Registro Difusión Trabajador Reglamento Interno',
+          'Toma de Conoc. de Trab. Información de Riesgos Laborales',
+          'Toma Conoc. Trab. Matriz IPER del Contratista',
+          'Toma Conoc. Trab. Programa de Trabajo Preventivo',
+          'Capacitación Uso y Mantención de EPP',
+          'Capacitación de Prevención de Riesgos',
+          'Información de riesgos laborales'
+        ],
+        diciembre2025: [
+          'Evaluación de Desempeño del Programa (SGSST)',
+          'Mejora Continua (SGSST)'
+        ]
+      }
+    },
+    'AGROSUPER': {
+      modalidad: 'Plataforma KSEC',
+      icono: '🐷',
+      categoria: 'Agrícola',
+      contacto: 'contratistas@agrosuper.cl',
+      plataforma: 'https://ksec.cl',
       frecuencia: 'Mensual',
-      fechaInicio: '2020-01',
+      fechaInicio: '2017-05',
       estado: 'Activo',
       documentos: {
         mensuales: [
           'Certificado F30',
           'Certificado F30-1',
-          'Planilla Cotizaciones Previsionales',
-          'Liquidaciones',
-          'Transferencias'
+          'Finiquitos'
         ],
+        unicos: [
+          'Contrato de trabajo',
+          'Anexos'
+        ]
+      }
+    },
+    'EBCO': {
+      modalidad: 'Plataforma Ebco Conecta',
+      icono: '⚡',
+      categoria: 'Energía',
+      contacto: 'seguridad@ebco.cl',
+      plataforma: 'https://ebcoconecta.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2023-01',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Liquidaciones',
+          'Libro de asistencia',
+          'Charlas de prevención mensuales',
+          'F-30',
+          'F30-1',
+          'Libro de remuneraciones',
+          'Cotizaciones',
+          'Certificados de la ACHS',
+          'Control de Asistencia'
+        ],
+        unicos: [
+          'Contrato de trabajo',
+          'Anexos'
+        ]
+      }
+    },
+    'DESARROLLO PAÍS': {
+      modalidad: 'Envío directo',
+      icono: '🏛️',
+      categoria: 'Gobierno',
+      contacto: 'documentos@desarrollopais.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2025-06',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Nómina de trabajadores',
+          'Liquidaciones de Sueldo',
+          'Certificado Cumplimientos Laborales F30-1',
+          'Planilla Cotizaciones Previsionales',
+          'Certificado Antecedentes laborales',
+          'Finiquito',
+          'Certificado Siniestralidad 2025',
+          'Planilla Cotizaciones Mutualidad 2025',
+          'Certificado aclaración no aplica comité paritario',
+          'Certificado cotizaciones ACHS',
+          'Libro de Remuneraciones'
+        ],
+        unicos: [
+          'Certificado Afiliación Mutualidad'
+        ]
+      }
+    },
+    'SEMPER': {
+      modalidad: 'Sin requerimientos',
+      icono: '✅',
+      categoria: 'Servicios',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2022-07',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
+        unicos: []
+      }
+    },
+    'BANCO DE CHILE': {
+      modalidad: 'Sin requerimientos',
+      icono: '🏦',
+      categoria: 'Financiero',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2020-03',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
+        unicos: []
+      }
+    },
+    'BIOILS': {
+      modalidad: 'Sin requerimientos',
+      icono: '🛢️',
+      categoria: 'Energía',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2024-03',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
+        unicos: []
+      }
+    },
+    'ARSA GROUP': {
+      modalidad: 'Sin requerimientos',
+      icono: '🏢',
+      categoria: 'Servicios',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2024-02',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
         unicos: []
       }
     },
