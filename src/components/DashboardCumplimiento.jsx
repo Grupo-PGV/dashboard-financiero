@@ -436,314 +436,368 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     cambiarEstado(cliente, documento, tipo, nuevosEstados[siguienteIndice]);
   };
 
-  // 🔧 FUNCIÓN MEJORADA PARA SUBIR NÓMINA EN EXCEL
-  const subirNominaExcel = async (cliente, file) => {
-    console.log(`📋 Iniciando procesamiento de Excel para cliente: ${cliente}`);
-    setSubiendoNomina(prev => ({ ...prev, [cliente]: true }));
-    
-    try {
-      // Validar archivo
-      if (!file) {
-        throw new Error('No se ha seleccionado ningún archivo');
-      }
+// REEMPLAZA SOLO LA FUNCIÓN subirNominaExcel en tu DashboardCumplimiento.jsx
 
-      // Validar tipo de archivo
-      const allowedTypes = [
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-        'application/vnd.ms-excel', // .xls
-        'application/excel',
-        'application/x-excel',
-        'application/x-msexcel'
-      ];
+const subirNominaExcel = async (cliente, file) => {
+  console.log(`📋 Iniciando procesamiento de Excel para cliente: ${cliente}`);
+  setSubiendoNomina(prev => ({ ...prev, [cliente]: true }));
+  
+  try {
+    // Validar archivo
+    if (!file) {
+      throw new Error('No se ha seleccionado ningún archivo');
+    }
 
-      if (!allowedTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls)$/i)) {
-        throw new Error('El archivo debe ser un Excel válido (.xlsx o .xls)');
-      }
+    // Validar tipo de archivo
+    const allowedTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'application/excel',
+      'application/x-excel',
+      'application/x-msexcel'
+    ];
 
-      console.log(`📄 Archivo válido: ${file.name} (${file.size} bytes)`);
+    if (!allowedTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls)$/i)) {
+      throw new Error('El archivo debe ser un Excel válido (.xlsx o .xls)');
+    }
 
-      const reader = new FileReader();
-      reader.onload = async (e) => {
+    console.log(`📄 Archivo válido: ${file.name} (${file.size} bytes)`);
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        console.log('🔄 Procesando contenido del archivo...');
+        
+        // PROCESAMIENTO CORREGIDO DEL EXCEL CON SheetJS
+        const data = new Uint8Array(e.target.result);
+        
+        // IMPORTACIÓN CORREGIDA DE XLSX
+        console.log('📦 Cargando librería XLSX...');
+        let XLSX;
+        
         try {
-          console.log('🔄 Procesando contenido del archivo...');
+          // Método 1: Importar desde CDN con manejo correcto
+          const xlsxModule = await import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
           
-          // PROCESAMIENTO MEJORADO DEL EXCEL CON SheetJS
-          const data = new Uint8Array(e.target.result);
+          // El objeto XLSX puede estar en diferentes lugares dependiendo del módulo
+          XLSX = xlsxModule.default || xlsxModule.XLSX || xlsxModule;
           
-          // Importar SheetJS dinámicamente
-          console.log('📦 Cargando librería XLSX...');
-          const XLSX = await import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
-          
-          // Leer el archivo Excel con opciones mejoradas
-          console.log('📖 Leyendo archivo Excel...');
-          const workbook = XLSX.read(data, { 
-            type: 'array',
-            cellText: false,
-            cellDates: true,
-            cellNF: false,
-            cellStyles: false,
-            sheetStubs: true,
-            defval: ''
-          });
-
-          console.log(`📋 Hojas encontradas: ${workbook.SheetNames.join(', ')}`);
-          
-          // Usar la primera hoja
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          
-          console.log(`📄 Procesando hoja: ${sheetName}`);
-
-          // Convertir a JSON con manejo mejorado
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-            header: 1,
-            defval: '',
-            blankrows: false,
-            raw: false
-          });
-          
-          console.log(`📊 Datos extraídos: ${jsonData.length} filas`);
-
-          // Validar estructura mínima
-          if (jsonData.length < 2) {
-            throw new Error('El archivo debe tener al menos una fila de encabezados y una fila de datos');
+          // Verificar que tenemos el objeto correcto
+          if (!XLSX || typeof XLSX.read !== 'function') {
+            throw new Error('XLSX no cargado correctamente desde CDN');
           }
-
-          // Mostrar primeras filas para debugging
-          console.log('🔍 Primeras 3 filas del Excel:');
-          jsonData.slice(0, 3).forEach((row, i) => {
-            console.log(`  Fila ${i}:`, row);
-          });
-
-          // IDENTIFICACIÓN MEJORADA DE COLUMNAS
-          const headers = jsonData[0].map(h => {
-            if (h === null || h === undefined) return '';
-            return h.toString().toLowerCase().trim();
-          });
           
-          console.log('📋 Headers detectados:', headers);
-
-          // Buscar columnas con múltiples variaciones
-          const nombreCol = headers.findIndex(h => 
-            h.includes('nombre') || 
-            h.includes('name') || 
-            h.includes('trabajador') ||
-            h.includes('empleado') ||
-            h.includes('persona') ||
-            h === 'nombres' ||
-            h === 'apellidos' ||
-            h.includes('completo')
-          );
-
-          const rutCol = headers.findIndex(h => 
-            h.includes('rut') || 
-            h.includes('id') || 
-            h.includes('identificacion') ||
-            h.includes('cedula') ||
-            h.includes('cédula') ||
-            h.includes('dni') ||
-            h.includes('documento') ||
-            h === 'ci'
-          );
-
-          const cargoCol = headers.findIndex(h => 
-            h.includes('cargo') || 
-            h.includes('puesto') || 
-            h.includes('position') || 
-            h.includes('función') ||
-            h.includes('funcion') ||
-            h.includes('trabajo') ||
-            h.includes('empleo') ||
-            h.includes('rol') ||
-            h.includes('area') ||
-            h.includes('área')
-          );
-
-          console.log(`🔍 Índices encontrados - Nombre: ${nombreCol}, RUT: ${rutCol}, Cargo: ${cargoCol}`);
-
-          // Validar columnas requeridas
-          if (nombreCol === -1 || rutCol === -1) {
-            const headersDisplay = headers.map((h, i) => `${i}: "${h}"`).join(', ');
-            throw new Error(
-              `El archivo debe contener columnas "Nombre" y "RUT".\n\n` +
-              `Columnas encontradas: ${headersDisplay}\n\n` +
-              `Nombres aceptados:\n` +
-              `• Para NOMBRE: nombre, name, trabajador, empleado, persona, nombres\n` +
-              `• Para RUT: rut, id, identificacion, cedula, dni, documento, ci`
-            );
-          }
-
-          // PROCESAMIENTO MEJORADO DE TRABAJADORES
-          const trabajadoresProcesados = [];
-          const erroresProcesamiento = [];
+          console.log('✅ XLSX cargado desde CDN');
           
-          console.log('👥 Procesando trabajadores...');
-
-          for (let i = 1; i < jsonData.length; i++) {
-            const row = jsonData[i];
+        } catch (cdnError) {
+          console.warn('⚠️ Error cargando XLSX desde CDN:', cdnError);
+          
+          // Método 2: Verificar si XLSX está disponible globalmente
+          if (typeof window !== 'undefined' && window.XLSX) {
+            XLSX = window.XLSX;
+            console.log('✅ Usando XLSX global');
+          } else {
+            // Método 3: Crear script tag dinámico como fallback
+            console.log('🔄 Cargando XLSX via script tag...');
             
-            // Saltar filas vacías
-            if (!row || row.length === 0 || row.every(cell => !cell || cell.toString().trim() === '')) {
-              console.log(`⏭️ Saltando fila vacía ${i}`);
+            await new Promise((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+              script.onload = () => {
+                if (window.XLSX) {
+                  XLSX = window.XLSX;
+                  console.log('✅ XLSX cargado via script tag');
+                  resolve();
+                } else {
+                  reject(new Error('XLSX no disponible después de cargar script'));
+                }
+              };
+              script.onerror = () => reject(new Error('Error cargando script XLSX'));
+              document.head.appendChild(script);
+            });
+          }
+        }
+
+        // Verificación final
+        if (!XLSX || typeof XLSX.read !== 'function') {
+          throw new Error('No se pudo cargar la librería XLSX. Verifica tu conexión a internet.');
+        }
+        
+        // Leer el archivo Excel con opciones mejoradas
+        console.log('📖 Leyendo archivo Excel...');
+        const workbook = XLSX.read(data, { 
+          type: 'array',
+          cellText: false,
+          cellDates: true,
+          cellNF: false,
+          cellStyles: false,
+          sheetStubs: true,
+          defval: ''
+        });
+
+        console.log(`📋 Hojas encontradas: ${workbook.SheetNames.join(', ')}`);
+        
+        // Usar la primera hoja
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        
+        console.log(`📄 Procesando hoja: ${sheetName}`);
+
+        // Convertir a JSON con manejo mejorado
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+          header: 1,
+          defval: '',
+          blankrows: false,
+          raw: false
+        });
+        
+        console.log(`📊 Datos extraídos: ${jsonData.length} filas`);
+
+        // Validar estructura mínima
+        if (jsonData.length < 2) {
+          throw new Error('El archivo debe tener al menos una fila de encabezados y una fila de datos');
+        }
+
+        // Mostrar primeras filas para debugging
+        console.log('🔍 Primeras 3 filas del Excel:');
+        jsonData.slice(0, 3).forEach((row, i) => {
+          console.log(`  Fila ${i}:`, row);
+        });
+
+        // IDENTIFICACIÓN MEJORADA DE COLUMNAS
+        const headers = jsonData[0].map(h => {
+          if (h === null || h === undefined) return '';
+          return h.toString().toLowerCase().trim();
+        });
+        
+        console.log('📋 Headers detectados:', headers);
+
+        // Buscar columnas con múltiples variaciones
+        const nombreCol = headers.findIndex(h => 
+          h.includes('nombre') || 
+          h.includes('name') || 
+          h.includes('trabajador') ||
+          h.includes('empleado') ||
+          h.includes('persona') ||
+          h === 'nombres' ||
+          h === 'apellidos' ||
+          h.includes('completo')
+        );
+
+        const rutCol = headers.findIndex(h => 
+          h.includes('rut') || 
+          h.includes('id') || 
+          h.includes('identificacion') ||
+          h.includes('cedula') ||
+          h.includes('cédula') ||
+          h.includes('dni') ||
+          h.includes('documento') ||
+          h === 'ci'
+        );
+
+        const cargoCol = headers.findIndex(h => 
+          h.includes('cargo') || 
+          h.includes('puesto') || 
+          h.includes('position') || 
+          h.includes('función') ||
+          h.includes('funcion') ||
+          h.includes('trabajo') ||
+          h.includes('empleo') ||
+          h.includes('rol') ||
+          h.includes('area') ||
+          h.includes('área')
+        );
+
+        console.log(`🔍 Índices encontrados - Nombre: ${nombreCol}, RUT: ${rutCol}, Cargo: ${cargoCol}`);
+
+        // Validar columnas requeridas
+        if (nombreCol === -1 || rutCol === -1) {
+          const headersDisplay = headers.map((h, i) => `${i}: "${h}"`).join(', ');
+          throw new Error(
+            `El archivo debe contener columnas "Nombre" y "RUT".\n\n` +
+            `Columnas encontradas: ${headersDisplay}\n\n` +
+            `Nombres aceptados:\n` +
+            `• Para NOMBRE: nombre, name, trabajador, empleado, persona, nombres\n` +
+            `• Para RUT: rut, id, identificacion, cedula, dni, documento, ci`
+          );
+        }
+
+        // PROCESAMIENTO MEJORADO DE TRABAJADORES
+        const trabajadoresProcesados = [];
+        const erroresProcesamiento = [];
+        
+        console.log('👥 Procesando trabajadores...');
+
+        for (let i = 1; i < jsonData.length; i++) {
+          const row = jsonData[i];
+          
+          // Saltar filas vacías
+          if (!row || row.length === 0 || row.every(cell => !cell || cell.toString().trim() === '')) {
+            console.log(`⏭️ Saltando fila vacía ${i}`);
+            continue;
+          }
+
+          try {
+            // Extraer datos con validación
+            const nombreRaw = row[nombreCol];
+            const rutRaw = row[rutCol];
+            const cargoRaw = cargoCol !== -1 ? row[cargoCol] : null;
+
+            // Validar y limpiar nombre
+            const nombre = nombreRaw ? nombreRaw.toString().trim() : '';
+            if (!nombre) {
+              erroresProcesamiento.push(`Fila ${i + 1}: Nombre vacío`);
               continue;
             }
 
-            try {
-              // Extraer datos con validación
-              const nombreRaw = row[nombreCol];
-              const rutRaw = row[rutCol];
-              const cargoRaw = cargoCol !== -1 ? row[cargoCol] : null;
+            // Validar y limpiar RUT
+            const rut = rutRaw ? rutRaw.toString().trim() : '';
+            if (!rut) {
+              erroresProcesamiento.push(`Fila ${i + 1}: RUT vacío para ${nombre}`);
+              continue;
+            }
 
-              // Validar y limpiar nombre
-              const nombre = nombreRaw ? nombreRaw.toString().trim() : '';
-              if (!nombre) {
-                erroresProcesamiento.push(`Fila ${i + 1}: Nombre vacío`);
-                continue;
-              }
+            // Limpiar RUT (eliminar caracteres no válidos excepto dígitos, K y guión)
+            const rutLimpio = rut.replace(/[^\dkK\-\.]/gi, '').toUpperCase();
+            
+            // Validar formato básico de RUT
+            if (!rutLimpio.match(/^\d{1,8}[\-\.]?[\dkK]$/i)) {
+              erroresProcesamiento.push(`Fila ${i + 1}: RUT inválido "${rut}" para ${nombre}`);
+              continue;
+            }
 
-              // Validar y limpiar RUT
-              const rut = rutRaw ? rutRaw.toString().trim() : '';
-              if (!rut) {
-                erroresProcesamiento.push(`Fila ${i + 1}: RUT vacío para ${nombre}`);
-                continue;
-              }
+            // Procesar cargo
+            const cargo = cargoRaw ? cargoRaw.toString().trim() : 'No especificado';
 
-              // Limpiar RUT (eliminar caracteres no válidos excepto dígitos, K y guión)
-              const rutLimpio = rut.replace(/[^\dkK\-\.]/gi, '').toUpperCase();
+            // Crear objeto trabajador
+            const trabajador = {
+              nombre,
+              rut: rutLimpio,
+              cargo,
+              documentos: {},
+              filaOriginal: i + 1
+            };
+
+            // Inicializar estados para documentos por trabajador
+            const data = clientes[cliente];
+            if (data) {
+              const docsDelCliente = [...data.documentos.mensuales, ...data.documentos.unicos];
+              const docsPorTrabajador = docsDelCliente.filter(doc => 
+                documentosPorTrabajador.includes(doc)
+              );
               
-              // Validar formato básico de RUT
-              if (!rutLimpio.match(/^\d{1,8}[\-\.]?[\dkK]$/i)) {
-                erroresProcesamiento.push(`Fila ${i + 1}: RUT inválido "${rut}" para ${nombre}`);
-                continue;
-              }
-
-              // Procesar cargo
-              const cargo = cargoRaw ? cargoRaw.toString().trim() : 'No especificado';
-
-              // Crear objeto trabajador
-              const trabajador = {
-                nombre,
-                rut: rutLimpio,
-                cargo,
-                documentos: {},
-                filaOriginal: i + 1
-              };
-
-              // Inicializar estados para documentos por trabajador
-              const data = clientes[cliente];
-              if (data) {
-                const docsDelCliente = [...data.documentos.mensuales, ...data.documentos.unicos];
-                const docsPorTrabajador = docsDelCliente.filter(doc => 
-                  documentosPorTrabajador.includes(doc)
-                );
-                
-                docsPorTrabajador.forEach(doc => {
-                  trabajador.documentos[doc] = {
-                    estado: ESTADOS_DOCUMENTO.PENDIENTE,
-                    fechaActualizacion: null,
-                    observaciones: ''
-                  };
-                });
-              }
-
-              trabajadoresProcesados.push(trabajador);
-              console.log(`✅ Trabajador procesado: ${nombre} (${rutLimpio}) - ${cargo}`);
-
-            } catch (error) {
-              erroresProcesamiento.push(`Fila ${i + 1}: Error procesando - ${error.message}`);
-              console.error(`❌ Error en fila ${i + 1}:`, error);
+              docsPorTrabajador.forEach(doc => {
+                trabajador.documentos[doc] = {
+                  estado: ESTADOS_DOCUMENTO.PENDIENTE,
+                  fechaActualizacion: null,
+                  observaciones: ''
+                };
+              });
             }
+
+            trabajadoresProcesados.push(trabajador);
+            console.log(`✅ Trabajador procesado: ${nombre} (${rutLimpio}) - ${cargo}`);
+
+          } catch (error) {
+            erroresProcesamiento.push(`Fila ${i + 1}: Error procesando - ${error.message}`);
+            console.error(`❌ Error en fila ${i + 1}:`, error);
           }
+        }
 
-          console.log(`📊 Resumen procesamiento:`);
-          console.log(`  - Trabajadores válidos: ${trabajadoresProcesados.length}`);
-          console.log(`  - Errores encontrados: ${erroresProcesamiento.length}`);
+        console.log(`📊 Resumen procesamiento:`);
+        console.log(`  - Trabajadores válidos: ${trabajadoresProcesados.length}`);
+        console.log(`  - Errores encontrados: ${erroresProcesamiento.length}`);
 
-          // Validar que se procesaron trabajadores
-          if (trabajadoresProcesados.length === 0) {
-            let mensajeError = 'No se encontraron trabajadores válidos en el archivo.\n\n';
-            
-            if (erroresProcesamiento.length > 0) {
-              mensajeError += 'Errores encontrados:\n' + erroresProcesamiento.join('\n');
-            }
-            
-            mensajeError += '\n\nVerifica que:\n';
-            mensajeError += '• Las columnas tengan los nombres correctos\n';
-            mensajeError += '• Los campos Nombre y RUT no estén vacíos\n';
-            mensajeError += '• El formato del RUT sea válido (ej: 12345678-9)';
-            
-            throw new Error(mensajeError);
-          }
-
-          // Guardar trabajadores procesados
-          setTrabajadoresPorCliente(prev => ({
-            ...prev,
-            [cliente]: trabajadoresProcesados
-          }));
-
-          // Mensaje de éxito mejorado
-          let mensajeExito = `✅ ¡Nómina procesada exitosamente!\n\n`;
-          mensajeExito += `📊 Resumen:\n`;
-          mensajeExito += `• Trabajadores cargados: ${trabajadoresProcesados.length}\n`;
-          mensajeExito += `• Cliente: ${cliente}\n`;
+        // Validar que se procesaron trabajadores
+        if (trabajadoresProcesados.length === 0) {
+          let mensajeError = 'No se encontraron trabajadores válidos en el archivo.\n\n';
           
           if (erroresProcesamiento.length > 0) {
-            mensajeExito += `• Filas con errores: ${erroresProcesamiento.length}\n`;
-          }
-
-          mensajeExito += `\n👥 Primeros trabajadores cargados:\n`;
-          mensajeExito += trabajadoresProcesados.slice(0, 5).map(t => 
-            `• ${t.nombre} (${t.rut}) - ${t.cargo}`
-          ).join('\n');
-
-          if (trabajadoresProcesados.length > 5) {
-            mensajeExito += `\n... y ${trabajadoresProcesados.length - 5} más`;
-          }
-
-          if (erroresProcesamiento.length > 0 && erroresProcesamiento.length <= 10) {
-            mensajeExito += `\n\n⚠️ Errores menores encontrados:\n`;
-            mensajeExito += erroresProcesamiento.slice(0, 5).join('\n');
-            if (erroresProcesamiento.length > 5) {
-              mensajeExito += `\n... y ${erroresProcesamiento.length - 5} errores más`;
-            }
-          }
-
-          alert(mensajeExito);
-          console.log('🎉 Procesamiento completado exitosamente');
-
-        } catch (error) {
-          console.error('❌ Error procesando Excel:', error);
-          
-          let mensajeError = `❌ Error procesando el archivo Excel:\n\n${error.message}`;
-          
-          if (!error.message.includes('columnas')) {
-            mensajeError += `\n\n💡 Formato requerido:\n`;
-            mensajeError += `• Columna "Nombre": Nombre completo del trabajador\n`;
-            mensajeError += `• Columna "RUT": RUT con formato chileno\n`;
-            mensajeError += `• Columna "Cargo": Función del trabajador (opcional)\n\n`;
-            mensajeError += `📋 Nombres aceptados para columnas:\n`;
-            mensajeError += `• NOMBRE: nombre, name, trabajador, empleado\n`;
-            mensajeError += `• RUT: rut, id, identificacion, cedula, dni`;
+            mensajeError += 'Errores encontrados:\n' + erroresProcesamiento.join('\n');
           }
           
-          alert(mensajeError);
+          mensajeError += '\n\nVerifica que:\n';
+          mensajeError += '• Las columnas tengan los nombres correctos\n';
+          mensajeError += '• Los campos Nombre y RUT no estén vacíos\n';
+          mensajeError += '• El formato del RUT sea válido (ej: 12345678-9)';
+          
+          throw new Error(mensajeError);
         }
-      };
 
-      reader.onerror = (error) => {
-        console.error('❌ Error leyendo archivo:', error);
-        alert('❌ Error leyendo el archivo. Asegúrate de que no esté corrupto.');
-      };
-      
-      reader.readAsArrayBuffer(file);
+        // Guardar trabajadores procesados
+        setTrabajadoresPorCliente(prev => ({
+          ...prev,
+          [cliente]: trabajadoresProcesados
+        }));
 
-    } catch (error) {
-      console.error('❌ Error general subiendo archivo:', error);
-      alert(`❌ Error subiendo el archivo:\n${error.message}`);
-    } finally {
-      setSubiendoNomina(prev => ({ ...prev, [cliente]: false }));
-    }
-  };
+        // Mensaje de éxito mejorado
+        let mensajeExito = `✅ ¡Nómina procesada exitosamente!\n\n`;
+        mensajeExito += `📊 Resumen:\n`;
+        mensajeExito += `• Trabajadores cargados: ${trabajadoresProcesados.length}\n`;
+        mensajeExito += `• Cliente: ${cliente}\n`;
+        
+        if (erroresProcesamiento.length > 0) {
+          mensajeExito += `• Filas con errores: ${erroresProcesamiento.length}\n`;
+        }
+
+        mensajeExito += `\n👥 Primeros trabajadores cargados:\n`;
+        mensajeExito += trabajadoresProcesados.slice(0, 5).map(t => 
+          `• ${t.nombre} (${t.rut}) - ${t.cargo}`
+        ).join('\n');
+
+        if (trabajadoresProcesados.length > 5) {
+          mensajeExito += `\n... y ${trabajadoresProcesados.length - 5} más`;
+        }
+
+        if (erroresProcesamiento.length > 0 && erroresProcesamiento.length <= 10) {
+          mensajeExito += `\n\n⚠️ Errores menores encontrados:\n`;
+          mensajeExito += erroresProcesamiento.slice(0, 5).join('\n');
+          if (erroresProcesamiento.length > 5) {
+            mensajeExito += `\n... y ${erroresProcesamiento.length - 5} errores más`;
+          }
+        }
+
+        alert(mensajeExito);
+        console.log('🎉 Procesamiento completado exitosamente');
+
+      } catch (error) {
+        console.error('❌ Error procesando Excel:', error);
+        
+        let mensajeError = `❌ Error procesando el archivo Excel:\n\n${error.message}`;
+        
+        if (error.message.includes('XLSX')) {
+          mensajeError += `\n\n🔧 Posibles soluciones:\n`;
+          mensajeError += `• Verifica tu conexión a internet\n`;
+          mensajeError += `• Recarga la página e intenta nuevamente\n`;
+          mensajeError += `• Prueba con un navegador diferente`;
+        } else if (!error.message.includes('columnas')) {
+          mensajeError += `\n\n💡 Formato requerido:\n`;
+          mensajeError += `• Columna "Nombre": Nombre completo del trabajador\n`;
+          mensajeError += `• Columna "RUT": RUT con formato chileno\n`;
+          mensajeError += `• Columna "Cargo": Función del trabajador (opcional)\n\n`;
+          mensajeError += `📋 Nombres aceptados para columnas:\n`;
+          mensajeError += `• NOMBRE: nombre, name, trabajador, empleado\n`;
+          mensajeError += `• RUT: rut, id, identificacion, cedula, dni`;
+        }
+        
+        alert(mensajeError);
+      }
+    };
+
+    reader.onerror = (error) => {
+      console.error('❌ Error leyendo archivo:', error);
+      alert('❌ Error leyendo el archivo. Asegúrate de que no esté corrupto.');
+    };
+    
+    reader.readAsArrayBuffer(file);
+
+  } catch (error) {
+    console.error('❌ Error general subiendo archivo:', error);
+    alert(`❌ Error subiendo el archivo:\n${error.message}`);
+  } finally {
+    setSubiendoNomina(prev => ({ ...prev, [cliente]: false }));
+  }
+};
 
   // Función para cambiar estado de documento por trabajador
   const cambiarEstadoDocumentoTrabajador = (cliente, rutTrabajador, documento, nuevoEstado) => {
