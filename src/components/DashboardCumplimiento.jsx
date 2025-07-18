@@ -659,21 +659,21 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     const documentos = tipo === 'mensuales' ? data.documentos.mensuales : data.documentos.unicos;
     
     setEstadoDocumentosPorMes(prev => {
-      const nuevoEstado = { ...prev };
+      const nuevoEstadoMes = { ...prev };
       
       documentos.forEach(documento => {
-        if (!nuevoEstado[mesSeleccionado]) nuevoEstado[mesSeleccionado] = {};
-        if (!nuevoEstado[mesSeleccionado][cliente]) nuevoEstado[mesSeleccionado][cliente] = {};
-        if (!nuevoEstado[mesSeleccionado][cliente][tipo]) nuevoEstado[mesSeleccionado][cliente][tipo] = {};
+        if (!nuevoEstadoMes[mesSeleccionado]) nuevoEstadoMes[mesSeleccionado] = {};
+        if (!nuevoEstadoMes[mesSeleccionado][cliente]) nuevoEstadoMes[mesSeleccionado][cliente] = {};
+        if (!nuevoEstadoMes[mesSeleccionado][cliente][tipo]) nuevoEstadoMes[mesSeleccionado][cliente][tipo] = {};
         
-        nuevoEstado[mesSeleccionado][cliente][tipo][documento] = {
+        nuevoEstadoMes[mesSeleccionado][cliente][tipo][documento] = {
           estado: nuevoEstado,
           fechaActualizacion: new Date().toISOString(),
           observaciones: ''
         };
       });
       
-      return nuevoEstado;
+      return nuevoEstadoMes;
     });
   };
 
@@ -1194,7 +1194,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
           {/* Lista de clientes */}
           <div className="p-6">
             <div className="space-y-4">
-              {Object.entries(clientes).map(([nombre, data]) => {
+              {clientesFiltrados.map(([nombre, data]) => {
                 const porcentaje = calcularPorcentaje(nombre);
                 const isExpanded = clientesExpandidos[nombre];
                 
@@ -1252,194 +1252,106 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                       </div>
                     </div>
 
-                    {/* Submenu de nómina y gestión de trabajadores */}
+                    {/* Submenu de nómina */}
                     {submenuActivo[nombre] && (
                       <div className="p-4 bg-blue-50 border-b border-blue-200">
-                        <div className="space-y-4">
-                          {/* Sección de carga de nómina */}
-                          <div className="bg-white rounded-lg p-4 border border-blue-200">
-                            <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                              <FileSpreadsheet size={18} />
-                              Gestión de Nómina Excel
-                            </h4>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {/* Upload de nómina */}
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Subir archivo Excel con nómina
-                                </label>
-                                <input
-                                  type="file"
-                                  accept=".xlsx,.xls"
-                                  onChange={(e) => {
-                                    const file = e.target.files[0];
-                                    if (file) {
-                                      subirNominaExcel(nombre, file);
-                                    }
-                                  }}
-                                  disabled={subiendoNomina[nombre]}
-                                  className="block w-full text-sm text-gray-500
-                                    file:mr-4 file:py-2 file:px-4
-                                    file:rounded-full file:border-0
-                                    file:text-sm file:font-semibold
-                                    file:bg-blue-50 file:text-blue-700
-                                    hover:file:bg-blue-100
-                                    disabled:opacity-50"
-                                />
-                                {subiendoNomina[nombre] && (
-                                  <p className="text-sm text-blue-600 mt-1">Procesando archivo...</p>
-                                )}
-                              </div>
-
-                              {/* Instrucciones */}
-                              <div className="bg-gray-50 p-3 rounded-lg">
-                                <h5 className="font-medium text-gray-800 mb-2">Formato requerido:</h5>
-                                <ul className="text-sm text-gray-600 space-y-1">
-                                  <li>• Columna "Nombre": Nombre completo del trabajador</li>
-                                  <li>• Columna "RUT": RUT con formato XX.XXX.XXX-X</li>
-                                  <li>• Columna "Cargo": Cargo o función del trabajador</li>
-                                </ul>
-                              </div>
-                            </div>
-
-                            {/* Información sobre documentos por trabajador */}
-                            <div className="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-                              <p className="text-sm text-indigo-800 mb-2">
-                                <strong>Documentos gestionados por trabajador:</strong>
-                              </p>
-                              <div className="text-xs text-indigo-700">
-                                {(() => {
-                                  const docsDelCliente = [...data.documentos.mensuales, ...data.documentos.unicos];
-                                  const docsPorTrabajador = docsDelCliente.filter(doc => 
-                                    documentosPorTrabajador.includes(doc)
-                                  );
-                                  return docsPorTrabajador.length > 0 
-                                    ? docsPorTrabajador.join(', ')
-                                    : 'No hay documentos que requieran gestión individual por trabajador';
-                                })()}
-                              </div>
-                            </div>
-
-                            {/* Botón para mostrar/ocultar trabajadores */}
-                            {trabajadoresPorCliente[nombre]?.length > 0 && (
-                              <div className="mt-4">
-                                <button
-                                onClick={() => {
-                                  setClienteFiltro(nombre);
-                                  setMostrarTablaCriticos(false);
-                                }}
-                                className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors"
-                              >
-                                Ver Detalles
-                              </button>
-                            </td>
-                                  onClick={() => toggleGestionTrabajadores(nombre)}
-                                  className={`px-4 py-2 rounded text-sm transition-colors flex items-center gap-2 ${
-                                    mostrarGestionTrabajadores[nombre]
-                                      ? 'bg-indigo-600 text-white'
-                                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                  }`}
-                                >
-                                  <UserCheck size={16} />
-                                  {mostrarGestionTrabajadores[nombre] ? 'Ocultar' : 'Mostrar'} Trabajadores ({trabajadoresPorCliente[nombre].length})
-                                </button>
-                              </div>
+                        <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                          <FileSpreadsheet size={18} />
+                          Gestión de Nómina Excel
+                        </h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <input
+                              type="file"
+                              accept=".xlsx,.xls"
+                              onChange={(e) => {
+                                const file = e.target.files[0];
+                                if (file) {
+                                  subirNominaExcel(nombre, file);
+                                }
+                              }}
+                              disabled={subiendoNomina[nombre]}
+                              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
+                            />
+                            {subiendoNomina[nombre] && (
+                              <p className="text-sm text-blue-600 mt-1">Procesando archivo...</p>
                             )}
                           </div>
+                          
+                          <div className="bg-gray-50 p-3 rounded-lg">
+                            <h5 className="font-medium text-gray-800 mb-2">Formato requerido:</h5>
+                            <ul className="text-sm text-gray-600 space-y-1">
+                              <li>• Columna "Nombre": Nombre completo</li>
+                              <li>• Columna "RUT": RUT con formato</li>
+                              <li>• Columna "Cargo": Función del trabajador</li>
+                            </ul>
+                          </div>
+                        </div>
 
-                          {/* Lista de trabajadores */}
-                          {mostrarGestionTrabajadores[nombre] && trabajadoresPorCliente[nombre]?.length > 0 && (
-                            <div className="bg-white rounded-lg p-4 border border-blue-200">
-                              <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                                <Users size={18} />
-                                Trabajadores Cargados ({trabajadoresPorCliente[nombre].length})
-                              </h4>
-                              
-                              <div className="space-y-3 max-h-96 overflow-y-auto">
-                                {trabajadoresPorCliente[nombre].map((trabajador, index) => (
-                                  <div key={trabajador.rut} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                                    <div className="flex items-center justify-between mb-3">
-                                      <div>
-                                        <h5 className="font-medium text-gray-900">{trabajador.nombre}</h5>
-                                        <p className="text-sm text-gray-600">RUT: {trabajador.rut} • {trabajador.cargo}</p>
-                                      </div>
-                                      <div className="text-sm text-gray-500">
-                                        {(() => {
-                                          const docsDelTrabajador = Object.keys(trabajador.documentos || {});
-                                          const docsAceptados = docsDelTrabajador.filter(doc => 
-                                            trabajador.documentos[doc]?.estado === ESTADOS_DOCUMENTO.ACEPTADO
-                                          ).length;
-                                          const porcentaje = docsDelTrabajador.length > 0 
-                                            ? Math.round((docsAceptados / docsDelTrabajador.length) * 100)
-                                            : 0;
-                                          return `${porcentaje}% completo`;
-                                        })()}
-                                      </div>
-                                    </div>
-
-                                    {/* Documentos del trabajador */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                                      {Object.entries(trabajador.documentos || {}).map(([documento, info]) => {
-                                        const display = getEstadoDisplay(info.estado);
-                                        const IconoEstado = display.icon;
-                                        
-                                        return (
-                                          <div key={documento} className={`flex items-center justify-between p-2 rounded border ${display.bg}`}>
-                                            <div className="flex items-center gap-2 flex-1">
-                                              <button
-                                                onClick={() => {
-                                                  // Ciclar entre estados
-                                                  let nuevoEstado;
-                                                  switch (info.estado) {
-                                                    case ESTADOS_DOCUMENTO.PENDIENTE:
-                                                      nuevoEstado = ESTADOS_DOCUMENTO.ACEPTADO;
-                                                      break;
-                                                    case ESTADOS_DOCUMENTO.ACEPTADO:
-                                                      nuevoEstado = ESTADOS_DOCUMENTO.PENDIENTE;
-                                                      break;
-                                                    default:
-                                                      nuevoEstado = ESTADOS_DOCUMENTO.ACEPTADO;
-                                                  }
-                                                  cambiarEstadoDocumentoTrabajador(nombre, trabajador.rut, documento, nuevoEstado);
-                                                }}
-                                                className="p-1 rounded hover:bg-gray-200 transition-colors"
-                                                title="Cambiar estado"
-                                              >
-                                                <IconoEstado size={12} className={display.color} />
-                                              </button>
-                                              <div className="font-medium text-gray-700 leading-tight text-xs">
-                                                {documento}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
+                        {/* Lista de trabajadores */}
+                        {trabajadoresPorCliente[nombre]?.length > 0 && (
+                          <div className="bg-white rounded-lg p-4 border border-blue-200">
+                            <h4 className="font-semibold text-blue-900 mb-3">
+                              Trabajadores Cargados ({trabajadoresPorCliente[nombre].length})
+                            </h4>
+                            
+                            <div className="space-y-3 max-h-96 overflow-y-auto">
+                              {trabajadoresPorCliente[nombre].map((trabajador) => (
+                                <div key={trabajador.rut} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                      <h5 className="font-medium text-gray-900">{trabajador.nombre}</h5>
+                                      <p className="text-sm text-gray-600">RUT: {trabajador.rut} • {trabajador.cargo}</p>
                                     </div>
                                   </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
 
-                          {/* Estado sin nómina */}
-                          {!trabajadoresPorCliente[nombre]?.length && (
-                            <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
-                              <FileSpreadsheet size={48} className="mx-auto mb-4 text-gray-400" />
-                              <h3 className="text-lg font-medium text-gray-900 mb-2">Sin nómina cargada</h3>
-                              <p className="text-gray-600 mb-4">
-                                Sube un archivo Excel con la nómina de trabajadores para gestionar documentos individuales
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                El archivo debe contener las columnas: Nombre, RUT, Cargo
-                              </p>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                    {Object.entries(trabajador.documentos || {}).map(([documento, info]) => {
+                                      const display = getEstadoDisplay(info.estado);
+                                      const IconoEstado = display.icon;
+                                      
+                                      return (
+                                        <div key={documento} className={`flex items-center justify-between p-2 rounded border ${display.bg}`}>
+                                          <div className="flex items-center gap-2 flex-1">
+                                            <button
+                                              onClick={() => {
+                                                const nuevoEstado = info.estado === ESTADOS_DOCUMENTO.PENDIENTE 
+                                                  ? ESTADOS_DOCUMENTO.ACEPTADO 
+                                                  : ESTADOS_DOCUMENTO.PENDIENTE;
+                                                cambiarEstadoDocumentoTrabajador(nombre, trabajador.rut, documento, nuevoEstado);
+                                              }}
+                                              className="p-1 rounded hover:bg-gray-200 transition-colors"
+                                            >
+                                              <IconoEstado size={12} className={display.color} />
+                                            </button>
+                                            <div className="font-medium text-gray-700 leading-tight text-xs">
+                                              {documento}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
+
+                        {!trabajadoresPorCliente[nombre]?.length && (
+                          <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                            <FileSpreadsheet size={48} className="mx-auto mb-4 text-gray-400" />
+                            <h3 className="text-lg font-medium text-gray-900 mb-2">Sin nómina cargada</h3>
+                            <p className="text-gray-600">
+                              Sube un archivo Excel con la nómina de trabajadores
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
 
-                    {/* Contenido expandido del cliente (documentos generales) */}
+                    {/* Contenido expandido */}
                     {isExpanded && (
                       <div className="p-4">
                         {/* Documentos mensuales */}
@@ -1478,27 +1390,14 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                                         <IconoEstado size={16} className={display.color} />
                                         <span className="text-sm font-medium">{display.text}</span>
                                       </div>
-                                      <div className="flex gap-1">
-                                        <button
-                                          onClick={() => toggleDocumento(nombre, documento, 'mensuales')}
-                                          className="p-1 rounded hover:bg-gray-200 transition-colors"
-                                          title="Cambiar estado"
-                                        >
-                                          <CheckSquare size={12} />
-                                        </button>
-                                      </div>
+                                      <button
+                                        onClick={() => toggleDocumento(nombre, documento, 'mensuales')}
+                                        className="p-1 rounded hover:bg-gray-200 transition-colors"
+                                      >
+                                        <CheckSquare size={12} />
+                                      </button>
                                     </div>
-                                    
-                                    <div>
-                                      <div className="font-medium text-sm mb-1">{documento}</div>
-                                      <div className="text-xs text-gray-600">
-                                        {infoDoc.fechaActualizacion && (
-                                          <div>
-                                            Actualizado: {new Date(infoDoc.fechaActualizacion).toLocaleDateString('es-CL')}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
+                                    <div className="font-medium text-sm mb-1">{documento}</div>
                                   </div>
                                 );
                               })}
@@ -1542,27 +1441,14 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                                         <IconoEstado size={16} className={display.color} />
                                         <span className="text-sm font-medium">{display.text}</span>
                                       </div>
-                                      <div className="flex gap-1">
-                                        <button
-                                          onClick={() => toggleDocumento(nombre, documento, 'unicos')}
-                                          className="p-1 rounded hover:bg-gray-200 transition-colors"
-                                          title="Cambiar estado"
-                                        >
-                                          <CheckSquare size={12} />
-                                        </button>
-                                      </div>
+                                      <button
+                                        onClick={() => toggleDocumento(nombre, documento, 'unicos')}
+                                        className="p-1 rounded hover:bg-gray-200 transition-colors"
+                                      >
+                                        <CheckSquare size={12} />
+                                      </button>
                                     </div>
-                                    
-                                    <div>
-                                      <div className="font-medium text-sm mb-1">{documento}</div>
-                                      <div className="text-xs text-gray-600">
-                                        {infoDoc.fechaActualizacion && (
-                                          <div>
-                                            Actualizado: {new Date(infoDoc.fechaActualizacion).toLocaleDateString('es-CL')}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
+                                    <div className="font-medium text-sm mb-1">{documento}</div>
                                   </div>
                                 );
                               })}
