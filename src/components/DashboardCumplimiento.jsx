@@ -971,23 +971,6 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     return cumpleBusqueda && cumpleFiltroCliente && cumpleFiltroEstado;
   });
 
-  // Función para toggle de documentos
-  const toggleDocumento = (cliente, documento, tipo) => {
-    const infoActual = obtenerInfoDocumento(cliente, documento, tipo);
-    const nuevosEstados = [
-      ESTADOS_DOCUMENTO.PENDIENTE,
-      ESTADOS_DOCUMENTO.CARGADO,
-      ESTADOS_DOCUMENTO.EN_REVISION,
-      ESTADOS_DOCUMENTO.ACEPTADO,
-      ESTADOS_DOCUMENTO.RECHAZADO
-    ];
-    
-    const indiceActual = nuevosEstados.indexOf(infoActual.estado);
-    const siguienteIndice = (indiceActual + 1) % nuevosEstados.length;
-    
-    cambiarEstado(cliente, documento, tipo, nuevosEstados[siguienteIndice]);
-  };
-
   // Auto-guardado
   useEffect(() => {
     const timer = setTimeout(() => {
