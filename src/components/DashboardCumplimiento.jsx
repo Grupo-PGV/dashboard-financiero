@@ -26,7 +26,7 @@ import {
   AlertOctagon,
   CalendarClock,
   Plus,
-  Ticket,
+  TicketCheck,
   Archive,
   Award,
   Bookmark,
@@ -1121,7 +1121,8 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
 
           {/* Controles y filtros */}
           <div className="p-6 border-b border-gray-200 bg-gray-50">
-            <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+            <div className="flex flex-col gap-4">
+              {/* Primera fila - Filtros principales */}
               <div className="flex flex-col sm:flex-row gap-3 flex-1">
                 {/* Filtro de período */}
                 <div className="flex items-center gap-2">
@@ -1182,54 +1183,60 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                     })}
                   </select>
                 </div>
-                
-                <div className="relative">
-                  <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Buscar cliente..."
-                    value={busqueda}
-                    onChange={(e) => setBusqueda(e.target.value)}
-                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                
-                <select
-                  value={filtroEstado}
-                  onChange={(e) => setFiltroEstado(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="todos">Todos los estados</option>
-                  <option value="criticos">Críticos (&lt;50%)</option>
-                  <option value="proceso">En proceso (50-89%)</option>
-                  <option value="completos">Completos (≥90%)</option>
-                </select>
               </div>
               
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setMostrarTablaCriticos(!mostrarTablaCriticos)}
-                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                    mostrarTablaCriticos 
-                      ? 'bg-red-600 text-white' 
-                      : 'bg-white text-red-600 border border-red-600'
-                  }`}
-                >
-                  <AlertTriangle size={16} />
-                  Tabla Críticos
-                </button>
+              {/* Segunda fila - Búsqueda y filtros adicionales */}
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative">
+                    <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Buscar cliente..."
+                      value={busqueda}
+                      onChange={(e) => setBusqueda(e.target.value)}
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  
+                  <select
+                    value={filtroEstado}
+                    onChange={(e) => setFiltroEstado(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="todos">Todos los estados</option>
+                    <option value="criticos">Críticos (&lt;50%)</option>
+                    <option value="proceso">En proceso (50-89%)</option>
+                    <option value="completos">Completos (≥90%)</option>
+                  </select>
+                </div>
+                
+                {/* Botones de acción */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setMostrarTablaCriticos(!mostrarTablaCriticos)}
+                    className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                      mostrarTablaCriticos 
+                        ? 'bg-red-600 text-white' 
+                        : 'bg-white text-red-600 border border-red-600'
+                    }`}
+                  >
+                    <AlertTriangle size={16} />
+                    Tabla Críticos
+                  </button>
 
-                <button
-                  onClick={() => setMostrarDetalles(!mostrarDetalles)}
-                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                    mostrarDetalles 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-white text-blue-600 border border-blue-600'
-                  }`}
-                >
-                  <Eye size={16} />
-                  Detalles
-                </button>
+                  <button
+                    onClick={() => setMostrarDetalles(!mostrarDetalles)}
+                    className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                      mostrarDetalles 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-white text-blue-600 border border-blue-600'
+                    }`}
+                  >
+                    <Eye size={16} />
+                    Detalles
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1568,7 +1575,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                                             className="p-1 rounded hover:bg-gray-200 transition-colors"
                                             title="Cambiar estado"
                                           >
-                                            <Ticket size={12} />
+                                            <TicketCheck size={16} />
                                           </button>
                                           <button
                                             onClick={() => rechazarDocumento(nombre, documento, 'mensuales')}
@@ -1639,7 +1646,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                                             className="p-1 rounded hover:bg-gray-200 transition-colors"
                                             title="Cambiar estado"
                                           >
-                                            <Ticket size={12} />
+                                            <TicketCheck size={16} />
                                           </button>
                                           <button
                                             onClick={() => rechazarDocumento(nombre, documento, 'unicos')}
