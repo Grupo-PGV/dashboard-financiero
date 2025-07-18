@@ -26,7 +26,6 @@ import {
   AlertOctagon,
   CalendarClock,
   Plus,
-  TicketCheck,
   Archive,
   Award,
   Bookmark,
@@ -1575,7 +1574,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                                             className="p-1 rounded hover:bg-gray-200 transition-colors"
                                             title="Cambiar estado"
                                           >
-                                            <TicketCheck size={16} />
+                                            <CheckSquare size={16} />
                                           </button>
                                           <button
                                             onClick={() => rechazarDocumento(nombre, documento, 'mensuales')}
@@ -1646,7 +1645,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                                             className="p-1 rounded hover:bg-gray-200 transition-colors"
                                             title="Cambiar estado"
                                           >
-                                            <TicketCheck size={16} />
+                                            <CheckSquare size={16} />
                                           </button>
                                           <button
                                             onClick={() => rechazarDocumento(nombre, documento, 'unicos')}
