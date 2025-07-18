@@ -108,29 +108,96 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     { valor: '2025-12', etiqueta: 'Diciembre 2025' }
   ];
 
-  // Datos de clientes (simplificado para el ejemplo)
+  // Base de datos completa de clientes PGR Seguridad
   const clientes = {
-    'WALMART': {
-      modalidad: 'SubcontrataLey',
-      icono: '🛒',
-      categoria: 'Retail',
-      contacto: 'proveedores@walmart.cl',
-      plataforma: 'SubcontrataLey',
-      frecuencia: 'Variable',
-      fechaInicio: '2024-12',
-      estado: 'Activo',
+    'INCOPORT': {
+      modalidad: 'Envío directo',
+      icono: '📋',
+      categoria: 'Logística',
+      contacto: 'documentos@incoport.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2021-01',
+      fechaTermino: '2025-05',
+      estado: 'Terminado',
       documentos: {
         mensuales: [
           'Liquidaciones de Sueldo',
+          'Libro Asistencia',
+          'Certificado F30',
+          'Certificado F30-1',
+          'Planilla Cotizaciones Previsionales'
+        ],
+        unicos: []
+      }
+    },
+    'ALIANZA INMOBILIARIO': {
+      modalidad: 'Envío directo',
+      icono: '🏢',
+      categoria: 'Inmobiliario',
+      contacto: 'documentos@alianza.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2021-02',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
           'Nómina de Personal',
+          'Certificado F30',
+          'Certificado F30-1',
+          'Liquidación y Transferencias',
+          'Certificado Cotizaciones'
+        ],
+        unicos: []
+      }
+    },
+    'IMEL': {
+      modalidad: 'Envío directo',
+      icono: '⚙️',
+      categoria: 'Industrial',
+      contacto: 'administracion@imel.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2022-01',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado F30',
+          'Certificado F30-1',
           'Planilla Cotizaciones Previsionales',
+          'Liquidaciones',
+          'Transferencias'
+        ],
+        unicos: []
+      }
+    },
+    'FULL LOGISTIC': {
+      modalidad: 'Envío directo',
+      icono: '🚛',
+      categoria: 'Logística',
+      contacto: 'operaciones@fulllogistic.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2020-04',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado F30',
           'Certificado F30-1'
         ],
-        unicos: [
-          'Contrato y Anexos de Trabajo empleado',
-          'Cédula de Identidad',
-          'Certificado Antecedentes laborales'
-        ]
+        unicos: []
+      }
+    },
+    'JOSÉ MORENO': {
+      modalidad: 'Envío directo',
+      icono: '👤',
+      categoria: 'Persona Natural',
+      contacto: 'jose.moreno@email.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2019-11',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado F30',
+          'Certificado F30-1'
+        ],
+        unicos: []
       }
     },
     'CAROZZI': {
@@ -143,15 +210,23 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       estado: 'Activo',
       documentos: {
         mensuales: [
-          'Liquidaciones de Sueldo',
-          'Planilla Cotizaciones Previsionales',
+          'Detalle de Pago de Cotizaciones Previsionales',
           'Certificado F30 y F30-1'
         ],
         unicos: [
+          'Certificado de Adhesión a Seguro de Accidentes',
+          'Reglamento interno de la empresa',
+          'Escritura de la empresa y modificaciones',
+          'Pago del IVA',
+          'Balance',
+          'Estado de resultado',
           'Contrato de Trabajo vigente y anexos',
           'Nómina de trabajadores',
           'Fotocopia de cédula de Identidad vigente',
-          'Certificado de antecedentes'
+          'Certificado de antecedentes',
+          'Certificado curso OS10',
+          'Documentación preventiva (EPP, Reglamento)',
+          'Inducción contratistas (Obligatoria)'
         ]
       }
     },
@@ -167,12 +242,296 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
         mensuales: [
           'Listado de trabajadores periodo mensual',
           'Liquidaciones de Sueldo mensual',
-          'Finiquitos',
-          'Planilla Cotizaciones Previsionales'
+          'Certificado F30-1 y Planilla Cotizaciones',
+          'Certificado Antecedentes laborales',
+          'Finiquito mensual',
+          'Certificado Siniestralidad 2025',
+          'Planilla Cotizaciones Mutualidad',
+          'Certificado no aplica comité paritario',
+          'Certificado cotizaciones ACHS'
         ],
         unicos: [
           'Certificado Afiliación Mutualidad'
         ]
+      }
+    },
+    'CBB - INACAL': {
+      modalidad: 'Envío directo',
+      icono: '🏗',
+      categoria: 'Construcción',
+      contacto: 'seguridad@cbb.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2023-04',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado Finiquitos',
+          'Certificado Antecedentes laborales',
+          'Planilla Cotizaciones Previsionales',
+          'Liquidaciones de Sueldo'
+        ],
+        unicos: [
+          'Política del Sistema de Gestión Seguridad',
+          'Reglamento Interno de Orden',
+          'Certificado de adhesión trabajadores',
+          'Declaración Jurada DL 2763',
+          'Matriz de identificación',
+          'Derecho de información a los trabajadores',
+          'Registro de entrega información',
+          'Anexo de traslado mandante',
+          'Nombramiento y constitución Comité Paritario',
+          'Certificado de capacitación trabajadores',
+          'Derecho información trabajadores',
+          'Reglamento especial para empresas contratistas',
+          'Check List Elementos de Protección',
+          'Registro de entrega de elementos de protección',
+          'Programa de capacitación anual',
+          'Procedimiento trabajo seguro',
+          'Anexo de traslado mandante',
+          'Plan de Seguridad y Salud Ocupacional',
+          'Procedimiento de trabajo seguro',
+          'Recepción Reglamento especial empresas contratistas'
+        ]
+      }
+    },
+    'CBB - READY MIX PARGUA': {
+      modalidad: 'Envío directo',
+      icono: '🚛',
+      categoria: 'Construcción',
+      contacto: 'documentos@cbb.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2022-01',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Nómina de trabajadores',
+          'Liquidaciones de Sueldo',
+          'Certificado Cumplimientos Laborales F30-1',
+          'Planilla Cotizaciones Previsionales',
+          'Certificado Antecedentes laborales',
+          'Finiquito',
+          'Certificado Siniestralidad 2025',
+          'Planilla Cotizaciones Mutualidad 2025',
+          'Certificado aclaración no aplica comité paritario',
+          'Certificado cotizaciones ACHS',
+          'Libro de Remuneraciones'
+        ],
+        unicos: [
+          'Certificado Afiliación Mutualidad'
+        ]
+      }
+    },
+    'TODO MELON + INM SAN PATRICIO': {
+      modalidad: 'Prevsis + InfoControl',
+      icono: '🍈',
+      categoria: 'Agrícola',
+      contacto: 'documentos@todomelon.cl',
+      plataforma: 'Prevsis + InfoControl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2018-03',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Recibo de sueldo o transferencia'
+        ],
+        unicos: [
+          'Cédula de Identidad',
+          'Certificado Cotizaciones Previsionales',
+          'Contrato y Anexos de Trabajo empleado'
+        ]
+      }
+    },
+    'NOVASOURCE': {
+      modalidad: 'Seyse',
+      icono: '🔧',
+      categoria: 'Tecnología',
+      contacto: 'documentos@novasource.cl',
+      plataforma: 'Seyse',
+      frecuencia: 'Mensual',
+      fechaInicio: '2023-10',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado de Antecedentes Laborales y Previsionales (F-30)',
+          'Certificado de Cumplimiento de las Obligaciones Laborales y Previsionales (F30-1)',
+          'Certificado de Pago de Cotizaciones Previsionales (PREVIRED)',
+          'Certificado de Siniestralidad y Listado de Accidentados',
+          'Comprobante de Pago de Remuneraciones',
+          'Nómina de Reporte Mensual de la Empresa'
+        ],
+        unicos: []
+      }
+    },
+    'WALMART': {
+      modalidad: 'SubcontrataLey',
+      icono: '🛒',
+      categoria: 'Retail',
+      contacto: 'proveedores@walmart.cl',
+      plataforma: 'SubcontrataLey',
+      frecuencia: 'Variable',
+      fechaInicio: '2024-12',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Criterios de revisión de la matriz documental'
+        ],
+        unicos: []
+      },
+      proximosCambios: {
+        mayo2025: [
+          'Programa de Trabajo Preventivo (SGSST)',
+          'Registro Difusión Trabajador Reglamento Interno',
+          'Toma de Conoc. de Trab. Información de Riesgos Laborales',
+          'Toma Conoc. Trab. Matriz IPER del Contratista',
+          'Toma Conoc. Trab. Programa de Trabajo Preventivo',
+          'Capacitación Uso y Mantención de EPP',
+          'Capacitación de Prevención de Riesgos',
+          'Información de riesgos laborales'
+        ],
+        diciembre2025: [
+          'Evaluación de Desempeño del Programa (SGSST)',
+          'Mejora Continua (SGSST)'
+        ]
+      }
+    },
+    'AGROSUPER': {
+      modalidad: 'Plataforma KSEC',
+      icono: '🐷',
+      categoria: 'Agrícola',
+      contacto: 'contratistas@agrosuper.cl',
+      plataforma: 'https://ksec.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2017-05',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado F30',
+          'Certificado F30-1',
+          'Finiquitos'
+        ],
+        unicos: [
+          'Contrato de trabajo',
+          'Anexos'
+        ]
+      }
+    },
+    'EBCO': {
+      modalidad: 'Plataforma Ebco Conecta',
+      icono: '⚡',
+      categoria: 'Energía',
+      contacto: 'seguridad@ebco.cl',
+      plataforma: 'https://ebcoconecta.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2023-01',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Liquidaciones',
+          'Libro de asistencia',
+          'Charlas de prevención mensuales',
+          'F-30',
+          'F30-1',
+          'Libro de remuneraciones',
+          'Cotizaciones',
+          'Certificados de la ACHS',
+          'Control de Asistencia'
+        ],
+        unicos: [
+          'Contrato de trabajo',
+          'Anexos'
+        ]
+      }
+    },
+    'DESARROLLO PAÍS': {
+      modalidad: 'Envío directo',
+      icono: '🏛️',
+      categoria: 'Gobierno',
+      contacto: 'documentos@desarrollopais.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2025-06',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Nómina de trabajadores',
+          'Liquidaciones de Sueldo',
+          'Certificado Cumplimientos Laborales F30-1',
+          'Planilla Cotizaciones Previsionales',
+          'Certificado Antecedentes laborales',
+          'Finiquito',
+          'Certificado Siniestralidad 2025',
+          'Planilla Cotizaciones Mutualidad 2025',
+          'Certificado aclaración no aplica comité paritario',
+          'Certificado cotizaciones ACHS',
+          'Libro de Remuneraciones'
+        ],
+        unicos: [
+          'Certificado Afiliación Mutualidad'
+        ]
+      }
+    },
+    'SEMPER': {
+      modalidad: 'Sin requerimientos',
+      icono: '✅',
+      categoria: 'Servicios',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2022-07',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
+        unicos: []
+      }
+    },
+    'BANCO DE CHILE': {
+      modalidad: 'Sin requerimientos',
+      icono: '🏦',
+      categoria: 'Financiero',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2020-03',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
+        unicos: []
+      }
+    },
+    'BIOILS': {
+      modalidad: 'Sin requerimientos',
+      icono: '🛢️',
+      categoria: 'Energía',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2024-03',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
+        unicos: []
+      }
+    },
+    'ARSA GROUP': {
+      modalidad: 'Sin requerimientos',
+      icono: '🏢',
+      categoria: 'Servicios',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2024-02',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
+        unicos: []
+      }
+    },
+    'ENERGYA': {
+      modalidad: 'Sin requerimientos',
+      icono: '⚡',
+      categoria: 'Energía',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2024-05',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
+        unicos: []
       }
     }
   };
@@ -343,55 +702,105 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
-          // Aquí implementarías la lógica real para procesar el Excel
-          // Por ahora simularemos algunos trabajadores de ejemplo
-          const trabajadoresSimulados = [
-            { nombre: 'Juan Pérez', rut: '12.345.678-9', cargo: 'Operario' },
-            { nombre: 'María González', rut: '98.765.432-1', cargo: 'Supervisora' },
-            { nombre: 'Carlos Rodríguez', rut: '11.222.333-4', cargo: 'Técnico' },
-            { nombre: 'Ana López', rut: '15.555.666-7', cargo: 'Administrativa' },
-            { nombre: 'Pedro Martínez', rut: '18.999.888-K', cargo: 'Jefe de Turno' }
-          ];
+          // PROCESAMIENTO REAL DEL EXCEL CON SheetJS
+          const data = new Uint8Array(e.target.result);
           
-          // Inicializar estados de documentos por trabajador
-          const trabajadoresConEstados = trabajadoresSimulados.map(trabajador => ({
-            ...trabajador,
-            documentos: {}
-          }));
+          // Importar SheetJS dinámicamente
+          const XLSX = await import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
           
-          // Inicializar estados para documentos por trabajador
-          const data = clientes[cliente];
-          if (data) {
-            const docsDelCliente = [...data.documentos.mensuales, ...data.documentos.unicos];
-            const docsPorTrabajador = docsDelCliente.filter(doc => 
-              documentosPorTrabajador.includes(doc)
-            );
-            
-            trabajadoresConEstados.forEach(trabajador => {
-              docsPorTrabajador.forEach(doc => {
-                trabajador.documentos[doc] = {
-                  estado: ESTADOS_DOCUMENTO.PENDIENTE,
-                  fechaActualizacion: null,
-                  observaciones: ''
-                };
-              });
-            });
+          // Leer el archivo Excel
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          
+          // Convertir a JSON
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          
+          if (jsonData.length < 2) {
+            throw new Error('El archivo debe tener al menos una fila de encabezados y una fila de datos');
           }
           
+          // Identificar columnas (buscar variaciones de nombres)
+          const headers = jsonData[0].map(h => h?.toString().toLowerCase().trim());
+          const nombreCol = headers.findIndex(h => 
+            h.includes('nombre') || h.includes('name') || h.includes('trabajador')
+          );
+          const rutCol = headers.findIndex(h => 
+            h.includes('rut') || h.includes('id') || h.includes('identificacion')
+          );
+          const cargoCol = headers.findIndex(h => 
+            h.includes('cargo') || h.includes('puesto') || h.includes('position') || h.includes('función')
+          );
+          
+          if (nombreCol === -1 || rutCol === -1) {
+            throw new Error('El archivo debe contener columnas "Nombre" y "RUT". Columnas encontradas: ' + headers.join(', '));
+          }
+          
+          // Procesar trabajadores
+          const trabajadoresProcesados = [];
+          
+          for (let i = 1; i < jsonData.length; i++) {
+            const row = jsonData[i];
+            if (!row || row.length === 0) continue;
+            
+            const nombre = row[nombreCol]?.toString().trim();
+            const rut = row[rutCol]?.toString().trim();
+            const cargo = cargoCol !== -1 ? row[cargoCol]?.toString().trim() : 'No especificado';
+            
+            if (nombre && rut) {
+              // Validar formato RUT básico
+              const rutLimpio = rut.replace(/[^\dkK\-\.]/g, '');
+              
+              const trabajador = {
+                nombre,
+                rut: rutLimpio,
+                cargo,
+                documentos: {}
+              };
+              
+              // Inicializar estados para documentos por trabajador
+              const data = clientes[cliente];
+              if (data) {
+                const docsDelCliente = [...data.documentos.mensuales, ...data.documentos.unicos];
+                const docsPorTrabajador = docsDelCliente.filter(doc => 
+                  documentosPorTrabajador.includes(doc)
+                );
+                
+                docsPorTrabajador.forEach(doc => {
+                  trabajador.documentos[doc] = {
+                    estado: ESTADOS_DOCUMENTO.PENDIENTE,
+                    fechaActualizacion: null,
+                    observaciones: ''
+                  };
+                });
+              }
+              
+              trabajadoresProcesados.push(trabajador);
+            }
+          }
+          
+          if (trabajadoresProcesados.length === 0) {
+            throw new Error('No se encontraron trabajadores válidos en el archivo');
+          }
+          
+          // Guardar trabajadores procesados
           setTrabajadoresPorCliente(prev => ({
             ...prev,
-            [cliente]: trabajadoresConEstados
+            [cliente]: trabajadoresProcesados
           }));
           
-          alert(`Nómina procesada exitosamente: ${trabajadoresSimulados.length} trabajadores agregados`);
+          alert(`✅ Nómina procesada exitosamente:\n${trabajadoresProcesados.length} trabajadores cargados\n\nPrimeros 3 trabajadores:\n${trabajadoresProcesados.slice(0, 3).map(t => `• ${t.nombre} (${t.rut})`).join('\n')}`);
+          
         } catch (error) {
-          alert('Error procesando el archivo Excel');
+          console.error('Error procesando Excel:', error);
+          alert(`❌ Error procesando el archivo Excel:\n${error.message}\n\nAsegúrate de que el archivo contenga las columnas:\n• Nombre\n• RUT\n• Cargo (opcional)`);
         }
       };
       
       reader.readAsArrayBuffer(file);
     } catch (error) {
-      alert('Error subiendo el archivo');
+      console.error('Error subiendo archivo:', error);
+      alert('❌ Error subiendo el archivo. Asegúrate de que sea un archivo Excel válido (.xlsx o .xls)');
     } finally {
       setSubiendoNomina(prev => ({ ...prev, [cliente]: false }));
     }
@@ -435,26 +844,161 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     }));
   };
 
-  // Cargar datos del localStorage
+  // Función para determinar si un cliente estaba activo en un mes específico
+  const obtenerClientesActivosEnMes = (mesSeleccionado) => {
+    const [año, mes] = mesSeleccionado.split('-');
+    const fechaSeleccionada = new Date(parseInt(año), parseInt(mes) - 1, 15); // Día 15 del mes seleccionado
+    
+    return Object.entries(clientes).filter(([nombreCliente, data]) => {
+      // Crear fechas de inicio y término
+      const fechaInicio = new Date(data.fechaInicio + '-01'); // Primer día del mes de inicio
+      
+      // Si el cliente tiene fecha de término, crear fecha de fin
+      let fechaTermino = null;
+      if (data.fechaTermino) {
+        const [añoTermino, mesTermino] = data.fechaTermino.split('-');
+        fechaTermino = new Date(parseInt(añoTermino), parseInt(mesTermino) - 1, 31); // Último día del mes de término
+      }
+      
+      // Verificar si el cliente estaba activo en la fecha seleccionada
+      const estabaActivo = fechaSeleccionada >= fechaInicio && 
+                          (!fechaTermino || fechaSeleccionada <= fechaTermino);
+      
+      return estabaActivo;
+    });
+  };
+
+  // Función para obtener estado de documentos
+  const obtenerEstadoDocumentos = () => {
+    return estadoDocumentosPorMes[mesSeleccionado] || {};
+  };
+
+  // Función para inicializar estado de documentos por mes
+  const inicializarEstadoDocumentos = () => {
+    const estadoInicial = {};
+    
+    periodos.forEach(periodo => {
+      estadoInicial[periodo.valor] = {};
+      
+      Object.entries(clientes).forEach(([cliente, data]) => {
+        estadoInicial[periodo.valor][cliente] = {
+          mensuales: {},
+          unicos: {}
+        };
+        
+        // Inicializar documentos mensuales
+        data.documentos.mensuales.forEach(doc => {
+          estadoInicial[periodo.valor][cliente].mensuales[doc] = {
+            estado: ESTADOS_DOCUMENTO.PENDIENTE,
+            fechaActualizacion: null,
+            observaciones: ''
+          };
+        });
+        
+        // Inicializar documentos únicos
+        data.documentos.unicos.forEach(doc => {
+          estadoInicial[periodo.valor][cliente].unicos[doc] = {
+            estado: ESTADOS_DOCUMENTO.PENDIENTE,
+            fechaActualizacion: null,
+            observaciones: ''
+          };
+        });
+      });
+    });
+    
+    return estadoInicial;
+  };
+
+  // Cargar datos del localStorage preservando datos existentes
   useEffect(() => {
     const datosGuardados = JSON.parse(localStorage.getItem('pgr_cumplimiento_contratos_v4') || '{}');
-    if (Object.keys(datosGuardados).length > 0) {
-      setEstadoDocumentosPorMes(datosGuardados.estadoDocumentosPorMes || {});
+    
+    if (Object.keys(datosGuardados).length > 0 && datosGuardados.estadoDocumentosPorMes) {
+      const estadoExistente = datosGuardados.estadoDocumentosPorMes;
+      const estadoCompleto = inicializarEstadoDocumentos();
+      
+      // Mezclar datos existentes con estructura completa
+      Object.keys(estadoCompleto).forEach(mes => {
+        if (estadoExistente[mes]) {
+          Object.keys(estadoCompleto[mes]).forEach(cliente => {
+            if (estadoExistente[mes][cliente]) {
+              estadoCompleto[mes][cliente] = {
+                ...estadoCompleto[mes][cliente],
+                ...estadoExistente[mes][cliente]
+              };
+            }
+          });
+        }
+      });
+      
+      setEstadoDocumentosPorMes(estadoCompleto);
+    } else {
+      setEstadoDocumentosPorMes(inicializarEstadoDocumentos());
     }
 
     const trabajadoresGuardados = JSON.parse(localStorage.getItem('pgr_trabajadores_v1') || '{}');
     setTrabajadoresPorCliente(trabajadoresGuardados);
   }, []);
 
+  // Resetear filtro de cliente cuando cambie el mes
+  useEffect(() => {
+    if (clienteFiltro) {
+      const clientesActivos = obtenerClientesActivosEnMes(mesSeleccionado);
+      const clienteActivoEnMes = clientesActivos.find(([nombre]) => nombre === clienteFiltro);
+      if (!clienteActivoEnMes) {
+        setClienteFiltro('');
+      }
+    }
+  }, [mesSeleccionado]);
+
+  // Filtrado de clientes mejorado basándose en clientes activos del mes
+  const clientesFiltrados = obtenerClientesActivosEnMes(mesSeleccionado).filter(([nombre, data]) => {
+    // Filtro de búsqueda
+    const cumpleBusqueda = !busqueda || 
+      nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+      data.categoria.toLowerCase().includes(busqueda.toLowerCase());
+    
+    // Filtro de cliente específico
+    const cumpleFiltroCliente = !clienteFiltro || clienteFiltro === nombre;
+    
+    // Calcular porcentaje para filtro de estado
+    const porcentaje = calcularPorcentaje(nombre);
+    const cumpleFiltroEstado = filtroEstado === 'todos' ||
+      (filtroEstado === 'criticos' && porcentaje < 50) ||
+      (filtroEstado === 'proceso' && porcentaje >= 50 && porcentaje < 90) ||
+      (filtroEstado === 'completos' && porcentaje >= 90);
+
+    return cumpleBusqueda && cumpleFiltroCliente && cumpleFiltroEstado;
+  });
+
+  // Función para toggle de documentos
+  const toggleDocumento = (cliente, documento, tipo) => {
+    const infoActual = obtenerInfoDocumento(cliente, documento, tipo);
+    const nuevosEstados = [
+      ESTADOS_DOCUMENTO.PENDIENTE,
+      ESTADOS_DOCUMENTO.CARGADO,
+      ESTADOS_DOCUMENTO.EN_REVISION,
+      ESTADOS_DOCUMENTO.ACEPTADO,
+      ESTADOS_DOCUMENTO.RECHAZADO
+    ];
+    
+    const indiceActual = nuevosEstados.indexOf(infoActual.estado);
+    const siguienteIndice = (indiceActual + 1) % nuevosEstados.length;
+    
+    cambiarEstado(cliente, documento, tipo, nuevosEstados[siguienteIndice]);
+  };
+
   // Auto-guardado
   useEffect(() => {
     const timer = setTimeout(() => {
+      setGuardandoAutomatico(true);
       localStorage.setItem('pgr_cumplimiento_contratos_v4', JSON.stringify({
         estadoDocumentosPorMes,
         ultimoGuardado: new Date().toISOString()
       }));
       localStorage.setItem('pgr_trabajadores_v1', JSON.stringify(trabajadoresPorCliente));
       setUltimoGuardado(new Date());
+      setTimeout(() => setGuardandoAutomatico(false), 500);
     }, 1000);
 
     return () => clearTimeout(timer);
@@ -798,6 +1342,15 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                             {trabajadoresPorCliente[nombre]?.length > 0 && (
                               <div className="mt-4">
                                 <button
+                                onClick={() => {
+                                  setClienteFiltro(nombre);
+                                  setMostrarTablaCriticos(false);
+                                }}
+                                className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors"
+                              >
+                                Ver Detalles
+                              </button>
+                            </td>
                                   onClick={() => toggleGestionTrabajadores(nombre)}
                                   className={`px-4 py-2 rounded text-sm transition-colors flex items-center gap-2 ${
                                     mostrarGestionTrabajadores[nombre]
