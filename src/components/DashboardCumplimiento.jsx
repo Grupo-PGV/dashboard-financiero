@@ -34,7 +34,10 @@ import {
   Save,
   XCircle,
   AlertCircle,
-  Hourglass
+  Hourglass,
+  UserCheck,
+  FileSpreadsheet,
+  PersonStanding
 } from 'lucide-react';
 
 const DashboardCumplimiento = ({ onCerrarSesion }) => {
@@ -51,6 +54,33 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
   const [ultimoGuardado, setUltimoGuardado] = useState(null);
   const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
   const [guardandoAutomatico, setGuardandoAutomatico] = useState(false);
+  const [trabajadoresPorCliente, setTrabajadoresPorCliente] = useState({});
+  const [mostrarGestionTrabajadores, setMostrarGestionTrabajadores] = useState({});
+  const [subiendoNomina, setSubiendoNomina] = useState({});
+
+  // Documentos que se gestionan por trabajador individual
+  const documentosPorTrabajador = [
+    'Liquidaciones de Sueldo',
+    'Nómina de Personal', 
+    'Planilla Cotizaciones Previsionales',
+    'Finiquitos',
+    'Cédula de Identidad',
+    'Contrato y Anexos de Trabajo empleado',
+    'Contrato de Trabajo vigente y anexos',
+    'Fotocopia de cédula de Identidad vigente',
+    'Contrato de trabajo',
+    'Anexos',
+    'Liquidaciones',
+    'Liquidaciones de Sueldo mensual',
+    'Listado de trabajadores periodo mensual',
+    'Certificado Antecedentes laborales',
+    'Finiquito mensual',
+    'Finiquito',
+    'Libro de Remuneraciones',
+    'Nómina de trabajadores',
+    'Recibo de sueldo o transferencia',
+    'Comprobante de Pago de Remuneraciones'
+  ];
 
   // Estados posibles para cada documento
   const ESTADOS_DOCUMENTO = {
@@ -543,6 +573,113 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       }
     }
   }, [mesSeleccionado]);
+
+  // Cargar trabajadores del localStorage
+  useEffect(() => {
+    const trabajadoresGuardados = JSON.parse(localStorage.getItem('pgr_trabajadores_v1') || '{}');
+    setTrabajadoresPorCliente(trabajadoresGuardados);
+  }, []);
+
+  // Auto-guardado de trabajadores
+  useEffect(() => {
+    if (Object.keys(trabajadoresPorCliente).length > 0) {
+      localStorage.setItem('pgr_trabajadores_v1', JSON.stringify(trabajadoresPorCliente));
+    }
+  }, [trabajadoresPorCliente]);
+
+  // Función para subir nómina en Excel
+  const subirNominaExcel = async (cliente, file) => {
+    setSubiendoNomina(prev => ({ ...prev, [cliente]: true }));
+    
+    try {
+      const data = new FormData();
+      data.append('file', file);
+      
+      // Simular procesamiento del Excel
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          // Aquí iría la lógica para procesar el Excel con SheetJS
+          // Por ahora simularemos algunos trabajadores
+          const trabajadoresSimulados = [
+            { nombre: 'Juan Pérez', rut: '12.345.678-9', cargo: 'Operario' },
+            { nombre: 'María González', rut: '98.765.432-1', cargo: 'Supervisora' },
+            { nombre: 'Carlos Rodríguez', rut: '11.222.333-4', cargo: 'Técnico' }
+          ];
+          
+          // Inicializar estados de documentos por trabajador
+          const trabajadoresConEstados = trabajadoresSimulados.map(trabajador => ({
+            ...trabajador,
+            documentos: {}
+          }));
+          
+          // Inicializar estados para documentos por trabajador
+          const data = clientes[cliente];
+          if (data) {
+            const docsDelCliente = [...data.documentos.mensuales, ...data.documentos.unicos];
+            const docsPorTrabajador = docsDelCliente.filter(doc => 
+              documentosPorTrabajador.includes(doc)
+            );
+            
+            trabajadoresConEstados.forEach(trabajador => {
+              docsPorTrabajador.forEach(doc => {
+                trabajador.documentos[doc] = {
+                  estado: ESTADOS_DOCUMENTO.PENDIENTE,
+                  fechaActualizacion: null,
+                  observaciones: ''
+                };
+              });
+            });
+          }
+          
+          setTrabajadoresPorCliente(prev => ({
+            ...prev,
+            [cliente]: trabajadoresConEstados
+          }));
+          
+          alert(`Nómina procesada exitosamente: ${trabajadoresSimulados.length} trabajadores agregados`);
+        } catch (error) {
+          alert('Error procesando el archivo Excel');
+        }
+      };
+      
+      reader.readAsArrayBuffer(file);
+    } catch (error) {
+      alert('Error subiendo el archivo');
+    } finally {
+      setSubiendoNomina(prev => ({ ...prev, [cliente]: false }));
+    }
+  };
+
+  // Función para cambiar estado de documento por trabajador
+  const cambiarEstadoDocumentoTrabajador = (cliente, rutTrabajador, documento, nuevoEstado) => {
+    setTrabajadoresPorCliente(prev => ({
+      ...prev,
+      [cliente]: prev[cliente]?.map(trabajador => 
+        trabajador.rut === rutTrabajador 
+          ? {
+              ...trabajador,
+              documentos: {
+                ...trabajador.documentos,
+                [documento]: {
+                  estado: nuevoEstado,
+                  fechaActualizacion: new Date().toISOString(),
+                  observaciones: ''
+                }
+              }
+            }
+          : trabajador
+      ) || []
+    }));
+  };
+
+  // Función para togglear gestión de trabajadores
+  const toggleGestionTrabajadores = (cliente) => {
+    setMostrarGestionTrabajadores(prev => ({
+      ...prev,
+      [cliente]: !prev[cliente]
+    }));
+  };
 
   // Función para inicializar estado de documentos por mes
   const inicializarEstadoDocumentos = () => {
@@ -1351,6 +1488,169 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                                 {estadosCount.pendientes > 0 && (
                                   <span className="text-gray-600">{estadosCount.pendientes} pendientes</span>
                                 )}
+                        </div>
+
+                        {/* Gestión por Trabajadores */}
+                        <div className="mt-6 border-t pt-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+                              <PersonStanding size={16} className="text-indigo-600" />
+                              Gestión por Trabajadores
+                            </h4>
+                            <div className="flex gap-2">
+                              <input
+                                type="file"
+                                accept=".xlsx,.xls"
+                                onChange={(e) => {
+                                  const file = e.target.files[0];
+                                  if (file) {
+                                    subirNominaExcel(nombre, file);
+                                    e.target.value = ''; // Reset input
+                                  }
+                                }}
+                                className="hidden"
+                                id={`excel-${nombre}`}
+                              />
+                              <label
+                                htmlFor={`excel-${nombre}`}
+                                className={`px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors cursor-pointer flex items-center gap-1 ${
+                                  subiendoNomina[nombre] ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                              >
+                                <FileSpreadsheet size={14} />
+                                {subiendoNomina[nombre] ? 'Procesando...' : 'Subir Nómina Excel'}
+                              </label>
+                              <button
+                                onClick={() => toggleGestionTrabajadores(nombre)}
+                                className={`px-3 py-1 rounded text-sm transition-colors flex items-center gap-1 ${
+                                  mostrarGestionTrabajadores[nombre]
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`}
+                              >
+                                <UserCheck size={14} />
+                                {mostrarGestionTrabajadores[nombre] ? 'Ocultar' : 'Mostrar'} Trabajadores
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Información sobre documentos por trabajador */}
+                          <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                            <p className="text-sm text-indigo-800 mb-2">
+                              <strong>Documentos gestionados por trabajador:</strong>
+                            </p>
+                            <div className="text-xs text-indigo-700">
+                              {(() => {
+                                const docsDelCliente = [...data.documentos.mensuales, ...data.documentos.unicos];
+                                const docsPorTrabajador = docsDelCliente.filter(doc => 
+                                  documentosPorTrabajador.includes(doc)
+                                );
+                                return docsPorTrabajador.length > 0 
+                                  ? docsPorTrabajador.join(', ')
+                                  : 'No hay documentos que requieran gestión individual por trabajador';
+                              })()}
+                            </div>
+                          </div>
+
+                          {/* Lista de trabajadores */}
+                          {mostrarGestionTrabajadores[nombre] && (
+                            <div>
+                              {trabajadoresPorCliente[nombre]?.length > 0 ? (
+                                <div className="space-y-3">
+                                  {trabajadoresPorCliente[nombre].map((trabajador, index) => (
+                                    <div key={trabajador.rut} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                                      <div className="flex items-center justify-between mb-3">
+                                        <div>
+                                          <h5 className="font-medium text-gray-900">{trabajador.nombre}</h5>
+                                          <p className="text-sm text-gray-600">RUT: {trabajador.rut} • {trabajador.cargo}</p>
+                                        </div>
+                                        <div className="text-sm text-gray-500">
+                                          {(() => {
+                                            const docsDelTrabajador = Object.keys(trabajador.documentos || {});
+                                            const docsAceptados = docsDelTrabajador.filter(doc => 
+                                              trabajador.documentos[doc]?.estado === ESTADOS_DOCUMENTO.ACEPTADO
+                                            ).length;
+                                            const porcentaje = docsDelTrabajador.length > 0 
+                                              ? Math.round((docsAceptados / docsDelTrabajador.length) * 100)
+                                              : 0;
+                                            return `${porcentaje}% (${docsAceptados}/${docsDelTrabajador.length})`;
+                                          })()}
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Documentos del trabajador */}
+                                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                        {Object.entries(trabajador.documentos || {}).map(([documento, info]) => {
+                                          const display = getEstadoDisplay(info.estado);
+                                          const IconoEstado = display.icon;
+                                          
+                                          return (
+                                            <div key={documento} className={`border rounded p-2 ${display.bg} text-xs`}>
+                                              <div className="flex items-center justify-between mb-1">
+                                                <div className="flex items-center gap-1">
+                                                  <IconoEstado size={12} className={display.color} />
+                                                  <span className={`text-xs ${display.color}`}>{display.text}</span>
+                                                </div>
+                                                <button
+                                                  onClick={() => {
+                                                    let nuevoEstado;
+                                                    switch (info.estado) {
+                                                      case ESTADOS_DOCUMENTO.PENDIENTE:
+                                                        nuevoEstado = ESTADOS_DOCUMENTO.ACEPTADO;
+                                                        break;
+                                                      case ESTADOS_DOCUMENTO.ACEPTADO:
+                                                        nuevoEstado = ESTADOS_DOCUMENTO.PENDIENTE;
+                                                        break;
+                                                      default:
+                                                        nuevoEstado = ESTADOS_DOCUMENTO.ACEPTADO;
+                                                    }
+                                                    cambiarEstadoDocumentoTrabajador(nombre, trabajador.rut, documento, nuevoEstado);
+                                                  }}
+                                                  className="p-1 rounded hover:bg-gray-200 transition-colors"
+                                                  title="Cambiar estado"
+                                                >
+                                                  <CheckSquare size={12} />
+                                                </button>
+                                              </div>
+                                              <div className="font-medium text-gray-700 leading-tight">
+                                                {documento}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-center py-8 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
+                                  <FileSpreadsheet size={48} className="mx-auto mb-4 text-gray-400" />
+                                  <h3 className="text-lg font-medium text-gray-900 mb-2">Sin nómina cargada</h3>
+                                  <p className="text-gray-600 mb-4">
+                                    Sube un archivo Excel con la nómina de trabajadores para gestionar documentos individuales
+                                  </p>
+                                  <p className="text-sm text-gray-500">
+                                    El archivo debe contener las columnas: Nombre, RUT, Cargo
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default DashboardCumplimiento;
                                 {estadosCount.rechazados > 0 && (
                                   <span className="text-red-600">{estadosCount.rechazados} rechazados</span>
                                 )}
