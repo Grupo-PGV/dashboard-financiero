@@ -110,7 +110,9 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     { valor: '2025-12', etiqueta: 'Diciembre 2025' }
   ];
 
-  // Base de datos completa de clientes PGR Seguridad
+  // ============================================================
+  // 🔧 BASE DE DATOS OFICIAL CORREGIDA - SEGÚN MANUAL PGR
+  // ============================================================
   const clientes = {
     'INCOPORT': {
       modalidad: 'Envío directo',
@@ -132,6 +134,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
         unicos: []
       }
     },
+    
     'ALIANZA INMOBILIARIO': {
       modalidad: 'Envío directo',
       icono: '🏢',
@@ -151,6 +154,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
         unicos: []
       }
     },
+
     'IMEL': {
       modalidad: 'Envío directo',
       icono: '⚙️',
@@ -161,57 +165,297 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       estado: 'Activo',
       documentos: {
         mensuales: [
-          'Liquidaciones de Sueldo',
-          'Nómina de Personal',
           'Certificado F30',
-          'Planilla Cotizaciones Previsionales'
+          'Certificado F30-1',
+          'Planilla Cotizaciones Previsionales',
+          'Liquidaciones',
+          'Transferencias'
         ],
         unicos: []
       }
     },
-    'WALMART': {
-      modalidad: 'Portal corporativo',
-      icono: '🛒',
-      categoria: 'Retail',
-      contacto: 'portal.walmart.com',
+
+    'FULL LOGISTIC': {
+      modalidad: 'Envío directo',
+      icono: '🚛',
+      categoria: 'Logística',
+      contacto: 'documentos@fulllogistic.cl',
       frecuencia: 'Mensual',
-      fechaInicio: '2020-01',
+      fechaInicio: '2020-04',
       estado: 'Activo',
       documentos: {
         mensuales: [
-          'Liquidaciones de Sueldo',
-          'Nómina de Personal',
-          'Planilla Cotizaciones Previsionales',
-          'Finiquitos',
-          'Cédula de Identidad',
-          'Contrato y Anexos de Trabajo empleado'
+          'Certificado F30',
+          'Certificado F30-1'
+        ],
+        unicos: []
+      }
+    },
+
+    'JOSÉ MORENO': {
+      modalidad: 'Envío directo',
+      icono: '👤',
+      categoria: 'Personal',
+      contacto: 'jmoreno@contractor.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2019-11',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado F30',
+          'Certificado F30-1'
+        ],
+        unicos: []
+      }
+    },
+
+    'CAROZZI': {
+      modalidad: 'Envío directo',
+      icono: '🍪',
+      categoria: 'Alimentario',
+      contacto: 'contratistas@carozzi.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2023-11',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado de Adhesión a Seguro de Accidentes',
+          'Detalle de Pago de Cotizaciones Previsionales PreviRed'
         ],
         unicos: [
+          'Certificado Inspección del Trabajo F30 y F30-1',
+          'Reglamento interno de la empresa',
+          'Escritura de la empresa y modificaciones',
+          'Pago del IVA',
+          'Balance',
+          'Estado de resultado',
           'Contrato de Trabajo vigente y anexos',
-          'Fotocopia de cédula de Identidad vigente'
+          'Nómina de trabajadores para validar',
+          'Fotocopia cédula de Identidad vigente',
+          'Certificado de antecedentes',
+          'Certificado curso OS10',
+          'Documentación preventiva EPP',
+          'Inducción contratistas online'
         ]
       }
     },
-    'TOTTUS': {
-      modalidad: 'Portal corporativo',
-      icono: '🏪',
-      categoria: 'Retail',
-      contacto: 'portal.tottus.com',
+
+    'CIMOLAI': {
+      modalidad: 'Envío directo',
+      icono: '🏗️',
+      categoria: 'Construcción',
+      contacto: 'documentos@cimolai.cl',
       frecuencia: 'Mensual',
-      fechaInicio: '2020-06',
+      fechaInicio: '2025-04',
       estado: 'Activo',
       documentos: {
         mensuales: [
+          'Listado de trabajadores periodo mensual',
           'Liquidaciones de Sueldo mensual',
-          'Listado de trabajadores'
+          'Certificado Cumplimientos Laborales F30-1',
+          'Planilla Cotizaciones Previsionales mensual',
+          'Certificado Antecedentes laborales mensual',
+          'Finiquito mensual',
+          'Certificado Siniestralidad mensual 2025',
+          'Planilla Cotizaciones Mutualidad mensual 2025',
+          'Certificado aclaración no aplica comité paritario mensual'
+        ],
+        unicos: [
+          'Certificado Afiliación Mutualidad'
+        ]
+      }
+    },
+
+    'CBB - INACAL': {
+      modalidad: 'Plataforma Prevsis',
+      icono: '🏗️',
+      categoria: 'Construcción',
+      contacto: 'prevsis.cbb.com',
+      frecuencia: 'Mensual',
+      fechaInicio: '2023-04',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado F30',
+          'Certificado F30-1',
+          'Nómina de personal',
+          'Liquidaciones de Sueldo firmadas'
+        ],
+        unicos: [
+          'Cédula de Identidad',
+          'Contrato de Trabajo',
+          'Examen Ocupacional Ruido',
+          'Examen Ocupacional Sílice',
+          'Examen Alcohol y drogas',
+          'Obligación de Informar Riesgos ODI',
+          'Curso de Herramientas SSO',
+          'Curso Alcohol y Drogas',
+          'Inducción Planta',
+          'Anexo de vinculación obra-faena',
+          'Registro Entrega EPP',
+          'Recepción Reglamento Interno RIOHS',
+          'Difusión procedimiento trabajo seguro',
+          'Anexo de traslado mandante',
+          'Calendario Negociaciones Colectivas',
+          'Certificado de tasas siniestralidad',
+          'Plan de Seguridad y Salud Ocupacional'
+        ]
+      }
+    },
+
+    'CBB - READY MIX PARGUA': {
+      modalidad: 'Plataforma Prevsis',
+      icono: '🏗️',
+      categoria: 'Construcción',
+      contacto: 'prevsis.cbb.com',
+      frecuencia: 'Mensual',
+      fechaInicio: '2022-01',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado F30',
+          'Certificado F30-1',
+          'Nómina de personal',
+          'Liquidaciones de Sueldo firmadas'
+        ],
+        unicos: [
+          'Cédula de Identidad',
+          'Contrato de Trabajo',
+          'Examen Ocupacional Ruido',
+          'Examen Ocupacional Sílice',
+          'Examen Alcohol y drogas',
+          'Obligación de Informar Riesgos ODI',
+          'Curso de Herramientas SSO',
+          'Curso Alcohol y Drogas',
+          'Inducción Planta',
+          'Anexo de vinculación obra-faena',
+          'Registro Entrega EPP',
+          'Recepción Reglamento Interno RIOHS',
+          'Difusión procedimiento trabajo seguro',
+          'Anexo de traslado mandante',
+          'Calendario Negociaciones Colectivas',
+          'Certificado de tasas siniestralidad',
+          'Plan de Seguridad y Salud Ocupacional'
+        ]
+      }
+    },
+
+    'TODO MELON + INM SAN PATRICIO': {
+      modalidad: 'Plataforma Prevsis + InfoControl',
+      icono: '🍈',
+      categoria: 'Agrícola',
+      contacto: 'prevsis.com + infocontrol.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2018-03',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Recibo de sueldo o transferencia'
+        ],
+        unicos: [
+          'Cédula de Identidad',
+          'Certificado Cotizaciones Previsionales',
+          'Contrato y Anexos de Trabajo empleado'
+        ]
+      }
+    },
+
+    'NOVASOURCE': {
+      modalidad: 'Plataforma Seyse',
+      icono: '🔧',
+      categoria: 'Servicios',
+      contacto: 'seyse.novasource.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2023-10',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado de Antecedentes Laborales (F-30)',
+          'Certificado Cumplimiento Obligaciones Laborales (F30-1)',
+          'Certificado Pago Cotizaciones Previsionales PREVIRED',
+          'Certificado Siniestralidad y Listado Accidentados',
+          'Comprobante de Pago de Remuneraciones',
+          'Nómina de Reporte Mensual de la Empresa'
+        ],
+        unicos: []
+      }
+    },
+
+    'WALMART': {
+      modalidad: 'Plataforma SubcontrataLey',
+      icono: '🛒',
+      categoria: 'Retail',
+      contacto: 'subcontrata.walmart.com',
+      frecuencia: 'Mensual',
+      fechaInicio: '2024-12',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Criterios de revisión matriz documental CSV'
+        ],
+        unicos: [
+          'Programa de Trabajo Preventivo SGSST',
+          'Registro Difusión Trabajador Reglamento Interno',
+          'Toma Conocimiento Información Riesgos Laborales',
+          'Toma Conocimiento Matriz IPER del Contratista',
+          'Toma Conocimiento Programa Trabajo Preventivo',
+          'Capacitación Uso y Mantención de EPP',
+          'Capacitación de Prevención de Riesgos',
+          'Información de riesgos laborales',
+          'Evaluación de Desempeño del Programa SGSST',
+          'Mejora Continua SGSST'
+        ]
+      }
+    },
+
+    'AGROSUPER': {
+      modalidad: 'Plataforma KSEC',
+      icono: '🐷',
+      categoria: 'Agroindustrial',
+      contacto: 'ksec.agrosuper.com',
+      frecuencia: 'Mensual',
+      fechaInicio: '2017-05',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Certificado F30',
+          'Certificado F30-1'
         ],
         unicos: [
           'Contrato de trabajo',
           'Anexos',
-          'Liquidaciones'
+          'Finiquitos'
         ]
       }
     },
+
+    'EBCO': {
+      modalidad: 'Plataforma Ebco Conecta',
+      icono: '⚡',
+      categoria: 'Energía',
+      contacto: 'ebcoconecta.cl',
+      frecuencia: 'Mensual',
+      fechaInicio: '2023-01',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [
+          'Liquidaciones',
+          'Libro de asistencia',
+          'Charlas de prevención mensuales',
+          'F-30',
+          'F30-1',
+          'Libro de remuneraciones',
+          'Cotizaciones',
+          'Certificados de la ACHS',
+          'Finiquitos'
+        ],
+        unicos: [
+          'Contrato de trabajo',
+          'Anexos'
+        ]
+      }
+    },
+
     'DESARROLLO PAÍS': {
       modalidad: 'Envío directo',
       icono: '🏛️',
@@ -220,25 +464,17 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       frecuencia: 'Mensual',
       fechaInicio: '2025-06',
       estado: 'Activo',
+      observaciones: 'Nueva instalación - Requerimientos mínimos',
       documentos: {
         mensuales: [
-          'Nómina de trabajadores',
-          'Liquidaciones de Sueldo',
-          'Certificado Cumplimientos Laborales F30-1',
-          'Planilla Cotizaciones Previsionales',
-          'Certificado Antecedentes laborales',
-          'Finiquito',
-          'Certificado Siniestralidad 2025',
-          'Planilla Cotizaciones Mutualidad 2025',
-          'Certificado aclaración no aplica comité paritario',
-          'Certificado cotizaciones ACHS',
-          'Libro de Remuneraciones'
+          'Certificado F30',
+          'Certificado F30-1'
         ],
-        unicos: [
-          'Certificado Afiliación Mutualidad'
-        ]
+        unicos: []
       }
     },
+
+    // CLIENTES SIN REQUERIMIENTOS
     'SEMPER': {
       modalidad: 'Sin requerimientos',
       icono: '✅',
@@ -252,6 +488,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
         unicos: []
       }
     },
+
     'BANCO DE CHILE': {
       modalidad: 'Sin requerimientos',
       icono: '🏦',
@@ -265,13 +502,28 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
         unicos: []
       }
     },
+
     'BIOILS': {
       modalidad: 'Sin requerimientos',
       icono: '🛢️',
       categoria: 'Energía',
       contacto: 'N/A',
       frecuencia: 'N/A',
-      fechaInicio: '2021-05',
+      fechaInicio: '2024-03',
+      estado: 'Activo',
+      documentos: {
+        mensuales: [],
+        unicos: []
+      }
+    },
+
+    'ARSA GROUP': {
+      modalidad: 'Sin requerimientos',
+      icono: '🏗️',
+      categoria: 'Construcción',
+      contacto: 'N/A',
+      frecuencia: 'N/A',
+      fechaInicio: '2024-02',
       estado: 'Activo',
       documentos: {
         mensuales: [],
@@ -279,6 +531,9 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       }
     }
   };
+  // ============================================================
+  // FIN BASE DE DATOS CORREGIDA
+  // ============================================================
 
   // Función para obtener display de estado
   const getEstadoDisplay = (estado) => {
@@ -315,7 +570,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
 
   // Función para calcular estadísticas
   const calcularEstadisticas = () => {
-    const clientesActivos = Object.keys(clientes);
+    const clientesActivos = Object.keys(clientes).filter(cliente => clientes[cliente].estado === 'Activo');
     let criticos = 0;
     let proceso = 0;
     let completos = 0;
@@ -364,9 +619,7 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     todosDocumentos.forEach(doc => {
       const tipo = data.documentos.mensuales.includes(doc) ? 'mensuales' : 'unicos';
       const info = obtenerInfoDocumento(cliente, doc, tipo);
-      if (info.estado === ESTADOS_DOCUMENTO.ACEPTADO) {
-        aceptados++;
-      }
+      if (info.estado === ESTADOS_DOCUMENTO.ACEPTADO) aceptados++;
     });
 
     return Math.round((aceptados / todosDocumentos.length) * 100);
@@ -436,368 +689,6 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     cambiarEstado(cliente, documento, tipo, nuevosEstados[siguienteIndice]);
   };
 
-  // 🔧 FUNCIÓN CORREGIDA PARA SUBIR NÓMINA EN EXCEL
-  const subirNominaExcel = async (cliente, file) => {
-    console.log(`📋 Iniciando procesamiento de Excel para cliente: ${cliente}`);
-    setSubiendoNomina(prev => ({ ...prev, [cliente]: true }));
-    
-    try {
-      // Validar archivo
-      if (!file) {
-        throw new Error('No se ha seleccionado ningún archivo');
-      }
-
-      // Validar tipo de archivo
-      const allowedTypes = [
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-        'application/vnd.ms-excel', // .xls
-        'application/excel',
-        'application/x-excel',
-        'application/x-msexcel'
-      ];
-
-      if (!allowedTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls)$/i)) {
-        throw new Error('El archivo debe ser un Excel válido (.xlsx o .xls)');
-      }
-
-      console.log(`📄 Archivo válido: ${file.name} (${file.size} bytes)`);
-
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          console.log('🔄 Procesando contenido del archivo...');
-          
-          // PROCESAMIENTO CORREGIDO DEL EXCEL CON SheetJS
-          const data = new Uint8Array(e.target.result);
-          
-          // IMPORTACIÓN CORREGIDA DE XLSX
-          console.log('📦 Cargando librería XLSX...');
-          let XLSX;
-          
-          try {
-            // Método 1: Importar desde CDN con manejo correcto
-            const xlsxModule = await import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
-            
-            // El objeto XLSX puede estar en diferentes lugares dependiendo del módulo
-            XLSX = xlsxModule.default || xlsxModule.XLSX || xlsxModule;
-            
-            // Verificar que tenemos el objeto correcto
-            if (!XLSX || typeof XLSX.read !== 'function') {
-              throw new Error('XLSX no cargado correctamente desde CDN');
-            }
-            
-            console.log('✅ XLSX cargado desde CDN');
-            
-          } catch (cdnError) {
-            console.warn('⚠️ Error cargando XLSX desde CDN:', cdnError);
-            
-            // Método 2: Verificar si XLSX está disponible globalmente
-            if (typeof window !== 'undefined' && window.XLSX) {
-              XLSX = window.XLSX;
-              console.log('✅ Usando XLSX global');
-            } else {
-              // Método 3: Crear script tag dinámico como fallback
-              console.log('🔄 Cargando XLSX via script tag...');
-              
-              await new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-                script.onload = () => {
-                  if (window.XLSX) {
-                    XLSX = window.XLSX;
-                    console.log('✅ XLSX cargado via script tag');
-                    resolve();
-                  } else {
-                    reject(new Error('XLSX no disponible después de cargar script'));
-                  }
-                };
-                script.onerror = () => reject(new Error('Error cargando script XLSX'));
-                document.head.appendChild(script);
-              });
-            }
-          }
-
-          // Verificación final
-          if (!XLSX || typeof XLSX.read !== 'function') {
-            throw new Error('No se pudo cargar la librería XLSX. Verifica tu conexión a internet.');
-          }
-          
-          // Leer el archivo Excel con opciones mejoradas
-          console.log('📖 Leyendo archivo Excel...');
-          const workbook = XLSX.read(data, { 
-            type: 'array',
-            cellText: false,
-            cellDates: true,
-            cellNF: false,
-            cellStyles: false,
-            sheetStubs: true,
-            defval: ''
-          });
-
-          console.log(`📋 Hojas encontradas: ${workbook.SheetNames.join(', ')}`);
-          
-          // Usar la primera hoja
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          
-          console.log(`📄 Procesando hoja: ${sheetName}`);
-
-          // Convertir a JSON con manejo mejorado
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-            header: 1,
-            defval: '',
-            blankrows: false,
-            raw: false
-          });
-          
-          console.log(`📊 Datos extraídos: ${jsonData.length} filas`);
-
-          // Validar estructura mínima
-          if (jsonData.length < 2) {
-            throw new Error('El archivo debe tener al menos una fila de encabezados y una fila de datos');
-          }
-
-          // Mostrar primeras filas para debugging
-          console.log('🔍 Primeras 3 filas del Excel:');
-          jsonData.slice(0, 3).forEach((row, i) => {
-            console.log(`  Fila ${i}:`, row);
-          });
-
-          // IDENTIFICACIÓN MEJORADA DE COLUMNAS
-          const headers = jsonData[0].map(h => {
-            if (h === null || h === undefined) return '';
-            return h.toString().toLowerCase().trim();
-          });
-          
-          console.log('📋 Headers detectados:', headers);
-
-          // Buscar columnas con múltiples variaciones
-          const nombreCol = headers.findIndex(h => 
-            h.includes('nombre') || 
-            h.includes('name') || 
-            h.includes('trabajador') ||
-            h.includes('empleado') ||
-            h.includes('persona') ||
-            h === 'nombres' ||
-            h === 'apellidos' ||
-            h.includes('completo')
-          );
-
-          const rutCol = headers.findIndex(h => 
-            h.includes('rut') || 
-            h.includes('id') || 
-            h.includes('identificacion') ||
-            h.includes('cedula') ||
-            h.includes('cédula') ||
-            h.includes('dni') ||
-            h.includes('documento') ||
-            h === 'ci'
-          );
-
-          const cargoCol = headers.findIndex(h => 
-            h.includes('cargo') || 
-            h.includes('puesto') || 
-            h.includes('position') || 
-            h.includes('función') ||
-            h.includes('funcion') ||
-            h.includes('trabajo') ||
-            h.includes('empleo') ||
-            h.includes('rol') ||
-            h.includes('area') ||
-            h.includes('área')
-          );
-
-          console.log(`🔍 Índices encontrados - Nombre: ${nombreCol}, RUT: ${rutCol}, Cargo: ${cargoCol}`);
-
-          // Validar columnas requeridas
-          if (nombreCol === -1 || rutCol === -1) {
-            const headersDisplay = headers.map((h, i) => `${i}: "${h}"`).join(', ');
-            throw new Error(
-              `El archivo debe contener columnas "Nombre" y "RUT".\n\n` +
-              `Columnas encontradas: ${headersDisplay}\n\n` +
-              `Nombres aceptados:\n` +
-              `• Para NOMBRE: nombre, name, trabajador, empleado, persona, nombres\n` +
-              `• Para RUT: rut, id, identificacion, cedula, dni, documento, ci`
-            );
-          }
-
-          // PROCESAMIENTO MEJORADO DE TRABAJADORES
-          const trabajadoresProcesados = [];
-          const erroresProcesamiento = [];
-          
-          console.log('👥 Procesando trabajadores...');
-
-          for (let i = 1; i < jsonData.length; i++) {
-            const row = jsonData[i];
-            
-            // Saltar filas vacías
-            if (!row || row.length === 0 || row.every(cell => !cell || cell.toString().trim() === '')) {
-              console.log(`⏭️ Saltando fila vacía ${i}`);
-              continue;
-            }
-
-            try {
-              // Extraer datos con validación
-              const nombreRaw = row[nombreCol];
-              const rutRaw = row[rutCol];
-              const cargoRaw = cargoCol !== -1 ? row[cargoCol] : null;
-
-              // Validar y limpiar nombre
-              const nombre = nombreRaw ? nombreRaw.toString().trim() : '';
-              if (!nombre) {
-                erroresProcesamiento.push(`Fila ${i + 1}: Nombre vacío`);
-                continue;
-              }
-
-              // Validar y limpiar RUT
-              const rut = rutRaw ? rutRaw.toString().trim() : '';
-              if (!rut) {
-                erroresProcesamiento.push(`Fila ${i + 1}: RUT vacío para ${nombre}`);
-                continue;
-              }
-
-              // Limpiar RUT (eliminar caracteres no válidos excepto dígitos, K y guión)
-              const rutLimpio = rut.replace(/[^\dkK\-\.]/gi, '').toUpperCase();
-              
-              // Validar formato básico de RUT
-              if (!rutLimpio.match(/^\d{1,8}[\-\.]?[\dkK]$/i)) {
-                erroresProcesamiento.push(`Fila ${i + 1}: RUT inválido "${rut}" para ${nombre}`);
-                continue;
-              }
-
-              // Procesar cargo
-              const cargo = cargoRaw ? cargoRaw.toString().trim() : 'No especificado';
-
-              // Crear objeto trabajador
-              const trabajador = {
-                nombre,
-                rut: rutLimpio,
-                cargo,
-                documentos: {},
-                filaOriginal: i + 1
-              };
-
-              // Inicializar estados para documentos por trabajador
-              const data = clientes[cliente];
-              if (data) {
-                const docsDelCliente = [...data.documentos.mensuales, ...data.documentos.unicos];
-                const docsPorTrabajador = docsDelCliente.filter(doc => 
-                  documentosPorTrabajador.includes(doc)
-                );
-                
-                docsPorTrabajador.forEach(doc => {
-                  trabajador.documentos[doc] = {
-                    estado: ESTADOS_DOCUMENTO.PENDIENTE,
-                    fechaActualizacion: null,
-                    observaciones: ''
-                  };
-                });
-              }
-
-              trabajadoresProcesados.push(trabajador);
-              console.log(`✅ Trabajador procesado: ${nombre} (${rutLimpio}) - ${cargo}`);
-
-            } catch (error) {
-              erroresProcesamiento.push(`Fila ${i + 1}: Error procesando - ${error.message}`);
-              console.error(`❌ Error en fila ${i + 1}:`, error);
-            }
-          }
-
-          console.log(`📊 Resumen procesamiento:`);
-          console.log(`  - Trabajadores válidos: ${trabajadoresProcesados.length}`);
-          console.log(`  - Errores encontrados: ${erroresProcesamiento.length}`);
-
-          // Validar que se procesaron trabajadores
-          if (trabajadoresProcesados.length === 0) {
-            let mensajeError = 'No se encontraron trabajadores válidos en el archivo.\n\n';
-            
-            if (erroresProcesamiento.length > 0) {
-              mensajeError += 'Errores encontrados:\n' + erroresProcesamiento.join('\n');
-            }
-            
-            mensajeError += '\n\nVerifica que:\n';
-            mensajeError += '• Las columnas tengan los nombres correctos\n';
-            mensajeError += '• Los campos Nombre y RUT no estén vacíos\n';
-            mensajeError += '• El formato del RUT sea válido (ej: 12345678-9)';
-            
-            throw new Error(mensajeError);
-          }
-
-          // Guardar trabajadores procesados
-          setTrabajadoresPorCliente(prev => ({
-            ...prev,
-            [cliente]: trabajadoresProcesados
-          }));
-
-          // Mensaje de éxito mejorado
-          let mensajeExito = `✅ ¡Nómina procesada exitosamente!\n\n`;
-          mensajeExito += `📊 Resumen:\n`;
-          mensajeExito += `• Trabajadores cargados: ${trabajadoresProcesados.length}\n`;
-          mensajeExito += `• Cliente: ${cliente}\n`;
-          
-          if (erroresProcesamiento.length > 0) {
-            mensajeExito += `• Filas con errores: ${erroresProcesamiento.length}\n`;
-          }
-
-          mensajeExito += `\n👥 Primeros trabajadores cargados:\n`;
-          mensajeExito += trabajadoresProcesados.slice(0, 5).map(t => 
-            `• ${t.nombre} (${t.rut}) - ${t.cargo}`
-          ).join('\n');
-
-          if (trabajadoresProcesados.length > 5) {
-            mensajeExito += `\n... y ${trabajadoresProcesados.length - 5} más`;
-          }
-
-          if (erroresProcesamiento.length > 0 && erroresProcesamiento.length <= 10) {
-            mensajeExito += `\n\n⚠️ Errores menores encontrados:\n`;
-            mensajeExito += erroresProcesamiento.slice(0, 5).join('\n');
-            if (erroresProcesamiento.length > 5) {
-              mensajeExito += `\n... y ${erroresProcesamiento.length - 5} errores más`;
-            }
-          }
-
-          alert(mensajeExito);
-          console.log('🎉 Procesamiento completado exitosamente');
-
-        } catch (error) {
-          console.error('❌ Error procesando Excel:', error);
-          
-          let mensajeError = `❌ Error procesando el archivo Excel:\n\n${error.message}`;
-          
-          if (error.message.includes('XLSX')) {
-            mensajeError += `\n\n🔧 Posibles soluciones:\n`;
-            mensajeError += `• Verifica tu conexión a internet\n`;
-            mensajeError += `• Recarga la página e intenta nuevamente\n`;
-            mensajeError += `• Prueba con un navegador diferente`;
-          } else if (!error.message.includes('columnas')) {
-            mensajeError += `\n\n💡 Formato requerido:\n`;
-            mensajeError += `• Columna "Nombre": Nombre completo del trabajador\n`;
-            mensajeError += `• Columna "RUT": RUT con formato chileno\n`;
-            mensajeError += `• Columna "Cargo": Función del trabajador (opcional)\n\n`;
-            mensajeError += `📋 Nombres aceptados para columnas:\n`;
-            mensajeError += `• NOMBRE: nombre, name, trabajador, empleado\n`;
-            mensajeError += `• RUT: rut, id, identificacion, cedula, dni`;
-          }
-          
-          alert(mensajeError);
-        }
-      };
-
-      reader.onerror = (error) => {
-        console.error('❌ Error leyendo archivo:', error);
-        alert('❌ Error leyendo el archivo. Asegúrate de que no esté corrupto.');
-      };
-      
-      reader.readAsArrayBuffer(file);
-
-    } catch (error) {
-      console.error('❌ Error general subiendo archivo:', error);
-      alert(`❌ Error subiendo el archivo:\n${error.message}`);
-    } finally {
-      setSubiendoNomina(prev => ({ ...prev, [cliente]: false }));
-    }
-  };
-
   // Función para cambiar estado de documento por trabajador
   const cambiarEstadoDocumentoTrabajador = (cliente, rutTrabajador, documento, nuevoEstado) => {
     setTrabajadoresPorCliente(prev => ({
@@ -809,9 +700,9 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
               documentos: {
                 ...trabajador.documentos,
                 [documento]: {
+                  ...trabajador.documentos[documento],
                   estado: nuevoEstado,
-                  fechaActualizacion: new Date().toISOString(),
-                  observaciones: ''
+                  fechaActualizacion: new Date().toISOString()
                 }
               }
             }
@@ -820,36 +711,18 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     }));
   };
 
-  // Función para togglear gestión de trabajadores
-  const toggleGestionTrabajadores = (cliente) => {
-    setMostrarGestionTrabajadores(prev => ({
-      ...prev,
-      [cliente]: !prev[cliente]
-    }));
-  };
-
-  // Función para togglear submenu de cliente
-  const toggleSubmenuCliente = (cliente) => {
-    setSubmenuActivo(prev => ({
-      ...prev,
-      [cliente]: !prev[cliente]
-    }));
-  };
-
-  // Función para determinar si un cliente estaba activo en un mes específico
-  const obtenerClientesActivosEnMes = (mesSeleccionado) => {
-    const [año, mes] = mesSeleccionado.split('-');
-    const fechaSeleccionada = new Date(parseInt(año), parseInt(mes) - 1, 15); // Día 15 del mes seleccionado
+  // Función para obtener clientes activos en un mes específico
+  const obtenerClientesActivosEnMes = (mes) => {
+    const fechaSeleccionada = new Date(mes + '-15'); // Día 15 del mes seleccionado
     
-    return Object.entries(clientes).filter(([nombreCliente, data]) => {
-      // Crear fechas de inicio y término
-      const fechaInicio = new Date(data.fechaInicio + '-01'); // Primer día del mes de inicio
+    return Object.entries(clientes).filter(([nombre, data]) => {
+      const fechaInicio = new Date(data.fechaInicio + '-01');
       
-      // Si el cliente tiene fecha de término, crear fecha de fin
       let fechaTermino = null;
       if (data.fechaTermino) {
-        const [añoTermino, mesTermino] = data.fechaTermino.split('-');
-        fechaTermino = new Date(parseInt(añoTermino), parseInt(mesTermino) - 1, 31); // Último día del mes de término
+        const [año, mesTermino] = data.fechaTermino.split('-');
+        const ultimoDiaDelMes = new Date(año, mesTermino, 0).getDate();
+        fechaTermino = new Date(data.fechaTermino + '-' + ultimoDiaDelMes);
       }
       
       // Verificar si el cliente estaba activo en la fecha seleccionada
@@ -858,11 +731,6 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
       
       return estabaActivo;
     });
-  };
-
-  // Función para obtener estado de documentos
-  const obtenerEstadoDocumentos = () => {
-    return estadoDocumentosPorMes[mesSeleccionado] || {};
   };
 
   // Función para inicializar estado de documentos por mes
@@ -899,6 +767,307 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
     });
     
     return estadoInicial;
+  };
+
+  // 🔧 FUNCIÓN CORREGIDA PARA SUBIR NÓMINA EN EXCEL
+  const subirNominaExcel = async (cliente, file) => {
+    console.log(`📋 Iniciando procesamiento de Excel para cliente: ${cliente}`);
+    setSubiendoNomina(prev => ({ ...prev, [cliente]: true }));
+    
+    try {
+      // Validar archivo
+      if (!file) {
+        throw new Error('No se ha seleccionado ningún archivo');
+      }
+
+      // Validar tipo de archivo
+      const allowedTypes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+        'application/vnd.ms-excel', // .xls
+        'application/excel',
+        'application/x-excel',
+        'application/x-msexcel'
+      ];
+
+      if (!allowedTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls)$/i)) {
+        throw new Error('Formato de archivo no válido. Solo se admiten archivos Excel (.xlsx, .xls)');
+      }
+
+      console.log(`📄 Archivo válido: ${file.name} (${file.type})`);
+
+      // Cargar biblioteca XLSX dinámicamente
+      let XLSX;
+      try {
+        console.log('📚 Cargando biblioteca XLSX...');
+        XLSX = await import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+        console.log('✅ XLSX cargado exitosamente');
+      } catch (error) {
+        console.error('❌ Error cargando XLSX:', error);
+        throw new Error('Error cargando el procesador de Excel. Verifica tu conexión a internet.');
+      }
+
+      // Leer archivo
+      const data = await file.arrayBuffer();
+      
+      if (!data || data.byteLength === 0) {
+        throw new Error('El archivo está vacío o no se pudo leer correctamente. Verifica tu conexión a internet.');
+      }
+      
+      // Leer el archivo Excel con opciones mejoradas
+      console.log('📖 Leyendo archivo Excel...');
+      const workbook = XLSX.read(data, { 
+        type: 'array',
+        cellText: false,
+        cellDates: true,
+        cellNF: false,
+        cellStyles: false,
+        sheetStubs: true,
+        defval: ''
+      });
+
+      console.log(`📋 Hojas encontradas: ${workbook.SheetNames.join(', ')}`);
+      
+      // Usar la primera hoja
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      
+      console.log(`📄 Procesando hoja: ${sheetName}`);
+
+      // Convertir a JSON con manejo mejorado
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+        header: 1,
+        defval: '',
+        blankrows: false,
+        raw: false
+      });
+      
+      console.log(`📊 Datos extraídos: ${jsonData.length} filas`);
+
+      // Validar estructura mínima
+      if (jsonData.length < 2) {
+        throw new Error('El archivo debe tener al menos una fila de encabezados y una fila de datos');
+      }
+
+      // IDENTIFICACIÓN MEJORADA DE COLUMNAS
+      const headers = jsonData[0].map(h => {
+        if (h === null || h === undefined) return '';
+        return h.toString().toLowerCase().trim();
+      });
+      
+      console.log('📋 Headers detectados:', headers);
+
+      // Buscar columnas con múltiples variaciones
+      const nombreCol = headers.findIndex(h => 
+        h.includes('nombre') || 
+        h.includes('name') || 
+        h.includes('trabajador') ||
+        h.includes('empleado') ||
+        h.includes('persona') ||
+        h === 'nombres' ||
+        h === 'apellidos' ||
+        h.includes('completo')
+      );
+
+      const rutCol = headers.findIndex(h => 
+        h.includes('rut') || 
+        h.includes('id') || 
+        h.includes('identificacion') ||
+        h.includes('cedula') ||
+        h.includes('cédula') ||
+        h.includes('dni') ||
+        h.includes('documento') ||
+        h === 'ci'
+      );
+
+      const cargoCol = headers.findIndex(h => 
+        h.includes('cargo') || 
+        h.includes('puesto') || 
+        h.includes('position') || 
+        h.includes('función') ||
+        h.includes('funcion') ||
+        h.includes('trabajo') ||
+        h.includes('empleo') ||
+        h.includes('rol') ||
+        h.includes('area') ||
+        h.includes('área')
+      );
+
+      console.log(`🔍 Índices encontrados - Nombre: ${nombreCol}, RUT: ${rutCol}, Cargo: ${cargoCol}`);
+
+      // Validar columnas requeridas
+      if (nombreCol === -1 || rutCol === -1) {
+        const headersDisplay = headers.map((h, i) => `${i}: "${h}"`).join(', ');
+        throw new Error(
+          `El archivo debe contener columnas "Nombre" y "RUT".\n\n` +
+          `Columnas encontradas: ${headersDisplay}\n\n` +
+          `Nombres aceptados:\n` +
+          `• Para NOMBRE: nombre, name, trabajador, empleado, persona, nombres\n` +
+          `• Para RUT: rut, id, identificacion, cedula, dni, documento, ci`
+        );
+      }
+
+      // PROCESAMIENTO MEJORADO DE TRABAJADORES
+      const trabajadoresProcesados = [];
+      const erroresProcesamiento = [];
+      
+      console.log('👥 Procesando trabajadores...');
+
+      for (let i = 1; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        
+        // Saltar filas vacías
+        if (!row || row.length === 0 || row.every(cell => !cell || cell.toString().trim() === '')) {
+          console.log(`⏭️ Saltando fila vacía ${i}`);
+          continue;
+        }
+
+        try {
+          // Extraer datos con validación
+          const nombreRaw = row[nombreCol];
+          const rutRaw = row[rutCol];
+          const cargoRaw = cargoCol !== -1 ? row[cargoCol] : null;
+
+          // Validar y limpiar nombre
+          const nombre = nombreRaw ? nombreRaw.toString().trim() : '';
+          if (!nombre) {
+            erroresProcesamiento.push(`Fila ${i + 1}: Nombre vacío`);
+            continue;
+          }
+
+          // Validar y limpiar RUT
+          const rut = rutRaw ? rutRaw.toString().trim() : '';
+          if (!rut) {
+            erroresProcesamiento.push(`Fila ${i + 1}: RUT vacío para ${nombre}`);
+            continue;
+          }
+
+          // Limpiar RUT (eliminar caracteres no válidos excepto dígitos, K y guión)
+          const rutLimpio = rut.replace(/[^\dkK\-\.]/gi, '').toUpperCase();
+          
+          // Validar formato básico de RUT
+          if (!rutLimpio.match(/^\d{1,8}[\-\.]?[\dkK]$/i)) {
+            erroresProcesamiento.push(`Fila ${i + 1}: RUT inválido "${rut}" para ${nombre}`);
+            continue;
+          }
+
+          // Procesar cargo
+          const cargo = cargoRaw ? cargoRaw.toString().trim() : 'No especificado';
+
+          // Crear objeto trabajador
+          const trabajador = {
+            nombre,
+            rut: rutLimpio,
+            cargo,
+            documentos: {},
+            filaOriginal: i + 1
+          };
+
+          // Inicializar estados para documentos por trabajador
+          const data = clientes[cliente];
+          if (data) {
+            const docsDelCliente = [...data.documentos.mensuales, ...data.documentos.unicos];
+            const docsPorTrabajador = docsDelCliente.filter(doc => 
+              documentosPorTrabajador.includes(doc)
+            );
+            
+            docsPorTrabajador.forEach(doc => {
+              trabajador.documentos[doc] = {
+                estado: ESTADOS_DOCUMENTO.PENDIENTE,
+                fechaActualizacion: null,
+                observaciones: ''
+              };
+            });
+          }
+
+          trabajadoresProcesados.push(trabajador);
+          console.log(`✅ Trabajador procesado: ${nombre} (${rutLimpio}) - ${cargo}`);
+
+        } catch (error) {
+          erroresProcesamiento.push(`Fila ${i + 1}: Error procesando - ${error.message}`);
+          console.error(`❌ Error en fila ${i + 1}:`, error);
+        }
+      }
+
+      console.log(`📊 Resumen procesamiento:`);
+      console.log(`  - Trabajadores válidos: ${trabajadoresProcesados.length}`);
+      console.log(`  - Errores encontrados: ${erroresProcesamiento.length}`);
+
+      // Validar que se procesaron trabajadores
+      if (trabajadoresProcesados.length === 0) {
+        let mensajeError = 'No se encontraron trabajadores válidos en el archivo.\n\n';
+        
+        if (erroresProcesamiento.length > 0) {
+          mensajeError += 'Errores encontrados:\n' + erroresProcesamiento.join('\n');
+        }
+        
+        mensajeError += '\n\nVerifica que:\n';
+        mensajeError += '• Las columnas tengan los nombres correctos\n';
+        mensajeError += '• Los campos Nombre y RUT no estén vacíos\n';
+        mensajeError += '• El formato del RUT sea válido (ej: 12345678-9)';
+        
+        throw new Error(mensajeError);
+      }
+
+      // Guardar trabajadores procesados
+      setTrabajadoresPorCliente(prev => ({
+        ...prev,
+        [cliente]: trabajadoresProcesados
+      }));
+
+      // Mensaje de éxito mejorado
+      let mensajeExito = `✅ ¡Nómina procesada exitosamente!\n\n`;
+      mensajeExito += `📊 Resumen:\n`;
+      mensajeExito += `• Trabajadores cargados: ${trabajadoresProcesados.length}\n`;
+      mensajeExito += `• Cliente: ${cliente}\n`;
+      
+      if (erroresProcesamiento.length > 0) {
+        mensajeExito += `• Filas con errores: ${erroresProcesamiento.length}\n`;
+      }
+
+      mensajeExito += `\n👥 Primeros trabajadores cargados:\n`;
+      mensajeExito += trabajadoresProcesados.slice(0, 5).map(t => 
+        `• ${t.nombre} (${t.rut}) - ${t.cargo}`
+      ).join('\n');
+
+      if (trabajadoresProcesados.length > 5) {
+        mensajeExito += `\n... y ${trabajadoresProcesados.length - 5} más`;
+      }
+
+      if (erroresProcesamiento.length > 0 && erroresProcesamiento.length <= 10) {
+        mensajeExito += `\n\n⚠️ Errores menores encontrados:\n`;
+        mensajeExito += erroresProcesamiento.slice(0, 5).join('\n');
+        if (erroresProcesamiento.length > 5) {
+          mensajeExito += `\n... y ${erroresProcesamiento.length - 5} errores más`;
+        }
+      }
+
+      alert(mensajeExito);
+      console.log('🎉 Procesamiento completado exitosamente');
+
+    } catch (error) {
+      console.error('❌ Error procesando Excel:', error);
+      
+      let mensajeError = `❌ Error procesando el archivo Excel:\n\n${error.message}`;
+      
+      if (error.message.includes('XLSX')) {
+        mensajeError += `\n\n🔧 Posibles soluciones:\n`;
+        mensajeError += `• Verifica tu conexión a internet\n`;
+        mensajeError += `• Recarga la página e intenta nuevamente\n`;
+        mensajeError += `• Prueba con un navegador diferente`;
+      } else if (!error.message.includes('columnas')) {
+        mensajeError += `\n\n💡 Formato requerido:\n`;
+        mensajeError += `• Columna "Nombre": Nombre completo del trabajador\n`;
+        mensajeError += `• Columna "RUT": RUT con formato chileno\n`;
+        mensajeError += `• Columna "Cargo": Función del trabajador (opcional)\n\n`;
+        mensajeError += `📋 Nombres aceptados para columnas:\n`;
+        mensajeError += `• NOMBRE: nombre, name, trabajador, empleado\n`;
+        mensajeError += `• RUT: rut, id, identificacion, cedula, dni`;
+      }
+      
+      alert(mensajeError);
+    } finally {
+      setSubiendoNomina(prev => ({ ...prev, [cliente]: false }));
+    }
   };
 
   // Cargar datos del localStorage preservando datos existentes
@@ -1079,35 +1248,35 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
               
               <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
                 <div className="flex items-center gap-2 mb-2">
-                  <Eye size={20} className="text-purple-600" />
-                  <span className="text-sm font-medium text-purple-900">En Rev.</span>
+                  <Award size={20} className="text-purple-600" />
+                  <span className="text-sm font-medium text-purple-900">Promedio</span>
                 </div>
-                <p className="text-2xl font-bold text-purple-800">{estadisticas.enRevision}</p>
-                <p className="text-xs text-purple-600">Documentos</p>
+                <p className="text-2xl font-bold text-purple-800">{estadisticas.promedio}%</p>
+                <p className="text-xs text-purple-600">General</p>
               </div>
               
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 mb-2">
-                  <XCircle size={20} className="text-gray-600" />
-                  <span className="text-sm font-medium text-gray-900">Rechazados</span>
+                  <Bell size={20} className="text-gray-600" />
+                  <span className="text-sm font-medium text-gray-900">Alertas</span>
                 </div>
-                <p className="text-2xl font-bold text-gray-800">{estadisticas.rechazados}</p>
-                <p className="text-xs text-gray-600">Documentos</p>
+                <p className="text-2xl font-bold text-gray-800">{estadisticas.criticos + estadisticas.rechazados}</p>
+                <p className="text-xs text-gray-600">Pendientes</p>
               </div>
-              
             </div>
 
-            {/* Controles y filtros con mejor contraste */}
-            <div className="bg-white rounded-lg p-4 border border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                
-                {/* Selector de mes */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Período</label>
-                  <select
+            {/* Selector de período y filtros */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              
+              {/* Selector de mes */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">Período</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                  <select 
                     value={mesSeleccionado}
                     onChange={(e) => setMesSeleccionado(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     {periodos.map(periodo => (
                       <option key={periodo.valor} value={periodo.valor}>
@@ -1116,283 +1285,639 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                     ))}
                   </select>
                 </div>
+              </div>
 
-                {/* Filtro por cliente */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
-                  <select
+              {/* Filtro por cliente */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">Cliente</label>
+                <div className="relative">
+                  <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                  <select 
                     value={clienteFiltro}
                     onChange={(e) => setClienteFiltro(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Todos los clientes</option>
-                    {clientesFiltrados.map(([nombre]) => (
+                    {obtenerClientesActivosEnMes(mesSeleccionado).map(([nombre]) => (
                       <option key={nombre} value={nombre}>{nombre}</option>
                     ))}
                   </select>
                 </div>
+              </div>
 
-                {/* Filtro por estado */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-                  <select
+              {/* Filtro por estado */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">Estado</label>
+                <div className="relative">
+                  <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                  <select 
                     value={filtroEstado}
                     onChange={(e) => setFiltroEstado(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="todos">Todos</option>
-                    <option value="pendiente">Pendiente</option>
-                    <option value="cargado">Cargado</option>
-                    <option value="en_revision">En Revisión</option>
-                    <option value="aceptado">Aceptado</option>
-                    <option value="rechazado">Rechazado</option>
+                    <option value="criticos">Críticos (&lt;50%)</option>
+                    <option value="proceso">En Proceso (50-89%)</option>
+                    <option value="completos">Completos (≥90%)</option>
                   </select>
                 </div>
+              </div>
 
-                {/* Búsqueda */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Búsqueda</label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Buscar cliente..."
-                      value={busqueda}
-                      onChange={(e) => setBusqueda(e.target.value)}
-                      className="w-full pl-10 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-                    />
-                  </div>
+              {/* Búsqueda */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">Buscar</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Buscar cliente..."
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
                 </div>
-
-                {/* Botón de reset */}
-                <div className="flex items-end">
-                  <button
-                    onClick={() => {
-                      setBusqueda('');
-                      setClienteFiltro('');
-                      setFiltroEstado('todos');
-                    }}
-                    className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors font-medium"
-                  >
-                    Limpiar filtros
-                  </button>
-                </div>
-                
               </div>
             </div>
 
-            {/* Lista de clientes */}
-            <div className="p-6">
-              <div className="space-y-4">
-                {clientesFiltrados.map(([nombre, data]) => {
-                  const porcentaje = calcularPorcentaje(nombre);
-                  const isExpanded = clientesExpandidos[nombre];
-                  
-                  return (
-                    <div key={nombre} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
-                      
-                      {/* Header del cliente con mejor contraste */}
-                      <div className="p-4 bg-gray-50 border-b border-gray-200">
+            {/* Controles de vista */}
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => setMostrarDetalles(!mostrarDetalles)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  mostrarDetalles 
+                    ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                    : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
+                }`}
+              >
+                <Eye size={16} className="inline mr-2" />
+                {mostrarDetalles ? 'Ocultar Detalles' : 'Mostrar Detalles'}
+              </button>
+
+              <button
+                onClick={() => setMostrarTablaCriticos(!mostrarTablaCriticos)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  mostrarTablaCriticos 
+                    ? 'bg-red-100 text-red-800 border border-red-200' 
+                    : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
+                }`}
+              >
+                <AlertTriangle size={16} className="inline mr-2" />
+                {mostrarTablaCriticos ? 'Ocultar Críticos' : 'Mostrar Críticos'}
+              </button>
+
+              <button
+                onClick={() => setMostrarMatrizWalmart(!mostrarMatrizWalmart)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  mostrarMatrizWalmart 
+                    ? 'bg-purple-100 text-purple-800 border border-purple-200' 
+                    : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
+                }`}
+              >
+                <FileSpreadsheet size={16} className="inline mr-2" />
+                Ver Matriz Walmart
+              </button>
+            </div>
+          </div>
+
+          {/* Tabla de clientes críticos */}
+          {mostrarTablaCriticos && estadisticas.criticos > 0 && (
+            <div className="p-6 border-b border-gray-200 bg-red-50">
+              <h3 className="text-lg font-bold text-red-900 mb-4 flex items-center gap-2">
+                <AlertTriangle size={20} />
+                Clientes Críticos ({estadisticas.criticos})
+              </h3>
+              <div className="grid gap-3">
+                {clientesFiltrados
+                  .filter(([nombre]) => calcularPorcentaje(nombre) < 50)
+                  .map(([nombre, data]) => {
+                    const porcentaje = calcularPorcentaje(nombre);
+                    return (
+                      <div key={nombre} className="bg-white rounded-lg p-4 border border-red-200">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <span className="text-2xl">{data.icono}</span>
                             <div>
-                              <h3 className="font-bold text-gray-900">{nombre}</h3>
+                              <h4 className="font-bold text-gray-900">{nombre}</h4>
                               <p className="text-sm text-gray-600">{data.categoria} • {data.modalidad}</p>
                             </div>
                           </div>
-                          
                           <div className="flex items-center gap-4">
-                            {/* Barra de progreso mejorada */}
+                            <div className="text-right">
+                              <div className="text-2xl font-bold text-red-600">{porcentaje}%</div>
+                              <div className="text-xs text-gray-500">Cumplimiento</div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => cambiarEstadoMasivo(nombre, 'mensuales', ESTADOS_DOCUMENTO.ACEPTADO)}
+                                className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                              >
+                                ✓ Todos
+                              </button>
+                              <button
+                                onClick={() => setClientesExpandidos(prev => ({ ...prev, [nombre]: !prev[nombre] }))}
+                                className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                              >
+                                Ver Detalles
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {/* Matriz especial de Walmart */}
+          {mostrarMatrizWalmart && (
+            <div className="p-6 border-b border-gray-200 bg-purple-50">
+              <h3 className="text-lg font-bold text-purple-900 mb-4 flex items-center gap-2">
+                <FileSpreadsheet size={20} />
+                Matriz Especial Walmart - Criterios de Validación
+              </h3>
+              
+              <div className="bg-white rounded-lg p-6 border border-purple-200">
+                <div className="grid md:grid-cols-2 gap-6">
+                  
+                  {/* Documentos Corporativos */}
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-gray-900 border-b pb-2">📋 Documentos Corporativos</h4>
+                    
+                    <div className="space-y-3">
+                      <div className="p-3 bg-gray-50 rounded">
+                        <h5 className="font-medium text-gray-800">1. Programa de Trabajo Preventivo (SGSST)</h5>
+                        <div className="text-sm text-gray-600 mt-1 space-y-1">
+                          <div>✓ Debe estar firmado y con fecha actualizada</div>
+                          <div>✓ Incluir matriz de riesgos específica</div>
+                          <div>✓ Plan de emergencias definido</div>
+                          <div>✓ Procedimientos de trabajo seguro</div>
+                          <div>✓ Programa de capacitación</div>
+                          <div>✓ Sistema de reporte de incidentes</div>
+                        </div>
+                      </div>
+                      
+                      <div className="p-3 bg-gray-50 rounded">
+                        <h5 className="font-medium text-gray-800">2. Registro Difusión Trabajador</h5>
+                        <div className="text-sm text-gray-600 mt-1 space-y-1">
+                          <div>✓ Firma de todos los trabajadores</div>
+                          <div>✓ Fecha de capacitación</div>
+                          <div>✓ Contenido del reglamento</div>
+                          <div>✓ Evaluación de comprensión</div>
+                          <div>✓ Registro fotográfico</div>
+                          <div>✓ Certificado de participación</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Documentos Laborales */}
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-gray-900 border-b pb-2">👥 Documentos Laborales</h4>
+                    
+                    <div className="space-y-3">
+                      <div className="p-3 bg-gray-50 rounded">
+                        <h5 className="font-medium text-gray-800">3. Toma de Conocimiento - Información de Riesgos</h5>
+                        <div className="text-sm text-gray-600 mt-1 space-y-1">
+                          <div>✓ Identificación específica por puesto</div>
+                          <div>✓ Medidas preventivas claras</div>
+                          <div>✓ Uso obligatorio de EPP</div>
+                          <div>✓ Procedimientos de emergencia</div>
+                          <div>✓ Contactos de emergencia</div>
+                          <div>✓ Firma y fecha del trabajador</div>
+                        </div>
+                      </div>
+                      
+                      <div className="p-3 bg-gray-50 rounded">
+                        <h5 className="font-medium text-gray-800">4. Toma de Conocimiento - Matriz IPER</h5>
+                        <div className="text-sm text-gray-600 mt-1 space-y-1">
+                          <div>✓ Matriz actualizada 2025</div>
+                          <div>✓ Evaluación por actividad</div>
+                          <div>✓ Nivel de riesgo claramente definido</div>
+                          <div>✓ Controles establecidos</div>
+                          <div>✓ Responsabilidades asignadas</div>
+                          <div>✓ Revisión y actualización periódica</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Documentos Previsionales */}
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-gray-900 border-b pb-2">💼 Documentos Previsionales</h4>
+                    
+                    <div className="space-y-3">
+                      <div className="p-3 bg-gray-50 rounded">
+                        <h5 className="font-medium text-gray-800">5. Capacitación Uso y Mantención EPP</h5>
+                        <div className="text-sm text-gray-600 mt-1 space-y-1">
+                          <div>✓ Lista de EPP por puesto de trabajo</div>
+                          <div>✓ Instrucciones de uso correcto</div>
+                          <div>✓ Mantenimiento y limpieza</div>
+                          <div>✓ Criterios de reemplazo</div>
+                          <div>✓ Registro de entrega personalizada</div>
+                          <div>✓ Evaluación práctica</div>
+                        </div>
+                      </div>
+                      
+                      <div className="p-3 bg-gray-50 rounded">
+                        <h5 className="font-medium text-gray-800">6. Capacitación Prevención de Riesgos</h5>
+                        <div className="text-sm text-gray-600 mt-1 space-y-1">
+                          <div>✓ Contenido específico por área</div>
+                          <div>✓ Duración mínima cumplida</div>
+                          <div>✓ Evaluación teórica y práctica</div>
+                          <div>✓ Certificado de aprobación</div>
+                          <div>✓ Seguimiento posterior</div>
+                          <div>✓ Renovación programada</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Seguros y Mutualidades */}
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-gray-900 border-b pb-2">🛡️ Seguros y Mutualidades</h4>
+                    
+                    <div className="space-y-3">
+                      <div className="p-3 bg-gray-50 rounded">
+                        <h5 className="font-medium text-gray-800">7. Información de Riesgos Laborales</h5>
+                        <div className="text-sm text-gray-600 mt-1 space-y-1">
+                          <div>✓ Evaluación específica Walmart</div>
+                          <div>✓ Riesgos identificados por zona</div>
+                          <div>✓ Medidas de control implementadas</div>
+                          <div>✓ Monitoreo y seguimiento</div>
+                          <div>✓ Reporte de incidentes</div>
+                          <div>✓ Plan de mejora continua</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      <strong>Nota:</strong> Todos los documentos deben estar actualizados para 2025 y firmados por responsables autorizados.
+                    </div>
+                    <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2">
+                      <Download size={16} />
+                      Exportar Matriz
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Lista principal de clientes */}
+          <div className="p-6">
+            
+            {/* Información de filtros activos */}
+            {(filtroEstado !== 'todos' || busqueda || clienteFiltro) && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-blue-800">
+                    <strong>Filtros activos:</strong>
+                    {filtroEstado !== 'todos' && <span className="ml-2 px-2 py-1 bg-blue-100 rounded">Estado: {filtroEstado}</span>}
+                    {busqueda && <span className="ml-2 px-2 py-1 bg-blue-100 rounded">Búsqueda: "{busqueda}"</span>}
+                    {clienteFiltro && <span className="ml-2 px-2 py-1 bg-blue-100 rounded">Cliente: {clienteFiltro}</span>}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setFiltroEstado('todos');
+                      setBusqueda('');
+                      setClienteFiltro('');
+                    }}
+                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                  >
+                    Limpiar filtros
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {clientesFiltrados
+                .filter(([nombre]) => {
+                  if (filtroEstado === 'todos') return true;
+                  
+                  const porcentaje = calcularPorcentaje(nombre);
+                  switch (filtroEstado) {
+                    case 'criticos': return porcentaje < 50;
+                    case 'proceso': return porcentaje >= 50 && porcentaje < 90;
+                    case 'completos': return porcentaje >= 90;
+                    default: return true;
+                  }
+                })
+                .map(([nombre, data]) => {
+                  const porcentaje = calcularPorcentaje(nombre);
+                  const isExpanded = clientesExpandidos[nombre];
+                  const totalDocumentos = data.documentos.mensuales.length + data.documentos.unicos.length;
+
+                  return (
+                    <div key={nombre} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                      
+                      {/* Header del cliente */}
+                      <div 
+                        className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                        onClick={() => setClientesExpandidos(prev => ({ ...prev, [nombre]: !prev[nombre] }))}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            
+                            {/* Icono y expansión */}
                             <div className="flex items-center gap-2">
-                              <div className="w-32 bg-gray-200 rounded-full h-3 border">
-                                <div 
-                                  className={`h-3 rounded-full transition-all duration-500 ${
-                                    porcentaje < 50 ? 'bg-red-500' :
-                                    porcentaje < 90 ? 'bg-yellow-500' : 'bg-green-500'
-                                  }`} 
-                                  style={{ width: `${porcentaje}%` }}
-                                ></div>
+                              {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                              <span className="text-3xl">{data.icono}</span>
+                            </div>
+                            
+                            {/* Información del cliente */}
+                            <div>
+                              <h3 className="font-bold text-lg text-gray-900">{nombre}</h3>
+                              <div className="flex items-center gap-4 text-sm text-gray-600">
+                                <span className="flex items-center gap-1">
+                                  <Building size={14} />
+                                  {data.categoria}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Globe size={14} />
+                                  {data.modalidad}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Calendar size={14} />
+                                  Desde {new Date(data.fechaInicio + '-01').toLocaleDateString('es-CL', { 
+                                    month: 'short', 
+                                    year: 'numeric' 
+                                  })}
+                                </span>
+                                {data.observaciones && (
+                                  <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">
+                                    {data.observaciones}
+                                  </span>
+                                )}
                               </div>
-                              <span className={`font-bold text-sm ${
-                                porcentaje < 50 ? 'text-red-700' :
-                                porcentaje < 90 ? 'text-yellow-700' : 'text-green-700'
-                              }`}>
-                                {porcentaje}%
-                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Estadísticas y acciones */}
+                          <div className="flex items-center gap-4">
+                            
+                            {/* Barra de progreso */}
+                            <div className="text-right min-w-[120px]">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`text-lg font-bold ${
+                                  porcentaje >= 90 ? 'text-green-600' :
+                                  porcentaje >= 50 ? 'text-yellow-600' : 'text-red-600'
+                                }`}>
+                                  {porcentaje}%
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  ({totalDocumentos} docs)
+                                </span>
+                              </div>
+                              <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full transition-all duration-300 ${
+                                    porcentaje >= 90 ? 'bg-green-500' :
+                                    porcentaje >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                                  }`}
+                                  style={{ width: `${porcentaje}%` }}
+                                />
+                              </div>
                             </div>
 
-                            {/* Botones de acción */}
-                            <div className="flex items-center gap-2">
+                            {/* Botones de acción rápida */}
+                            <div className="flex gap-2">
                               <button
-                                onClick={() => toggleSubmenuCliente(nombre)}
-                                className={`px-3 py-1 rounded-lg text-sm transition-colors flex items-center gap-2 font-medium ${
-                                  submenuActivo[nombre] 
-                                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                                    : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  cambiarEstadoMasivo(nombre, 'mensuales', ESTADOS_DOCUMENTO.ACEPTADO);
+                                }}
+                                className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
+                                title="Marcar todos como aceptados"
                               >
-                                <FileSpreadsheet size={14} />
-                                {submenuActivo[nombre] ? 'Ocultar' : 'Gestionar'} Nómina
+                                ✓ Todos
                               </button>
                               
                               <button
-                                onClick={() => setClientesExpandidos(prev => ({
-                                  ...prev,
-                                  [nombre]: !prev[nombre]
-                                }))}
-                                className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  cambiarEstadoMasivo(nombre, 'mensuales', ESTADOS_DOCUMENTO.PENDIENTE);
+                                }}
+                                className="px-3 py-1 bg-gray-400 text-white text-sm rounded hover:bg-gray-500 transition-colors"
+                                title="Limpiar estados"
                               >
-                                {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                                ✗ Limpiar
                               </button>
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* Submenu de nómina */}
-                      {submenuActivo[nombre] && (
-                        <div className="p-4 bg-blue-50 border-b border-blue-200">
-                          <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                            <FileSpreadsheet size={18} />
-                            Gestión de Nómina Excel
-                          </h4>
+                      {/* Contenido expandido */}
+                      {isExpanded && (
+                        <div className="border-t border-gray-200 bg-gray-50">
                           
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                              <input
-                                type="file"
-                                accept=".xlsx,.xls"
-                                onChange={(e) => {
-                                  const file = e.target.files[0];
-                                  if (file) {
-                                    subirNominaExcel(nombre, file);
-                                  }
-                                }}
-                                disabled={subiendoNomina[nombre]}
-                                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
-                              />
-                              {subiendoNomina[nombre] && (
-                                <p className="text-sm text-blue-600 mt-1">Procesando archivo...</p>
-                              )}
-                            </div>
-                            
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                              <h5 className="font-medium text-gray-800 mb-2">Formato requerido:</h5>
-                              <ul className="text-sm text-gray-600 space-y-1">
-                                <li>• Columna "Nombre": Nombre completo</li>
-                                <li>• Columna "RUT": RUT con formato</li>
-                                <li>• Columna "Cargo": Función del trabajador</li>
-                              </ul>
+                          {/* Información adicional del cliente */}
+                          <div className="p-4 border-b border-gray-200 bg-white">
+                            <div className="grid md:grid-cols-3 gap-4 text-sm">
+                              <div className="flex items-center gap-2">
+                                <Mail size={16} className="text-gray-400" />
+                                <span className="text-gray-600">Contacto:</span>
+                                <span className="font-medium">{data.contacto}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Clock size={16} className="text-gray-400" />
+                                <span className="text-gray-600">Frecuencia:</span>
+                                <span className="font-medium">{data.frecuencia}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <CalendarClock size={16} className="text-gray-400" />
+                                <span className="text-gray-600">Estado:</span>
+                                <span className={`font-medium px-2 py-1 rounded text-xs ${
+                                  data.estado === 'Activo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {data.estado}
+                                </span>
+                              </div>
                             </div>
                           </div>
 
-                          {/* Lista de trabajadores */}
-                          {trabajadoresPorCliente[nombre]?.length > 0 && (
-                            <div className="bg-white rounded-lg p-4 border border-blue-200">
-                              <h4 className="font-semibold text-blue-900 mb-3">
-                                Trabajadores Cargados ({trabajadoresPorCliente[nombre].length})
+                          {/* Gestión de trabajadores */}
+                          <div className="p-4 border-b border-gray-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <Users size={18} />
+                                Gestión de Trabajadores
+                                {trabajadoresPorCliente[nombre] && (
+                                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                                    {trabajadoresPorCliente[nombre].length} cargados
+                                  </span>
+                                )}
                               </h4>
-                              
-                              <div className="space-y-3 max-h-96 overflow-y-auto">
-                                {trabajadoresPorCliente[nombre].map((trabajador) => (
-                                  <div key={trabajador.rut} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                                    <div className="flex items-center justify-between mb-3">
-                                      <div>
-                                        <h5 className="font-medium text-gray-900">{trabajador.nombre}</h5>
-                                        <p className="text-sm text-gray-600">RUT: {trabajador.rut} • {trabajador.cargo}</p>
-                                      </div>
-                                    </div>
+                              <button
+                                onClick={() => setMostrarGestionTrabajadores(prev => ({ 
+                                  ...prev, 
+                                  [nombre]: !prev[nombre] 
+                                }))}
+                                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                              >
+                                {mostrarGestionTrabajadores[nombre] ? 'Ocultar' : 'Gestionar'}
+                              </button>
+                            </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                                      {Object.entries(trabajador.documentos || {}).map(([documento, info]) => {
-                                        const display = getEstadoDisplay(info.estado);
-                                        const IconoEstado = display.icon;
-                                        
-                                        return (
-                                          <div key={documento} className={`flex items-center justify-between p-2 rounded border ${display.bg}`}>
-                                            <div className="flex items-center gap-2 flex-1">
-                                              <button
-                                                onClick={() => {
-                                                  const nuevoEstado = info.estado === ESTADOS_DOCUMENTO.PENDIENTE 
-                                                    ? ESTADOS_DOCUMENTO.ACEPTADO 
-                                                    : ESTADOS_DOCUMENTO.PENDIENTE;
-                                                  cambiarEstadoDocumentoTrabajador(nombre, trabajador.rut, documento, nuevoEstado);
-                                                }}
-                                                className="p-1 rounded hover:bg-gray-200 transition-colors"
-                                              >
-                                                <IconoEstado size={12} className={display.color} />
-                                              </button>
-                                              <div className="font-medium text-gray-700 leading-tight text-xs">
-                                                {documento}
+                            {mostrarGestionTrabajadores[nombre] && (
+                              <div className="space-y-4">
+                                
+                                {/* Subir nómina */}
+                                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                  <h5 className="font-medium text-blue-900 mb-2">Subir Nómina Excel</h5>
+                                  <input
+                                    type="file"
+                                    accept=".xlsx,.xls"
+                                    onChange={(e) => {
+                                      const file = e.target.files[0];
+                                      if (file) {
+                                        subirNominaExcel(nombre, file);
+                                      }
+                                    }}
+                                    className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200"
+                                  />
+                                  {subiendoNomina[nombre] && (
+                                    <p className="text-sm text-blue-600 mt-1">Procesando archivo...</p>
+                                  )}
+                                  
+                                  <div className="bg-gray-50 p-3 rounded-lg mt-3">
+                                    <h5 className="font-medium text-gray-800 mb-2">Formato requerido:</h5>
+                                    <ul className="text-sm text-gray-600 space-y-1">
+                                      <li>• Columna "Nombre": Nombre completo</li>
+                                      <li>• Columna "RUT": RUT con formato</li>
+                                      <li>• Columna "Cargo": Función del trabajador</li>
+                                    </ul>
+                                  </div>
+                                </div>
+
+                                {/* Lista de trabajadores */}
+                                {trabajadoresPorCliente[nombre]?.length > 0 && (
+                                  <div className="bg-white rounded-lg p-4 border border-blue-200">
+                                    <h4 className="font-semibold text-blue-900 mb-3">
+                                      Trabajadores Cargados ({trabajadoresPorCliente[nombre].length})
+                                    </h4>
+                                    
+                                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                                      {trabajadoresPorCliente[nombre].map((trabajador) => (
+                                        <div key={trabajador.rut} className="border border-gray-200 rounded-lg p-3">
+                                          <div className="flex items-center justify-between mb-2">
+                                            <div>
+                                              <h5 className="font-medium text-gray-900">{trabajador.nombre}</h5>
+                                              <p className="text-sm text-gray-600">RUT: {trabajador.rut} • {trabajador.cargo}</p>
+                                            </div>
+                                            <button
+                                              onClick={() => setSubmenuActivo(prev => ({
+                                                ...prev,
+                                                [`${nombre}-${trabajador.rut}`]: !prev[`${nombre}-${trabajador.rut}`]
+                                              }))}
+                                              className="px-2 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200"
+                                            >
+                                              {submenuActivo[`${nombre}-${trabajador.rut}`] ? 'Ocultar' : 'Ver Docs'}
+                                            </button>
+                                          </div>
+
+                                          {submenuActivo[`${nombre}-${trabajador.rut}`] && (
+                                            <div className="bg-gray-50 p-2 rounded mt-2">
+                                              <h6 className="text-xs font-medium text-gray-700 mb-2">Documentos por trabajador:</h6>
+                                              <div className="space-y-1">
+                                                {Object.entries(trabajador.documentos).map(([doc, info]) => {
+                                                  const estadoDisplay = getEstadoDisplay(info.estado);
+                                                  return (
+                                                    <div key={doc} className="flex items-center justify-between">
+                                                      <span className="text-xs text-gray-600">{doc}</span>
+                                                      <button
+                                                        onClick={() => {
+                                                          const nuevosEstados = [
+                                                            ESTADOS_DOCUMENTO.PENDIENTE,
+                                                            ESTADOS_DOCUMENTO.CARGADO,
+                                                            ESTADOS_DOCUMENTO.ACEPTADO
+                                                          ];
+                                                          const indiceActual = nuevosEstados.indexOf(info.estado);
+                                                          const siguienteIndice = (indiceActual + 1) % nuevosEstados.length;
+                                                          cambiarEstadoDocumentoTrabajador(nombre, trabajador.rut, doc, nuevosEstados[siguienteIndice]);
+                                                        }}
+                                                        className={`px-2 py-1 text-xs rounded ${estadoDisplay.bg} ${estadoDisplay.color}`}
+                                                      >
+                                                        {estadoDisplay.text}
+                                                      </button>
+                                                    </div>
+                                                  );
+                                                })}
                                               </div>
                                             </div>
-                                          </div>
-                                        );
-                                      })}
+                                          )}
+                                        </div>
+                                      ))}
                                     </div>
                                   </div>
-                                ))}
+                                )}
                               </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
 
-                          {!trabajadoresPorCliente[nombre]?.length && (
-                            <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
-                              <FileSpreadsheet size={48} className="mx-auto mb-4 text-gray-400" />
-                              <h3 className="text-lg font-medium text-gray-900 mb-2">Sin nómina cargada</h3>
-                              <p className="text-gray-600">
-                                Sube un archivo Excel con la nómina de trabajadores
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Contenido expandido */}
-                      {isExpanded && (
-                        <div className="p-4">
                           {/* Documentos mensuales */}
                           {data.documentos.mensuales.length > 0 && (
-                            <div className="mb-6">
+                            <div className="p-4 border-b border-gray-200">
                               <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-semibold text-gray-800">📋 Documentos Mensuales ({data.documentos.mensuales.length})</h4>
+                                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                  <FileCheck size={18} className="text-green-600" />
+                                  Documentos Mensuales ({data.documentos.mensuales.length})
+                                </h4>
                                 <div className="flex gap-2">
                                   <button
                                     onClick={() => cambiarEstadoMasivo(nombre, 'mensuales', ESTADOS_DOCUMENTO.ACEPTADO)}
-                                    className="px-3 py-1 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200 transition-colors"
+                                    className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                                   >
-                                    ✓ Aceptar todos
+                                    ✓ Todos
                                   </button>
                                   <button
                                     onClick={() => cambiarEstadoMasivo(nombre, 'mensuales', ESTADOS_DOCUMENTO.PENDIENTE)}
-                                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 transition-colors"
+                                    className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500"
                                   >
-                                    Resetear
+                                    ✗ Limpiar
                                   </button>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {data.documentos.mensuales.map((documento, index) => {
-                                  const infoDoc = obtenerInfoDocumento(nombre, documento, 'mensuales');
-                                  const display = getEstadoDisplay(infoDoc.estado);
-                                  const IconoEstado = display.icon;
+                              
+                              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {data.documentos.mensuales.map((documento) => {
+                                  const info = obtenerInfoDocumento(nombre, documento, 'mensuales');
+                                  const estadoDisplay = getEstadoDisplay(info.estado);
+                                  const IconoEstado = estadoDisplay.icon;
                                   
                                   return (
-                                    <div key={index} className={`border rounded-lg p-3 ${display.bg} transition-all hover:shadow-md`}>
-                                      <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-2">
-                                          <IconoEstado size={16} className={display.color} />
-                                          <span className="text-sm font-medium">{display.text}</span>
+                                    <div key={documento} className={`p-3 rounded-lg border ${estadoDisplay.bg}`}>
+                                      <div className="flex items-start justify-between">
+                                        <div className="flex-1 min-w-0">
+                                          <h5 className="font-medium text-gray-900 text-sm mb-1 truncate" title={documento}>
+                                            {documento}
+                                          </h5>
+                                          <div className="flex items-center gap-2">
+                                            <IconoEstado size={14} className={estadoDisplay.color} />
+                                            <span className={`text-xs font-medium ${estadoDisplay.color}`}>
+                                              {estadoDisplay.text}
+                                            </span>
+                                          </div>
+                                          {info.fechaActualizacion && (
+                                            <p className="text-xs text-gray-500 mt-1">
+                                              {new Date(info.fechaActualizacion).toLocaleDateString('es-CL')}
+                                            </p>
+                                          )}
                                         </div>
                                         <button
                                           onClick={() => toggleDocumento(nombre, documento, 'mensuales')}
-                                          className="p-1 rounded hover:bg-gray-200 transition-colors"
+                                          className="ml-2 p-1 hover:bg-white/50 rounded transition-colors"
+                                          title="Cambiar estado"
                                         >
-                                          <CheckSquare size={12} />
+                                          <Edit3 size={14} className="text-gray-400" />
                                         </button>
                                       </div>
-                                      <div className="font-medium text-sm mb-1">{documento}</div>
                                     </div>
                                   );
                                 })}
@@ -1402,48 +1927,75 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
 
                           {/* Documentos únicos */}
                           {data.documentos.unicos.length > 0 && (
-                            <div>
+                            <div className="p-4">
                               <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-semibold text-gray-800">📄 Documentos Únicos ({data.documentos.unicos.length})</h4>
+                                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                  <Archive size={18} className="text-purple-600" />
+                                  Documentos Únicos ({data.documentos.unicos.length})
+                                </h4>
                                 <div className="flex gap-2">
                                   <button
                                     onClick={() => cambiarEstadoMasivo(nombre, 'unicos', ESTADOS_DOCUMENTO.ACEPTADO)}
-                                    className="px-3 py-1 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200 transition-colors"
+                                    className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                                   >
-                                    ✓ Aceptar todos
+                                    ✓ Todos
                                   </button>
                                   <button
                                     onClick={() => cambiarEstadoMasivo(nombre, 'unicos', ESTADOS_DOCUMENTO.PENDIENTE)}
-                                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 transition-colors"
+                                    className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500"
                                   >
-                                    Resetear
+                                    ✗ Limpiar
                                   </button>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {data.documentos.unicos.map((documento, index) => {
-                                  const infoDoc = obtenerInfoDocumento(nombre, documento, 'unicos');
-                                  const display = getEstadoDisplay(infoDoc.estado);
-                                  const IconoEstado = display.icon;
+                              
+                              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {data.documentos.unicos.map((documento) => {
+                                  const info = obtenerInfoDocumento(nombre, documento, 'unicos');
+                                  const estadoDisplay = getEstadoDisplay(info.estado);
+                                  const IconoEstado = estadoDisplay.icon;
                                   
                                   return (
-                                    <div key={index} className={`border rounded-lg p-3 ${display.bg} transition-all hover:shadow-md`}>
-                                      <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-2">
-                                          <IconoEstado size={16} className={display.color} />
-                                          <span className="text-sm font-medium">{display.text}</span>
+                                    <div key={documento} className={`p-3 rounded-lg border ${estadoDisplay.bg}`}>
+                                      <div className="flex items-start justify-between">
+                                        <div className="flex-1 min-w-0">
+                                          <h5 className="font-medium text-gray-900 text-sm mb-1 truncate" title={documento}>
+                                            {documento}
+                                          </h5>
+                                          <div className="flex items-center gap-2">
+                                            <IconoEstado size={14} className={estadoDisplay.color} />
+                                            <span className={`text-xs font-medium ${estadoDisplay.color}`}>
+                                              {estadoDisplay.text}
+                                            </span>
+                                          </div>
+                                          {info.fechaActualizacion && (
+                                            <p className="text-xs text-gray-500 mt-1">
+                                              {new Date(info.fechaActualizacion).toLocaleDateString('es-CL')}
+                                            </p>
+                                          )}
                                         </div>
                                         <button
                                           onClick={() => toggleDocumento(nombre, documento, 'unicos')}
-                                          className="p-1 rounded hover:bg-gray-200 transition-colors"
+                                          className="ml-2 p-1 hover:bg-white/50 rounded transition-colors"
+                                          title="Cambiar estado"
                                         >
-                                          <CheckSquare size={12} />
+                                          <Edit3 size={14} className="text-gray-400" />
                                         </button>
                                       </div>
-                                      <div className="font-medium text-sm mb-1">{documento}</div>
                                     </div>
                                   );
                                 })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Mensaje para clientes sin documentos */}
+                          {data.documentos.mensuales.length === 0 && data.documentos.unicos.length === 0 && (
+                            <div className="p-4">
+                              <div className="text-center py-8 text-gray-500">
+                                <CheckCircle size={48} className="mx-auto mb-3 text-green-500" />
+                                <h4 className="font-medium text-gray-700 mb-1">Sin Requerimientos de Documentación</h4>
+                                <p className="text-sm">Este cliente no requiere documentación específica</p>
                               </div>
                             </div>
                           )}
@@ -1452,6 +2004,146 @@ const DashboardCumplimiento = ({ onCerrarSesion }) => {
                     </div>
                   );
                 })}
+            </div>
+
+            {/* Mensaje cuando no hay clientes que mostrar */}
+            {clientesFiltrados.length === 0 && (
+              <div className="text-center py-12">
+                <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                  <Search size={32} className="text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No se encontraron clientes</h3>
+                <p className="text-gray-500 mb-4">
+                  {busqueda || clienteFiltro || filtroEstado !== 'todos' 
+                    ? 'Prueba ajustando los filtros de búsqueda'
+                    : 'No hay clientes disponibles para el período seleccionado'
+                  }
+                </p>
+                {(busqueda || clienteFiltro || filtroEstado !== 'todos') && (
+                  <button
+                    onClick={() => {
+                      setBusqueda('');
+                      setClienteFiltro('');
+                      setFiltroEstado('todos');
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Limpiar Filtros
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Panel de notificaciones */}
+          {mostrarNotificaciones && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-96 overflow-hidden">
+                <div className="p-4 border-b border-gray-200 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                      <Bell size={20} />
+                      Notificaciones del Sistema
+                    </h3>
+                    <button
+                      onClick={() => setMostrarNotificaciones(false)}
+                      className="p-1 hover:bg-gray-200 rounded"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+                <div className="p-4 space-y-3 max-h-80 overflow-y-auto">
+                  
+                  {/* Notificaciones de clientes críticos */}
+                  {estadisticas.criticos > 0 && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle size={16} className="text-red-600 mt-0.5" />
+                        <div>
+                          <h4 className="font-medium text-red-900">Clientes Críticos</h4>
+                          <p className="text-sm text-red-700">
+                            {estadisticas.criticos} cliente(s) con menos del 50% de documentación completada
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Notificaciones de documentos rechazados */}
+                  {estadisticas.rechazados > 0 && (
+                    <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <XCircle size={16} className="text-orange-600 mt-0.5" />
+                        <div>
+                          <h4 className="font-medium text-orange-900">Documentos Rechazados</h4>
+                          <p className="text-sm text-orange-700">
+                            {estadisticas.rechazados} documento(s) requieren corrección
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Notificaciones de documentos en revisión */}
+                  {estadisticas.enRevision > 0 && (
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <Clock size={16} className="text-yellow-600 mt-0.5" />
+                        <div>
+                          <h4 className="font-medium text-yellow-900">En Revisión</h4>
+                          <p className="text-sm text-yellow-700">
+                            {estadisticas.enRevision} documento(s) están siendo revisados
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mensaje cuando todo está bien */}
+                  {estadisticas.criticos === 0 && estadisticas.rechazados === 0 && estadisticas.enRevision === 0 && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <CheckCircle size={16} className="text-green-600 mt-0.5" />
+                        <div>
+                          <h4 className="font-medium text-green-900">¡Todo en orden!</h4>
+                          <p className="text-sm text-green-700">
+                            No hay alertas pendientes en el sistema
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Footer con información del sistema */}
+          <div className="bg-gray-50 border-t border-gray-200 p-4">
+            <div className="flex items-center justify-between text-sm text-gray-600">
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1">
+                  <Shield size={14} />
+                  PGR Seguridad Chile
+                </span>
+                <span className="flex items-center gap-1">
+                  <Calendar size={14} />
+                  Sistema 2025
+                </span>
+                {ultimoGuardado && (
+                  <span className="flex items-center gap-1">
+                    <Save size={14} />
+                    Guardado: {ultimoGuardado.toLocaleTimeString('es-CL')}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span>Versión 4.0</span>
+                <div className={`w-2 h-2 rounded-full ${
+                  estadisticas.promedio >= 90 ? 'bg-green-500' :
+                  estadisticas.promedio >= 70 ? 'bg-yellow-500' : 'bg-red-500'
+                }`} title={`Promedio sistema: ${estadisticas.promedio}%`}></div>
               </div>
             </div>
           </div>
