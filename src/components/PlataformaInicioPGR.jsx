@@ -1,225 +1,405 @@
-// src/components/PlataformaInicioPGR.jsx
 import React, { useState } from 'react';
-import { Shield, FileCheck, Building2, Lock, User, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { Eye, EyeOff, Shield, BarChart3, FileCheck, DollarSign, LogOut, ArrowRight } from 'lucide-react';
 import DashboardFinancieroIntegrado from '../pages/DashboardFinancieroIntegrado';
 import DashboardCumplimiento from './DashboardCumplimiento';
+import DashboardFinancieroConSaldos from './DashboardFinancieroConSaldos'; // ← NUEVA IMPORTACIÓN
 
+/**
+ * Plataforma de Inicio PGR Seguridad
+ * Página principal con acceso a todos los dashboards del sistema
+ * Incluye autenticación y navegación centralizada
+ */
 const PlataformaInicioPGR = () => {
-  const [mostrarLogin, setMostrarLogin] = useState(false);
-  const [tipoAcceso, setTipoAcceso] = useState('');
-  const [credenciales, setCredenciales] = useState({ rut: '', clave: '' });
-  const [mostrarClave, setMostrarClave] = useState(false);
-  const [error, setError] = useState('');
-  const [accesoAutorizado, setAccesoAutorizado] = useState(false);
-  const [dashboardActivo, setDashboardActivo] = useState('');
+  // ===== ESTADOS PRINCIPALES =====
+  const [currentView, setCurrentView] = useState('inicio');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [loginForm, setLoginForm] = useState({
+    rut: '',
+    password: ''
+  });
+  const [loginError, setLoginError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Credenciales de acceso para finanzas
-  const CREDENCIALES_FINANZAS = {
+  // ===== CREDENCIALES DE ACCESO =====
+  const CREDENTIALS = {
     rut: '18808139-8',
-    clave: 'PGR"="%'
+    password: 'PGR"="%'
   };
 
-  const handleAcceso = (tipo) => {
-    setTipoAcceso(tipo);
-    if (tipo === 'finanzas') {
-      setMostrarLogin(true);
+  // ===== FUNCIÓN DE AUTENTICACIÓN =====
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setLoginError('');
+
+    // Simular delay de autenticación
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    // Validar credenciales
+    if (loginForm.rut === CREDENTIALS.rut && loginForm.password === CREDENTIALS.password) {
+      setIsAuthenticated(true);
+      setCurrentView('inicio');
+      
+      // Limpiar formulario
+      setLoginForm({ rut: '', password: '' });
     } else {
-      setAccesoAutorizado(true);
-      setDashboardActivo('contratos');
+      setLoginError('RUT o contraseña incorrectos. Verifique sus credenciales.');
     }
-    setError('');
+
+    setIsLoading(false);
   };
 
-  const validarCredenciales = () => {
-    if (credenciales.rut === CREDENCIALES_FINANZAS.rut && 
-        credenciales.clave === CREDENCIALES_FINANZAS.clave) {
-      setAccesoAutorizado(true);
-      setDashboardActivo('finanzas');
-      setMostrarLogin(false);
-      setError('');
-    } else {
-      setError('Credenciales incorrectas. Verifique RUT y clave.');
-    }
+  // ===== FUNCIÓN DE LOGOUT =====
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setCurrentView('inicio');
+    setLoginForm({ rut: '', password: '' });
+    setLoginError('');
   };
 
-  const cerrarSesion = () => {
-    setAccesoAutorizado(false);
-    setDashboardActivo('');
-    setMostrarLogin(false);
-    setCredenciales({ rut: '', clave: '' });
-    setError('');
+  // ===== FORMATEAR RUT CHILENO =====
+  const formatRUT = (value) => {
+    // Eliminar caracteres no numéricos excepto K
+    const cleanValue = value.replace(/[^0-9kK]/g, '');
+    
+    if (cleanValue.length <= 1) return cleanValue;
+    
+    // Separar número y dígito verificador
+    const number = cleanValue.slice(0, -1);
+    const dv = cleanValue.slice(-1);
+    
+    // Formatear con puntos cada 3 dígitos
+    const formattedNumber = number.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    
+    return `${formattedNumber}-${dv}`;
   };
 
-  // Renderizar dashboard activo
-  if (accesoAutorizado) {
-    if (dashboardActivo === 'finanzas') {
-      return (
-        <div>
-          <div className="bg-white shadow-sm border-b px-6 py-4 mb-4">
-            <div className="flex justify-between items-center">
-              <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <Building2 className="text-green-600" />
-                Dashboard Finanzas Corporativas - PGR Seguridad
-              </h1>
-              <button
-                onClick={cerrarSesion}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-              >
-                Cerrar Sesión
-              </button>
-            </div>
-          </div>
-          <DashboardFinancieroIntegrado />
-        </div>
-      );
-    } else if (dashboardActivo === 'contratos') {
-      return <DashboardCumplimiento onCerrarSesion={cerrarSesion} />;
-    }
-  }
+  const handleRutChange = (e) => {
+    const formattedValue = formatRUT(e.target.value);
+    setLoginForm(prev => ({ ...prev, rut: formattedValue }));
+  };
 
-  // Pantalla de login
-  if (mostrarLogin && !accesoAutorizado) {
+  // ===== PANTALLA DE LOGIN =====
+  if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
-          <div className="text-center mb-6">
-            <Shield className="mx-auto mb-4 text-blue-600" size={48} />
-            <h2 className="text-2xl font-bold text-gray-900">Acceso Restringido</h2>
-            <p className="text-gray-600 mt-2">Finanzas Corporativas</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          {/* Logo y Header */}
+          <div className="text-center mb-8">
+            <div className="bg-white w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <Shield className="h-10 w-10 text-blue-600" />
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-2">PGR Seguridad</h1>
+            <p className="text-blue-200">Plataforma de Gestión Integrada</p>
           </div>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-center gap-2">
-              <AlertTriangle size={16} className="text-red-600" />
-              <span className="text-red-700 text-sm">{error}</span>
-            </div>
-          )}
+          {/* Formulario de Login */}
+          <div className="bg-white rounded-lg shadow-xl p-8">
+            <h2 className="text-2xl font-semibold text-gray-900 text-center mb-6">
+              Acceso al Sistema
+            </h2>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                RUT
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+            <form onSubmit={handleLogin} className="space-y-6">
+              {/* Campo RUT */}
+              <div>
+                <label htmlFor="rut" className="block text-sm font-medium text-gray-700 mb-2">
+                  RUT
+                </label>
                 <input
+                  id="rut"
                   type="text"
-                  value={credenciales.rut}
-                  onChange={(e) => setCredenciales({...credenciales, rut: e.target.value})}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="18808139-8"
+                  placeholder="12.345.678-9"
+                  value={loginForm.rut}
+                  onChange={handleRutChange}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Clave
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-                <input
-                  type={mostrarClave ? "text" : "password"}
-                  value={credenciales.clave}
-                  onChange={(e) => setCredenciales({...credenciales, clave: e.target.value})}
-                  className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Ingrese su clave"
-                />
-                <button
-                  type="button"
-                  onClick={() => setMostrarClave(!mostrarClave)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {mostrarClave ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+              {/* Campo Contraseña */}
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                  Contraseña
+                </label>
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Ingrese su contraseña"
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
+                    className="w-full px-3 py-3 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5 text-gray-400" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-gray-400" />
+                    )}
+                  </button>
+                </div>
               </div>
+
+              {/* Error Message */}
+              {loginError && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                  <p className="text-red-700 text-sm">{loginError}</p>
+                </div>
+              )}
+
+              {/* Botón Login */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+              >
+                {isLoading ? 'Verificando...' : 'Iniciar Sesión'}
+              </button>
+            </form>
+
+            {/* Información de Credenciales (Solo para desarrollo) */}
+            <div className="mt-6 p-4 bg-gray-50 rounded-md">
+              <p className="text-xs text-gray-600 text-center">
+                <strong>Credenciales de acceso:</strong><br />
+                RUT: 18.808.139-8 | Contraseña: PGR"="%
+              </p>
             </div>
-
-            <button
-              onClick={validarCredenciales}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors font-medium"
-            >
-              Acceder
-            </button>
-
-            <button
-              onClick={() => setMostrarLogin(false)}
-              className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200 transition-colors"
-            >
-              Cancelar
-            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  // Pantalla principal de inicio
+  // ===== RENDERIZADO SEGÚN VISTA ACTUAL =====
+  
+  // Vista Dashboard Financiero Original (Chipax)
+  if (currentView === 'financiero') {
+    return (
+      <DashboardFinancieroIntegrado 
+        onBack={() => setCurrentView('inicio')}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  // Vista Dashboard de Cumplimiento
+  if (currentView === 'cumplimiento') {
+    return (
+      <DashboardCumplimiento 
+        onBack={() => setCurrentView('inicio')}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  // ← NUEVA VISTA: Dashboard Financiero Completo (Chipax + Saldos)
+  if (currentView === 'financiero-completo') {
+    return (
+      <DashboardFinancieroConSaldos 
+        onBack={() => setCurrentView('inicio')}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  // ===== VISTA PRINCIPAL DE INICIO =====
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-4xl">
-        <div className="text-center mb-8">
-          <Shield className="mx-auto mb-4 text-blue-600" size={64} />
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            PGR Seguridad
-          </h1>
-          <p className="text-gray-600">
-            Plataforma de Gestión y Control de Documentación
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="bg-blue-600 w-10 h-10 rounded-lg flex items-center justify-center">
+                <Shield className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">PGR Seguridad</h1>
+                <p className="text-sm text-gray-600">Plataforma de Gestión Integrada</p>
+              </div>
+            </div>
+            
+            <button
+              onClick={handleLogout}
+              className="flex items-center px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+            >
+              <LogOut className="h-5 w-5 mr-2" />
+              Cerrar Sesión
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Contenido Principal */}
+      <div className="max-w-7xl mx-auto px-6 py-12">
+        {/* Título de Bienvenida */}
+        <div className="text-center mb-12">
+          <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            Bienvenido al Centro de Control
+          </h2>
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            Gestiona de manera eficiente las finanzas corporativas, cumplimiento de contratos 
+            y análisis financiero integral de PGR Seguridad.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Acceso a Finanzas Corporativas */}
-          <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-6 rounded-lg border border-green-200">
-            <div className="text-center">
-              <Building2 className="mx-auto mb-4 text-green-600" size={48} />
-              <h2 className="text-xl font-bold text-green-900 mb-3">
-                Finanzas Corporativas
-              </h2>
-              <p className="text-green-700 mb-4 text-sm">
-                Dashboard financiero integrado con datos de Chipax. Requiere autenticación especial.
+        {/* Grid de Dashboards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          
+          {/* ← MODIFICADO: Dashboard Financiero Original (solo Chipax) */}
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow group">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6">
+              <BarChart3 className="h-12 w-12 text-white mb-4" />
+              <h3 className="text-xl font-bold text-white mb-2">
+                📊 Dashboard Financiero Chipax
+              </h3>
+              <p className="text-blue-100">
+                Datos financieros desde Chipax
               </p>
-              <div className="flex items-center justify-center gap-2 mb-4">
-                <Lock size={16} className="text-green-600" />
-                <span className="text-sm text-green-600 font-medium">Acceso Restringido</span>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-600 mb-4">
+                Accede a saldos bancarios, cuentas por cobrar/pagar y KPIs financieros 
+                integrados con la plataforma Chipax.
+              </p>
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-500">
+                  ✅ Integración Chipax<br />
+                  ✅ KPIs en tiempo real<br />
+                  ✅ Reportes automáticos
+                </div>
               </div>
               <button
-                onClick={() => handleAcceso('finanzas')}
-                className="w-full bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700 transition-colors font-medium"
+                onClick={() => setCurrentView('financiero')}
+                className="w-full mt-4 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center group-hover:bg-blue-700"
               >
-                Acceder a Finanzas
+                Acceder a Finanzas Chipax
+                <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
               </button>
             </div>
           </div>
 
-          {/* Acceso a Cumplimiento de Contratos */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-6 rounded-lg border border-blue-200">
-            <div className="text-center">
-              <FileCheck className="mx-auto mb-4 text-blue-600" size={48} />
-              <h2 className="text-xl font-bold text-blue-900 mb-3">
-                Cumplimiento de Contratos
-              </h2>
-              <p className="text-blue-700 mb-4 text-sm">
-                Control y seguimiento de documentación requerida por cada cliente según sus especificaciones.
+          {/* ← NUEVO: Dashboard Financiero Completo (Chipax + Saldos Bancarios) */}
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow group">
+            <div className="bg-gradient-to-r from-green-500 to-green-600 p-6">
+              <DollarSign className="h-12 w-12 text-white mb-4" />
+              <h3 className="text-xl font-bold text-white mb-2">
+                💰 Dashboard Financiero Completo
+              </h3>
+              <p className="text-green-100">
+                Chipax + Saldos Bancarios integrados
               </p>
-              <div className="flex items-center justify-center gap-2 mb-4">
-                <FileCheck size={16} className="text-blue-600" />
-                <span className="text-sm text-blue-600 font-medium">Acceso Público</span>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-600 mb-4">
+                Dashboard integral que combina datos de Chipax con análisis de cartolas 
+                bancarias para una visión financiera completa.
+              </p>
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-500">
+                  ✅ Carga de cartolas CSV/Excel<br />
+                  ✅ Análisis de movimientos<br />
+                  ✅ Integración con Chipax<br />
+                  ✅ Dashboard unificado
+                </div>
               </div>
               <button
-                onClick={() => handleAcceso('contratos')}
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition-colors font-medium"
+                onClick={() => setCurrentView('financiero-completo')}
+                className="w-full mt-4 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center group-hover:bg-green-700"
               >
-                Ver Dashboard de Contratos
+                Acceder a Finanzas Completas
+                <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
               </button>
+            </div>
+          </div>
+
+          {/* Dashboard de Cumplimiento (sin cambios) */}
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow group">
+            <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-6">
+              <FileCheck className="h-12 w-12 text-white mb-4" />
+              <h3 className="text-xl font-bold text-white mb-2">
+                📋 Dashboard de Cumplimiento
+              </h3>
+              <p className="text-purple-100">
+                Control de documentación por cliente
+              </p>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-600 mb-4">
+                Sistema de seguimiento de documentación y certificaciones para 
+                todos los clientes de PGR Seguridad.
+              </p>
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-500">
+                  ✅ 17 clientes incluidos<br />
+                  ✅ Seguimiento por cliente<br />
+                  ✅ Alertas de cumplimiento
+                </div>
+              </div>
+              <button
+                onClick={() => setCurrentView('cumplimiento')}
+                className="w-full mt-4 bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center justify-center group-hover:bg-purple-700"
+              >
+                Gestionar Contratos
+                <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        {/* ← NUEVA SECCIÓN: Información de Funcionalidades */}
+        <div className="mt-16 bg-white rounded-lg shadow-lg p-8">
+          <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+            🚀 Funcionalidades Disponibles
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <BarChart3 className="h-8 w-8 text-blue-600" />
+              </div>
+              <h4 className="text-lg font-semibold mb-2">Análisis Financiero</h4>
+              <p className="text-gray-600 text-sm">
+                Integración con Chipax y procesamiento de cartolas bancarias 
+                para análisis completo de flujos financieros.
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <DollarSign className="h-8 w-8 text-green-600" />
+              </div>
+              <h4 className="text-lg font-semibold mb-2">Saldos Bancarios</h4>
+              <p className="text-gray-600 text-sm">
+                Carga automática de cartolas en CSV/Excel para cálculo 
+                de saldos y categorización de movimientos.
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FileCheck className="h-8 w-8 text-purple-600" />
+              </div>
+              <h4 className="text-lg font-semibold mb-2">Control de Cumplimiento</h4>
+              <p className="text-gray-600 text-sm">
+                Seguimiento de documentación de certificaciones para 
+                17 clientes con alertas automáticas.
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="mt-8 text-center">
-          <p className="text-gray-500 text-sm">
-            Seleccione el área a la que desea acceder. El sistema mantendrá un registro de todos los accesos.
-          </p>
+        {/* Footer */}
+        <div className="mt-12 text-center text-gray-500">
+          <p>© 2025 PGR Seguridad - Plataforma de Gestión Integrada</p>
+          <p className="text-sm mt-1">Desarrollado con React • Desplegado en Netlify</p>
         </div>
       </div>
     </div>
