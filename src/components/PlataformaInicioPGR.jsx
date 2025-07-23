@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { Eye, EyeOff, Shield, BarChart3, FileCheck, DollarSign, LogOut, ArrowRight } from 'lucide-react';
 import DashboardFinancieroIntegrado from '../pages/DashboardFinancieroIntegrado';
 import DashboardCumplimiento from './DashboardCumplimiento';
-import DashboardFinancieroConSaldos from './DashboardFinancieroConSaldos'; // ← NUEVA IMPORTACIÓN
+import DashboardFinancieroConSaldos from './DashboardFinancieroConSaldos';
 
 /**
- * Plataforma de Inicio PGR Seguridad
+ * Plataforma de Inicio PGR Seguridad - VERSIÓN CORREGIDA
  * Página principal con acceso a todos los dashboards del sistema
  * Incluye autenticación y navegación centralizada
  */
@@ -23,27 +23,49 @@ const PlataformaInicioPGR = () => {
 
   // ===== CREDENCIALES DE ACCESO =====
   const CREDENTIALS = {
-    rut: '18808139-8',
+    rut: '18808139-8',        // SIN formato
+    rutFormatted: '18.808.139-8',  // CON formato (para mostrar)
     password: 'PGR"="%'
   };
 
-  // ===== FUNCIÓN DE AUTENTICACIÓN =====
+  // ===== FUNCIÓN PARA LIMPIAR RUT (sin formato) =====
+  const cleanRUT = (rut) => {
+    return rut.replace(/[^0-9kK]/g, ''); // Eliminar todos los caracteres excepto números y K
+  };
+
+  // ===== FUNCIÓN DE AUTENTICACIÓN CORREGIDA =====
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setLoginError('');
 
+    console.log('🔐 Intentando login...');
+    console.log('📝 RUT ingresado:', loginForm.rut);
+    console.log('📝 RUT limpio:', cleanRUT(loginForm.rut));
+    console.log('📝 RUT esperado:', CREDENTIALS.rut);
+    console.log('🔑 Password ingresado:', loginForm.password);
+    console.log('🔑 Password esperado:', CREDENTIALS.password);
+
     // Simular delay de autenticación
     await new Promise(resolve => setTimeout(resolve, 800));
 
-    // Validar credenciales
-    if (loginForm.rut === CREDENTIALS.rut && loginForm.password === CREDENTIALS.password) {
+    // VALIDACIÓN CORREGIDA: Comparar RUT limpio
+    const rutLimpio = cleanRUT(loginForm.rut);
+    const rutEsperado = cleanRUT(CREDENTIALS.rut);
+    
+    if (rutLimpio === rutEsperado && loginForm.password === CREDENTIALS.password) {
+      console.log('✅ Login exitoso');
       setIsAuthenticated(true);
       setCurrentView('inicio');
       
       // Limpiar formulario
       setLoginForm({ rut: '', password: '' });
+      setLoginError('');
     } else {
+      console.log('❌ Login fallido');
+      console.log('❌ RUT match:', rutLimpio === rutEsperado);
+      console.log('❌ Password match:', loginForm.password === CREDENTIALS.password);
+      
       setLoginError('RUT o contraseña incorrectos. Verifique sus credenciales.');
     }
 
@@ -167,9 +189,22 @@ const PlataformaInicioPGR = () => {
             <div className="mt-6 p-4 bg-gray-50 rounded-md">
               <p className="text-xs text-gray-600 text-center">
                 <strong>Credenciales de acceso:</strong><br />
-                RUT: 18.808.139-8 | Contraseña: PGR"="%
+                RUT: {CREDENTIALS.rutFormatted} | Contraseña: {CREDENTIALS.password}
               </p>
             </div>
+
+            {/* DEBUG INFO - Solo visible en desarrollo */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="mt-4 p-3 bg-yellow-50 rounded-md">
+                <p className="text-xs text-yellow-800">
+                  <strong>DEBUG:</strong><br />
+                  RUT ingresado limpio: {cleanRUT(loginForm.rut)}<br />
+                  RUT esperado limpio: {cleanRUT(CREDENTIALS.rut)}<br />
+                  Match RUT: {cleanRUT(loginForm.rut) === cleanRUT(CREDENTIALS.rut) ? '✅' : '❌'}<br />
+                  Match Password: {loginForm.password === CREDENTIALS.password ? '✅' : '❌'}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -198,7 +233,7 @@ const PlataformaInicioPGR = () => {
     );
   }
 
-  // ← NUEVA VISTA: Dashboard Financiero Completo (Chipax + Saldos)
+  // Vista Dashboard Financiero Completo (Chipax + Saldos)
   if (currentView === 'financiero-completo') {
     return (
       <DashboardFinancieroConSaldos 
@@ -252,7 +287,7 @@ const PlataformaInicioPGR = () => {
         {/* Grid de Dashboards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           
-          {/* ← MODIFICADO: Dashboard Financiero Original (solo Chipax) */}
+          {/* Dashboard Financiero Original (solo Chipax) */}
           <div className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow group">
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6">
               <BarChart3 className="h-12 w-12 text-white mb-4" />
@@ -285,7 +320,7 @@ const PlataformaInicioPGR = () => {
             </div>
           </div>
 
-          {/* ← NUEVO: Dashboard Financiero Completo (Chipax + Saldos Bancarios) */}
+          {/* Dashboard Financiero Completo (Chipax + Saldos Bancarios) */}
           <div className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow group">
             <div className="bg-gradient-to-r from-green-500 to-green-600 p-6">
               <DollarSign className="h-12 w-12 text-white mb-4" />
@@ -319,7 +354,7 @@ const PlataformaInicioPGR = () => {
             </div>
           </div>
 
-          {/* Dashboard de Cumplimiento (sin cambios) */}
+          {/* Dashboard de Cumplimiento */}
           <div className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow group">
             <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-6">
               <FileCheck className="h-12 w-12 text-white mb-4" />
@@ -354,7 +389,7 @@ const PlataformaInicioPGR = () => {
 
         </div>
 
-        {/* ← NUEVA SECCIÓN: Información de Funcionalidades */}
+        {/* Sección de Funcionalidades */}
         <div className="mt-16 bg-white rounded-lg shadow-lg p-8">
           <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">
             🚀 Funcionalidades Disponibles
