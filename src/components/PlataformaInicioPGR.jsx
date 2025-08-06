@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Shield, BarChart3, FileCheck, LogOut } from 'lucide-react';
+import { Eye, EyeOff, Shield, BarChart3, FileCheck, FileText, LogOut } from 'lucide-react';
 import DashboardFinancieroIntegrado from '../pages/DashboardFinancieroIntegrado';
 import DashboardCumplimiento from './DashboardCumplimiento';
 
