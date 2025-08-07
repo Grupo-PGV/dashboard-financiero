@@ -133,10 +133,14 @@ const DashboardFinancieroCorregido = ({ onBack, onLogout }) => {
     }
   };
 
-  // ===== CORRECCIÓN PARA DashboardFinancieroIntegrado.jsx =====
-// Reemplazar SOLO la función procesarCartolaBAncaria existente
+  // ===== CORRECCIÓN EXACTA PARA DashboardFinancieroIntegrado.jsx =====
+// En tu archivo src/pages/DashboardFinancieroIntegrado.jsx
 
-// ✅ FUNCIÓN CORREGIDA: procesarCartolaBAncaria (sin typo y XLSX corregido)
+// 🔧 PASO 1: Busca esta función (línea ~590 aprox):
+// const procesarCartolaBAncaria = async (file) => {
+
+// 🔧 PASO 2: Reemplázala completamente por esta versión corregida:
+// ✅ FUNCIÓN CORREGIDA: procesarCartolaBancaria (sin typo, XLSX arreglado)
 const procesarCartolaBancaria = async (file) => {
   setIsLoadingCartola(true);
   setErrorCartola(null);
@@ -144,32 +148,37 @@ const procesarCartolaBancaria = async (file) => {
   try {
     console.log(`📁 Procesando cartola: ${file.name}`);
     
-    // ✅ CORRECCIÓN 1: Importación XLSX corregida
+    // ✅ CORRECCIÓN XLSX: Manejo más robusto de la importación
     let XLSX;
     try {
-      // Método más confiable para importación dinámica
-      XLSX = await import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+      console.log('📚 Importando XLSX...');
+      const xlsxModule = await import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
       
-      // Verificar que el módulo se haya cargado correctamente
-      if (!XLSX.read) {
-        // Si no hay .read directo, puede estar en .default
-        XLSX = XLSX.default || XLSX;
+      // Manejar diferentes estructuras de módulo
+      if (xlsxModule.default && typeof xlsxModule.default.read === 'function') {
+        XLSX = xlsxModule.default;
+      } else if (typeof xlsxModule.read === 'function') {
+        XLSX = xlsxModule;
+      } else if (xlsxModule.XLSX && typeof xlsxModule.XLSX.read === 'function') {
+        XLSX = xlsxModule.XLSX;
+      } else {
+        throw new Error('No se encontró la función XLSX.read en el módulo importado');
       }
       
-      if (!XLSX.read) {
-        throw new Error('XLSX no se cargó correctamente');
-      }
-      
-      console.log('✅ XLSX cargado exitosamente');
+      console.log('✅ XLSX importado correctamente');
     } catch (xlsxError) {
-      console.error('❌ Error cargando XLSX:', xlsxError);
-      throw new Error(`Error cargando procesador Excel: ${xlsxError.message}`);
+      console.error('❌ Error importando XLSX:', xlsxError);
+      throw new Error(`Error cargando procesador Excel. Verifica tu conexión: ${xlsxError.message}`);
     }
     
-    // Leer archivo usando la función helper existente
+    // Leer archivo usando función existente
     const arrayBuffer = await readFileAsArrayBuffer(file);
     
-    // ✅ CORRECCIÓN 2: Uso seguro de XLSX.read
+    // ✅ Usar XLSX con verificación adicional
+    if (typeof XLSX.read !== 'function') {
+      throw new Error('XLSX.read no está disponible. Error en la importación.');
+    }
+    
     const workbook = XLSX.read(arrayBuffer, {
       cellStyles: true,
       cellFormulas: true,
@@ -178,18 +187,18 @@ const procesarCartolaBancaria = async (file) => {
     
     console.log('📊 Hojas disponibles:', workbook.SheetNames);
     
-    // Analizar primera hoja
+    // Usar funciones existentes del dashboard
     const primeraHoja = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[primeraHoja];
     const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
     
     console.log(`📋 Total filas: ${rawData.length}`);
     
-    // ✅ CORRECCIÓN 3: Detectar banco mejorado
-    const procesador = detectarBancoMejorado(file.name, rawData);
+    // ✅ Usar función detectarBanco existente
+    const procesador = detectarBanco(file.name, rawData);
     console.log(`🏦 Banco detectado: ${procesador.nombre}`);
     
-    // Procesar movimientos usando función existente
+    // ✅ Usar función procesarMovimientos existente
     const movimientos = procesarMovimientos(rawData, procesador, file.name);
     console.log(`✅ Procesados ${movimientos.length} movimientos`);
     
@@ -197,48 +206,96 @@ const procesarCartolaBancaria = async (file) => {
       throw new Error('No se encontraron movimientos válidos en el archivo');
     }
     
-    // Calcular estadísticas usando función existente
+    // ✅ Usar función calcularEstadisticasCartola existente
     const estadisticas = calcularEstadisticasCartola(movimientos);
     
-    // ✅ Actualizar estados usando la lógica existente
+    // ✅ Usar lógica existente para actualizar estados
     const nuevosMovimientos = [...movimientosBancarios, ...movimientos];
     setMovimientosBancarios(nuevosMovimientos);
     
-    // Registrar cartola cargada
+    // Registrar cartola cargada (mantener estructura existente)
     const nuevaCartola = {
       id: Date.now(),
       nombre: file.name,
       banco: procesador.nombre,
-      numeroCuenta: procesador.numeroCuenta,
       fechaCarga: new Date().toISOString(),
       movimientos: movimientos.length,
-      saldoInicial: estadisticas.saldoInicial,
-      saldoFinal: estadisticas.saldoFinal,
-      totalAbonos: estadisticas.totalAbonos,
-      totalCargos: estadisticas.totalCargos,
-      estadisticas
+      ...estadisticas
     };
     
-    const nuevasCartolas = [...cartolasCargadas, nuevaCartola];
-    setCartolasCargadas(nuevasCartolas);
+    setCartolasCargadas(prev => [...prev, nuevaCartola]);
     
-    // ✅ Guardar en localStorage usando la lógica existente
-    localStorage.setItem('pgr_movimientos_bancarios', JSON.stringify(nuevosMovimientos));
-    localStorage.setItem('pgr_cartolas_cargadas', JSON.stringify(nuevasCartolas));
-    
-    // ✅ Actualizar saldos totales usando función existente
+    // ✅ Usar función actualizarSaldosTotales existente
     actualizarSaldosTotales(nuevosMovimientos);
     
-    console.log(`🎉 Cartola procesada exitosamente: ${procesador.nombre} - ${movimientos.length} movimientos`);
+    // ✅ Usar función calcularKPIsIntegrados existente  
+    calcularKPIsIntegrados();
+    
+    // ✅ Usar localStorage existente
+    localStorage.setItem('pgr_movimientos_bancarios', JSON.stringify(nuevosMovimientos));
+    localStorage.setItem('pgr_cartolas_cargadas', JSON.stringify([...cartolasCargadas, nuevaCartola]));
+    
+    console.log(`🎉 Cartola ${file.name} procesada exitosamente`);
     
   } catch (error) {
     console.error('❌ Error procesando cartola:', error);
-    setErrorCartola(error.message);
+    setErrorCartola(`Error procesando ${file.name}: ${error.message}`);
   } finally {
     setIsLoadingCartola(false);
   }
 };
 
+
+// 🔧 PASO 3: También corrige la referencia en ZonaCargaCartolas
+// Busca en tu archivo donde dice:
+//   onChange={(e) => {
+//     if (e.target.files[0]) {
+//       procesarCartolaBAncaria(e.target.files[0]);  // ❌ Con typo
+//     }
+//   }}
+
+// Cámbialo por:
+//   onChange={(e) => {
+//     if (e.target.files[0]) {
+//       procesarCartolaBancaria(e.target.files[0]);  // ✅ Sin typo
+//     }
+//   }}
+
+// ===== NOTA PARA IMPLEMENTACIÓN =====
+/*
+🎯 RESUMEN DE LOS CAMBIOS:
+
+1. ✅ CORREGIR TYPO: procesarCartolaBAncaria → procesarCartolaBancaria
+2. ✅ CORRECCIÓN XLSX: Manejo robusto de importación dinámica
+3. ✅ VERIFICACIÓN: Asegurar que XLSX.read existe antes de usarlo
+4. ✅ COMPATIBLE: Usa todas tus funciones existentes (detectarBanco, procesarMovimientos, etc.)
+
+🔧 PASOS DE IMPLEMENTACIÓN:
+
+PASO 1: En src/pages/DashboardFinancieroIntegrado.jsx
+- Busca: const procesarCartolaBAncaria = async (file) => {
+- Reemplaza toda la función con la versión corregida de arriba
+
+PASO 2: En la misma archivo, busca:
+- procesarCartolaBAncaria(e.target.files[0]);
+- Cámbialo por: procesarCartolaBancaria(e.target.files[0]);
+
+PASO 3: Guarda y prueba
+- El error "t.read is not a function" debería desaparecer
+- Las cartolas se procesarán correctamente
+
+✅ RESULTADO ESPERADO:
+📁 Procesando cartola: CartolaHistorica 67.xls
+📚 Importando XLSX...
+✅ XLSX importado correctamente
+📊 Hojas disponibles: ["Hoja1"]
+📋 Total filas: 156
+🏦 Banco detectado: BCI
+✅ Procesados 123 movimientos
+🎉 Cartola CartolaHistorica 67.xls procesada exitosamente
+*/
+
+  
 // ✅ FUNCIÓN AUXILIAR MEJORADA: detectarBancoMejorado
 const detectarBancoMejorado = (filename, rawData) => {
   const nombre = filename.toLowerCase();
