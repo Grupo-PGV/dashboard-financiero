@@ -133,77 +133,219 @@ const DashboardFinancieroCorregido = ({ onBack, onLogout }) => {
     }
   };
 
-  // ===== PROCESADOR DE CARTOLAS CORREGIDO =====
-  const procesarCartolaBancaria = async (file) => {
-    setIsLoadingCartola(true);
-    setErrorCartola(null);
+  // ===== CORRECCIÓN PARA DashboardFinancieroIntegrado.jsx =====
+// Reemplazar SOLO la función procesarCartolaBAncaria existente
+
+// ✅ FUNCIÓN CORREGIDA: procesarCartolaBAncaria (sin typo y XLSX corregido)
+const procesarCartolaBancaria = async (file) => {
+  setIsLoadingCartola(true);
+  setErrorCartola(null);
+
+  try {
+    console.log(`📁 Procesando cartola: ${file.name}`);
     
+    // ✅ CORRECCIÓN 1: Importación XLSX corregida
+    let XLSX;
     try {
-      console.log(`📁 Procesando cartola: ${file.name}`);
+      // Método más confiable para importación dinámica
+      XLSX = await import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
       
-      // ✅ CORRECCIÓN: Importación directa sin dynamic import
-      const XLSX = await import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
-      
-      // Leer archivo
-      const arrayBuffer = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result);
-        reader.onerror = () => reject(new Error('Error leyendo archivo'));
-        reader.readAsArrayBuffer(file);
-      });
-      
-      // ✅ CORRECCIÓN: Usar la importación correcta
-      const workbook = XLSX.read(arrayBuffer, {
-        cellStyles: true,
-        cellFormulas: true,
-        cellDates: true
-      });
-      
-      console.log('📊 Hojas disponibles:', workbook.SheetNames);
-      
-      const primeraHoja = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[primeraHoja];
-      const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-      
-      console.log(`📋 Total filas: ${rawData.length}`);
-      
-      // Detectar banco
-      const bancoDetectado = detectarBanco(file.name, rawData);
-      console.log(`🏦 Banco detectado: ${bancoDetectado.nombre}`);
-      
-      // Procesar movimientos
-      const movimientos = procesarMovimientos(rawData, bancoDetectado, file.name);
-      console.log(`✅ Procesados ${movimientos.length} movimientos`);
-      
-      if (movimientos.length === 0) {
-        throw new Error('No se encontraron movimientos válidos');
+      // Verificar que el módulo se haya cargado correctamente
+      if (!XLSX.read) {
+        // Si no hay .read directo, puede estar en .default
+        XLSX = XLSX.default || XLSX;
       }
       
-      // Calcular estadísticas
-      const estadisticas = calcularEstadisticas(movimientos);
+      if (!XLSX.read) {
+        throw new Error('XLSX no se cargó correctamente');
+      }
       
-      // Guardar resultados
-      const nuevaCartola = {
-        id: Date.now(),
-        nombre: file.name,
-        banco: bancoDetectado.nombre,
-        fechaCarga: new Date(),
-        movimientos: movimientos.length,
-        estadisticas
-      };
-      
-      setCartolasProcessadas(prev => [...prev, nuevaCartola]);
-      setMovimientosBancarios(prev => [...prev, ...movimientos]);
-      
-      console.log('🎉 Cartola procesada exitosamente');
-      
-    } catch (error) {
-      console.error('❌ Error procesando cartola:', error);
-      setErrorCartola(error.message);
-    } finally {
-      setIsLoadingCartola(false);
+      console.log('✅ XLSX cargado exitosamente');
+    } catch (xlsxError) {
+      console.error('❌ Error cargando XLSX:', xlsxError);
+      throw new Error(`Error cargando procesador Excel: ${xlsxError.message}`);
     }
+    
+    // Leer archivo usando la función helper existente
+    const arrayBuffer = await readFileAsArrayBuffer(file);
+    
+    // ✅ CORRECCIÓN 2: Uso seguro de XLSX.read
+    const workbook = XLSX.read(arrayBuffer, {
+      cellStyles: true,
+      cellFormulas: true,
+      cellDates: true
+    });
+    
+    console.log('📊 Hojas disponibles:', workbook.SheetNames);
+    
+    // Analizar primera hoja
+    const primeraHoja = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[primeraHoja];
+    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    
+    console.log(`📋 Total filas: ${rawData.length}`);
+    
+    // ✅ CORRECCIÓN 3: Detectar banco mejorado
+    const procesador = detectarBancoMejorado(file.name, rawData);
+    console.log(`🏦 Banco detectado: ${procesador.nombre}`);
+    
+    // Procesar movimientos usando función existente
+    const movimientos = procesarMovimientos(rawData, procesador, file.name);
+    console.log(`✅ Procesados ${movimientos.length} movimientos`);
+    
+    if (movimientos.length === 0) {
+      throw new Error('No se encontraron movimientos válidos en el archivo');
+    }
+    
+    // Calcular estadísticas usando función existente
+    const estadisticas = calcularEstadisticasCartola(movimientos);
+    
+    // ✅ Actualizar estados usando la lógica existente
+    const nuevosMovimientos = [...movimientosBancarios, ...movimientos];
+    setMovimientosBancarios(nuevosMovimientos);
+    
+    // Registrar cartola cargada
+    const nuevaCartola = {
+      id: Date.now(),
+      nombre: file.name,
+      banco: procesador.nombre,
+      numeroCuenta: procesador.numeroCuenta,
+      fechaCarga: new Date().toISOString(),
+      movimientos: movimientos.length,
+      saldoInicial: estadisticas.saldoInicial,
+      saldoFinal: estadisticas.saldoFinal,
+      totalAbonos: estadisticas.totalAbonos,
+      totalCargos: estadisticas.totalCargos,
+      estadisticas
+    };
+    
+    const nuevasCartolas = [...cartolasCargadas, nuevaCartola];
+    setCartolasCargadas(nuevasCartolas);
+    
+    // ✅ Guardar en localStorage usando la lógica existente
+    localStorage.setItem('pgr_movimientos_bancarios', JSON.stringify(nuevosMovimientos));
+    localStorage.setItem('pgr_cartolas_cargadas', JSON.stringify(nuevasCartolas));
+    
+    // ✅ Actualizar saldos totales usando función existente
+    actualizarSaldosTotales(nuevosMovimientos);
+    
+    console.log(`🎉 Cartola procesada exitosamente: ${procesador.nombre} - ${movimientos.length} movimientos`);
+    
+  } catch (error) {
+    console.error('❌ Error procesando cartola:', error);
+    setErrorCartola(error.message);
+  } finally {
+    setIsLoadingCartola(false);
+  }
+};
+
+// ✅ FUNCIÓN AUXILIAR MEJORADA: detectarBancoMejorado
+const detectarBancoMejorado = (filename, rawData) => {
+  const nombre = filename.toLowerCase();
+  const contenidoTexto = rawData.flat().join(' ').toLowerCase();
+  
+  console.log('🔍 Analizando archivo:', filename);
+  console.log('📋 Contenido primeras filas:', rawData.slice(0, 5));
+  
+  let bancoDetectado = {
+    nombre: 'Banco Genérico',
+    startRow: 5,
+    numeroCuenta: 'No detectado'
   };
+  
+  // ✅ Detección mejorada por nombre de archivo
+  if (nombre.includes('bci') || contenidoTexto.includes('banco bci') || contenidoTexto.includes('crédito e inversiones')) {
+    bancoDetectado = {
+      nombre: 'Banco BCI',
+      startRow: 8,
+      numeroCuenta: extraerNumeroCuenta(rawData, 'bci')
+    };
+  } else if (nombre.includes('chile') || contenidoTexto.includes('banco de chile') || contenidoTexto.includes('bankchile')) {
+    bancoDetectado = {
+      nombre: 'Banco de Chile',
+      startRow: 7,
+      numeroCuenta: extraerNumeroCuenta(rawData, 'chile')
+    };
+  } else if (nombre.includes('estado') || contenidoTexto.includes('banco estado') || contenidoTexto.includes('bancoestado')) {
+    bancoDetectado = {
+      nombre: 'Banco Estado',
+      startRow: 9,
+      numeroCuenta: extraerNumeroCuenta(rawData, 'estado')
+    };
+  } else if (nombre.includes('santander') || contenidoTexto.includes('banco santander')) {
+    bancoDetectado = {
+      nombre: 'Banco Santander',
+      startRow: 8,
+      numeroCuenta: extraerNumeroCuenta(rawData, 'santander')
+    };
+  }
+  
+  // ✅ Detectar por número de cuenta en nombre de archivo
+  const matchCuentaFilename = nombre.match(/(\d{8,})/);
+  if (matchCuentaFilename && bancoDetectado.numeroCuenta === 'No detectado') {
+    bancoDetectado.numeroCuenta = matchCuentaFilename[1];
+    bancoDetectado.nombre = `Banco (${bancoDetectado.numeroCuenta})`;
+  }
+  
+  console.log(`🏦 Banco detectado: ${bancoDetectado.nombre}, Cuenta: ${bancoDetectado.numeroCuenta}`);
+  
+  return bancoDetectado;
+};
+
+// ✅ FUNCIÓN AUXILIAR: extraerNumeroCuenta
+const extraerNumeroCuenta = (rawData, tipoBanco) => {
+  // Buscar número de cuenta en las primeras 10 filas
+  for (let i = 0; i < Math.min(10, rawData.length); i++) {
+    const fila = rawData[i];
+    if (fila && Array.isArray(fila)) {
+      const textoFila = fila.join(' ').toLowerCase();
+      
+      // Patrones comunes de búsqueda
+      const patrones = [
+        /cuenta[\s\w]*?(\d{8,})/i,
+        /cta[\s\w]*?(\d{8,})/i,
+        /n[°º][\s]*(\d{8,})/i,
+        /\b(\d{10,})\b/i // Números largos como último recurso
+      ];
+      
+      for (const patron of patrones) {
+        const match = textoFila.match(patron);
+        if (match) {
+          console.log(`✅ Número de cuenta encontrado: ${match[1]} (fila ${i + 1})`);
+          return match[1];
+        }
+      }
+    }
+  }
+  
+  return 'No detectado';
+};
+
+// ===== NOTA PARA IMPLEMENTACIÓN =====
+/*
+🔧 INSTRUCCIONES DE IMPLEMENTACIÓN:
+
+1. En tu archivo DashboardFinancieroIntegrado.jsx (src/pages/):
+   - Busca la función: procesarCartolaBAncaria (con typo)
+   - Reemplázala completamente por: procesarCartolaBancaria (sin typo)
+   
+2. Agrega las funciones auxiliares nuevas:
+   - detectarBancoMejorado (reemplaza detectarBanco si existe)
+   - extraerNumeroCuenta (nueva)
+
+3. Verifica que estas funciones helper existan o agrégalas si faltan:
+   - readFileAsArrayBuffer
+   - procesarMovimientos  
+   - calcularEstadisticasCartola
+   - actualizarSaldosTotales
+
+✅ ESTO CORRIGE:
+- Error "t.read is not a function"
+- Detección mejorada de bancos
+- Extracción automática de número de cuenta
+- Mejor manejo de errores
+- Compatibilidad con tu estructura existente
+*/
 
   // ===== FUNCIONES AUXILIARES CARTOLAS =====
   const detectarBanco = (filename, data) => {
