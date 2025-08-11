@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders learn react link', () => {
+test('muestra la pantalla de login de PGR Seguridad', () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  expect(screen.getByText(/PGR Seguridad/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Iniciar Sesión/i })).toBeInTheDocument();
 });
