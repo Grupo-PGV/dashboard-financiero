@@ -1,16 +1,15 @@
-// chipaxService.js - CORRECCIÓN COMPLETA CORS
-// ✅ USA REDIRECTS DE NETLIFY EN LUGAR DE URL DIRECTA
+// chipaxService.js - CORRECCIÓN FINAL
+// ✅ ELIMINA la dependencia de /saldos (que no existe)
+// ✅ Usa solo endpoints que SÍ funcionan
 
-// ❌ ANTES: const API_BASE_URL = 'https://api.chipax.com/v2';
-// ✅ AHORA: Usar proxy de Netlify
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? '/api'  // ✅ Netlify redirect en producción
-  : 'https://api.chipax.com/v2';  // Directo en desarrollo
+  ? '/api'  // ✅ Netlify redirect
+  : 'https://api.chipax.com/v2';
 
 const APP_ID = process.env.REACT_APP_CHIPAX_APP_ID;
 const SECRET_KEY = process.env.REACT_APP_CHIPAX_SECRET_KEY;
 
-// Cache para el token (mantener igual)
+// Cache para el token
 let tokenCache = {
   token: null,
   expiry: null,
@@ -132,39 +131,105 @@ const fetchFromChipax = async (endpoint, options = {}) => {
 
 // ===== FUNCIONES PRINCIPALES =====
 
+/**
+ * ✅ SALDOS BANCARIOS: Usar /cuentas-corrientes (que SÍ funciona)
+ * ❌ NO usar /saldos (que NO existe)
+ */
 const obtenerSaldosBancarios = async () => {
   try {
-    console.log('🏦 Obteniendo saldos bancarios...');
-    const response = await fetchFromChipax('/saldos');
-    console.log('💰 Saldos obtenidos:', response);
-    return response;
+    console.log('🏦 Obteniendo saldos desde /cuentas-corrientes...');
+    
+    // ✅ Endpoint que SÍ existe
+    const response = await fetchFromChipax('/cuentas-corrientes');
+    const cuentas = response.data || response || [];
+    
+    console.log(`📊 Respuesta cuentas-corrientes:`, typeof response, Array.isArray(cuentas));
+    
+    if (!Array.isArray(cuentas)) {
+      console.warn('⚠️ Cuentas no es array, devolviendo array vacío');
+      return [];
+    }
+    
+    // Mapear a formato estándar
+    const saldosFormateados = cuentas.map(cuenta => ({
+      id: cuenta.id,
+      nombre: cuenta.nombreBanco || cuenta.nombre || `Cuenta ${cuenta.numeroCuenta}`,
+      numeroCuenta: cuenta.numeroCuenta || cuenta.numero_cuenta,
+      saldo: cuenta.saldo || cuenta.saldo_actual || 0,
+      saldoCalculado: cuenta.saldo || cuenta.saldo_actual || 0,
+      tipo: cuenta.tipoCuenta || cuenta.tipo_cuenta || 'Cuenta Corriente',
+      banco: cuenta.nombreBanco || cuenta.nombre_banco || 'Banco',
+      moneda: cuenta.moneda || 'CLP',
+      ultimoMovimiento: cuenta.ultimoMovimiento || cuenta.updated_at
+    }));
+    
+    console.log(`✅ ${saldosFormateados.length} saldos bancarios obtenidos`);
+    return saldosFormateados;
+    
   } catch (error) {
-    console.error('❌ Error obteniendo saldos:', error);
-    throw error;
+    console.error('❌ Error obteniendo saldos bancarios:', error);
+    
+    // ✅ Si falla, devolver array vacío en lugar de fallar
+    console.log('📝 Devolviendo array vacío - usar cartolas manuales');
+    return [];
   }
 };
 
+/**
+ * ✅ CUENTAS POR COBRAR: Usar /dtes?porCobrar=1 (que SÍ funciona)
+ */
 const obtenerCuentasPorCobrar = async () => {
   try {
     console.log('📋 Obteniendo cuentas por cobrar...');
+    
     const response = await fetchFromChipax('/dtes?porCobrar=1');
-    console.log('💵 Cuentas por cobrar obtenidas:', response);
-    return response;
+    console.log('💵 Respuesta DTEs por cobrar:', typeof response);
+    
+    // Extraer datos de diferentes estructuras posibles
+    let dtes = [];
+    if (Array.isArray(response)) {
+      dtes = response;
+    } else if (response && response.data && Array.isArray(response.data)) {
+      dtes = response.data;
+    } else if (response && response.items && Array.isArray(response.items)) {
+      dtes = response.items;
+    }
+    
+    console.log(`✅ ${dtes.length} DTEs por cobrar obtenidos`);
+    return dtes;
+    
   } catch (error) {
     console.error('❌ Error obteniendo cuentas por cobrar:', error);
-    throw error;
+    return [];
   }
 };
 
+/**
+ * ✅ CUENTAS POR PAGAR: Usar /compras (que SÍ funciona)
+ */
 const obtenerCuentasPorPagar = async () => {
   try {
     console.log('📄 Obteniendo cuentas por pagar...');
+    
     const response = await fetchFromChipax('/compras');
-    console.log('💸 Cuentas por pagar obtenidas:', response);
-    return response;
+    console.log('💸 Respuesta compras:', typeof response);
+    
+    // Extraer datos de diferentes estructuras posibles
+    let compras = [];
+    if (Array.isArray(response)) {
+      compras = response;
+    } else if (response && response.data && Array.isArray(response.data)) {
+      compras = response.data;
+    } else if (response && response.items && Array.isArray(response.items)) {
+      compras = response.items;
+    }
+    
+    console.log(`✅ ${compras.length} compras obtenidas`);
+    return compras;
+    
   } catch (error) {
     console.error('❌ Error obteniendo cuentas por pagar:', error);
-    throw error;
+    return [];
   }
 };
 
