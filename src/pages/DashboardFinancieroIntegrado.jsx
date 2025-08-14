@@ -270,36 +270,82 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
 
   // ===== FUNCIÓN CORREGIDA PARA CARTOLAS BANCARIAS =====
   
-  const procesarCartolaBancaria = async (file) => {
+  const procesarCartolaBancaria = async (file) => {  // ✅ CORRECCIÓN 1: Sin typo
     setIsLoadingCartola(true);
     setErrorCartola(null);
 
     try {
       console.log(`📁 Procesando cartola: ${file.name}`);
       
-      // ✅ CORRECCIÓN: Importar librería Excel dinámicamente con manejo robusto
+      // ✅ CORRECCIÓN 2: Sistema robusto de importación XLSX
       let XLSX;
       try {
-        console.log('📚 Cargando XLSX...');
-        const xlsxModule = await import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+        console.log('📚 Cargando XLSX desde CDN...');
         
-        // Manejar diferentes estructuras del módulo importado
-        if (xlsxModule.default && typeof xlsxModule.default.read === 'function') {
-          XLSX = xlsxModule.default;
-        } else if (typeof xlsxModule.read === 'function') {
+        // Método 1: Importación dinámica con múltiples fallbacks
+        let xlsxModule;
+        try {
+          xlsxModule = await import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+        } catch (importError) {
+          console.log('🔄 Fallback: Intentando URL alternativa...');
+          xlsxModule = await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.full.min.js');
+        }
+        
+        // Extraer XLSX del módulo con múltiples estrategias
+        if (xlsxModule && typeof xlsxModule.read === 'function') {
+          // Caso 1: Funciones directamente en el módulo
           XLSX = xlsxModule;
+          console.log('✅ XLSX encontrado directamente en módulo');
+        } else if (xlsxModule.default && typeof xlsxModule.default.read === 'function') {
+          // Caso 2: Funciones en .default
+          XLSX = xlsxModule.default;
+          console.log('✅ XLSX encontrado en .default');
+        } else if (xlsxModule.XLSX && typeof xlsxModule.XLSX.read === 'function') {
+          // Caso 3: Funciones en .XLSX
+          XLSX = xlsxModule.XLSX;
+          console.log('✅ XLSX encontrado en .XLSX');
+        } else if (typeof window !== 'undefined' && window.XLSX && typeof window.XLSX.read === 'function') {
+          // Caso 4: XLSX disponible globalmente
+          XLSX = window.XLSX;
+          console.log('✅ XLSX encontrado en window.XLSX');
         } else {
-          XLSX = xlsxModule.XLSX || xlsxModule.default?.XLSX || xlsxModule;
+          // Caso 5: Crear script dinámico como último recurso
+          console.log('🔄 Cargando XLSX via script dinámico...');
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+            script.onload = () => {
+              if (window.XLSX && typeof window.XLSX.read === 'function') {
+                XLSX = window.XLSX;
+                console.log('✅ XLSX cargado via script');
+                resolve();
+              } else {
+                reject(new Error('XLSX no disponible después de cargar script'));
+              }
+            };
+            script.onerror = () => reject(new Error('Error cargando script XLSX'));
+            document.head.appendChild(script);
+          });
         }
         
-        if (typeof XLSX.read !== 'function') {
-          throw new Error('XLSX.read no está disponible');
+        // Verificación final
+        if (!XLSX || typeof XLSX.read !== 'function') {
+          throw new Error('No se pudo cargar XLSX.read después de todos los intentos');
         }
         
-        console.log('✅ XLSX cargado correctamente');
+        // Verificar también utils (necesario para sheet_to_json)
+        if (!XLSX.utils || typeof XLSX.utils.sheet_to_json !== 'function') {
+          throw new Error('XLSX.utils.sheet_to_json no está disponible');
+        }
+        
+        console.log('✅ XLSX completamente cargado y verificado');
+        console.log('🔍 XLSX funciones disponibles:', Object.keys(XLSX).slice(0, 10));
+        
       } catch (xlsxError) {
-        console.error('❌ Error cargando XLSX:', xlsxError);
-        throw new Error(`Error cargando procesador Excel: ${xlsxError.message}`);
+        console.error('❌ Error crítico cargando XLSX:', xlsxError);
+        throw new Error(`No se pudo cargar el procesador de Excel. 
+          Verifica tu conexión a internet e intenta nuevamente. 
+          Error: ${xlsxError.message}`);
       }
       
       // Leer archivo
@@ -1032,7 +1078,7 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
           accept=".csv,.xlsx,.xls"
           onChange={(e) => {
             if (e.target.files[0]) {
-              procesarCartolaBancaria(e.target.files[0]);
+              procesarCartolaBancaria(e.target.files[0]);  // ✅ CORRECCIÓN 3: Sin typo
             }
           }}
           className="hidden"
