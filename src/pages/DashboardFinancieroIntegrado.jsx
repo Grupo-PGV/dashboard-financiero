@@ -604,14 +604,123 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
 
   // ===== MANTENER TODAS LAS FUNCIONES EXISTENTES IGUAL =====
   
-  // Funciones auxiliares existentes (mantener exactamente igual)
+  // ===== FUNCIÓN CORREGIDA: CARGAR XLSX CON MÚLTIPLES FALLBACKS =====
   const cargarXLSX = async () => {
-    try {
-      const XLSX = await import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
-      return XLSX;
-    } catch (error) {
-      throw new Error('Error cargando XLSX desde CDN');
+    console.log('📦 Iniciando carga de XLSX con estrategias múltiples...');
+    
+    // ✅ ESTRATEGIA 1: Verificar si XLSX ya está disponible globalmente
+    if (typeof window.XLSX !== 'undefined' && window.XLSX.read) {
+      console.log('✅ XLSX encontrado en window.XLSX');
+      return window.XLSX;
     }
+    
+    // ✅ ESTRATEGIA 2: Cargar desde CDN con script tag (más confiable)
+    try {
+      console.log('📡 Cargando XLSX desde CDN con script tag...');
+      
+      await new Promise((resolve, reject) => {
+        // Verificar si ya existe el script
+        if (document.querySelector('script[data-xlsx-loaded]')) {
+          console.log('📦 Script XLSX ya existe');
+          resolve();
+          return;
+        }
+        
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        script.setAttribute('data-xlsx-loaded', 'true');
+        script.crossOrigin = 'anonymous';
+        
+        script.onload = () => {
+          console.log('✅ Script XLSX cargado exitosamente');
+          resolve();
+        };
+        
+        script.onerror = (error) => {
+          console.error('❌ Error cargando script XLSX:', error);
+          reject(new Error('Error cargando script XLSX desde CDN'));
+        };
+        
+        document.head.appendChild(script);
+      });
+      
+      // Esperar un momento para que la librería se inicialice
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Verificar múltiples formas de acceso
+      let XLSX = null;
+      
+      if (window.XLSX && window.XLSX.read) {
+        XLSX = window.XLSX;
+        console.log('✅ XLSX disponible en window.XLSX');
+      } else if (window.XLSX && window.XLSX.default && window.XLSX.default.read) {
+        XLSX = window.XLSX.default;
+        console.log('✅ XLSX disponible en window.XLSX.default');
+      } else if (window.XLSX && window.XLSX.XLSX && window.XLSX.XLSX.read) {
+        XLSX = window.XLSX.XLSX;
+        console.log('✅ XLSX disponible en window.XLSX.XLSX');
+      }
+      
+      if (XLSX && typeof XLSX.read === 'function') {
+        console.log('✅ XLSX.read confirmado como función');
+        return XLSX;
+      } else {
+        throw new Error('XLSX.read no está disponible después de cargar el script');
+      }
+      
+    } catch (scriptError) {
+      console.error('❌ Estrategia 2 falló:', scriptError);
+    }
+    
+    // ✅ ESTRATEGIA 3: Import dinámico con diferentes URLs
+    const urlsFallback = [
+      'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+      'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js',
+      'https://cdn.sheetjs.com/xlsx-0.18.5/package/dist/xlsx.full.min.js'
+    ];
+    
+    for (const url of urlsFallback) {
+      try {
+        console.log(`📡 Intentando import dinámico desde: ${url}`);
+        
+        const module = await import(url);
+        let XLSX = null;
+        
+        // Probar diferentes formas de acceder a XLSX
+        if (module.default && module.default.read) {
+          XLSX = module.default;
+        } else if (module.XLSX && module.XLSX.read) {
+          XLSX = module.XLSX;
+        } else if (module.read) {
+          XLSX = module;
+        }
+        
+        if (XLSX && typeof XLSX.read === 'function') {
+          console.log(`✅ XLSX cargado exitosamente desde: ${url}`);
+          return XLSX;
+        }
+        
+      } catch (importError) {
+        console.warn(`⚠️ Falló import desde ${url}:`, importError);
+      }
+    }
+    
+    // ✅ ESTRATEGIA 4: Último recurso - Error detallado
+    throw new Error(`No se pudo cargar la librería XLSX después de intentar múltiples estrategias.
+
+🔧 DIAGNÓSTICO DETALLADO:
+• window.XLSX existe: ${typeof window.XLSX !== 'undefined'}
+• window.XLSX.read existe: ${!!(window.XLSX && window.XLSX.read)}
+• Scripts XLSX en DOM: ${document.querySelectorAll('script[src*="xlsx"]').length}
+
+💡 SOLUCIONES RECOMENDADAS:
+1. Recarga la página completamente (Ctrl+F5)
+2. Verifica tu conexión a internet
+3. Intenta en modo incógnito del navegador
+4. Verifica que no haya bloqueadores de contenido activos
+5. Si persiste, contacta al administrador del sistema
+
+🌐 Estado de la conexión: ${navigator.onLine ? 'Conectado' : 'Desconectado'}`);
   };
 
   const parseMonto = (valor) => {
@@ -754,13 +863,47 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
     });
   };
 
-  // ===== FUNCIÓN PRINCIPAL: PROCESAR CARTOLA MEJORADA =====
+  // ===== FUNCIÓN DE DIAGNÓSTICO XLSX =====
+  const diagnosticarXLSX = () => {
+    console.log('🔍 DIAGNÓSTICO COMPLETO DE XLSX:');
+    console.log('=====================================');
+    
+    // Verificar disponibilidad global
+    console.log('🌐 Variables globales:');
+    console.log(`   window.XLSX: ${typeof window.XLSX}`);
+    console.log(`   window.XLSX.read: ${!!(window.XLSX && typeof window.XLSX.read === 'function')}`);
+    console.log(`   window.XLSX.utils: ${!!(window.XLSX && window.XLSX.utils)}`);
+    
+    // Verificar scripts cargados
+    const xlsxScripts = document.querySelectorAll('script[src*="xlsx"]');
+    console.log(`📜 Scripts XLSX en DOM: ${xlsxScripts.length}`);
+    xlsxScripts.forEach((script, index) => {
+      console.log(`   Script ${index + 1}: ${script.src}`);
+    });
+    
+    // Verificar conexión
+    console.log(`🌐 Estado conexión: ${navigator.onLine ? 'Conectado' : 'Desconectado'}`);
+    
+    // Verificar si hay otros objetos XLSX disponibles
+    const possibleXLSX = [];
+    if (window.XLSX) possibleXLSX.push('window.XLSX');
+    if (window.SheetJS) possibleXLSX.push('window.SheetJS');
+    if (window.XLSXJS) possibleXLSX.push('window.XLSXJS');
+    
+    console.log(`📦 Objetos XLSX detectados: ${possibleXLSX.join(', ') || 'Ninguno'}`);
+    console.log('=====================================');
+  };
+
+  // ===== FUNCIÓN PRINCIPAL MEJORADA: PROCESAR CARTOLA =====
   const procesarCartolaBAncaria = async (file) => {
     setIsLoadingCartola(true);
     setErrorCartola(null);
 
     try {
       console.log(`🔍 Procesando cartola: ${file.name}`);
+      
+      // 🆕 DIAGNÓSTICO INICIAL
+      diagnosticarXLSX();
       
       console.log('📦 Cargando librería XLSX...');
       let XLSX;
@@ -769,40 +912,103 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
         XLSX = await cargarXLSX();
         console.log('✅ XLSX cargado exitosamente');
         
-        if (!XLSX || typeof XLSX.read !== 'function') {
-          throw new Error('XLSX.read no está disponible');
+        // ✅ VERIFICACIÓN EXHAUSTIVA
+        if (!XLSX) {
+          throw new Error('XLSX es null o undefined');
         }
+        
+        if (typeof XLSX.read !== 'function') {
+          console.error('❌ XLSX.read no es una función:', typeof XLSX.read);
+          console.error('❌ Propiedades de XLSX:', Object.keys(XLSX));
+          throw new Error(`XLSX.read no está disponible. Tipo: ${typeof XLSX.read}, Propiedades: ${Object.keys(XLSX).join(', ')}`);
+        }
+        
+        console.log('✅ XLSX.read confirmado como función');
+        
+        // ✅ VERIFICACIÓN DE OTRAS FUNCIONES NECESARIAS
+        if (typeof XLSX.utils?.sheet_to_json !== 'function') {
+          console.error('❌ XLSX.utils.sheet_to_json no disponible');
+          throw new Error('XLSX.utils.sheet_to_json no está disponible');
+        }
+        
+        console.log('✅ XLSX.utils.sheet_to_json confirmado');
         
       } catch (xlsxError) {
         console.error('❌ Error cargando XLSX:', xlsxError);
+        
+        // 🆕 DIAGNÓSTICO POST-ERROR
+        console.log('🔍 DIAGNÓSTICO POST-ERROR:');
+        diagnosticarXLSX();
+        
         throw new Error(`No se pudo cargar la librería XLSX.
         
 🔧 Posibles soluciones:
-• Verifica tu conexión a internet
 • Recarga la página completamente (Ctrl+F5)
-• Intenta en unos minutos
-• Si el problema persiste, contacta al administrador
+• Verifica tu conexión a internet
+• Intenta en modo incógnito del navegador
+• Desactiva temporalmente bloqueadores de contenido
+• Espera unos minutos e intenta nuevamente
 
-Error técnico: ${xlsxError.message}`);
+📊 Error específico: ${xlsxError.message}
+
+🔍 Estado actual del navegador:
+• XLSX global disponible: ${typeof window.XLSX !== 'undefined'}
+• Conexión activa: ${navigator.onLine}
+• Scripts XLSX cargados: ${document.querySelectorAll('script[src*="xlsx"]').length}`);
       }
       
       console.log('📄 Leyendo archivo Excel...');
       const arrayBuffer = await readFileAsArrayBuffer(file);
       
       console.log('🔧 Procesando workbook...');
-      const workbook = XLSX.read(arrayBuffer, {
-        cellStyles: true,
-        cellFormulas: true,
-        cellDates: true
-      });
+      
+      // ✅ PROCESAMIENTO ROBUSTO DEL WORKBOOK
+      let workbook;
+      try {
+        workbook = XLSX.read(arrayBuffer, {
+          cellStyles: true,
+          cellFormulas: true,
+          cellDates: true,
+          dateNF: 'dd/mm/yyyy'  // 🆕 Formato de fecha específico
+        });
+        
+        console.log('✅ Workbook procesado exitosamente');
+        
+      } catch (readError) {
+        console.error('❌ Error leyendo workbook:', readError);
+        throw new Error(`Error procesando el archivo Excel: ${readError.message}
+
+🔧 Posibles causas:
+• El archivo puede estar corrupto
+• El formato no es compatible (.xlsx, .xls)
+• El archivo está protegido con contraseña
+• El archivo está siendo usado por otra aplicación
+
+💡 Intenta:
+• Guardar el archivo en formato .xlsx desde Excel
+• Cerrar el archivo en Excel si está abierto
+• Verificar que el archivo no esté corrupto`);
+      }
       
       console.log('📊 Hojas disponibles:', workbook.SheetNames);
       
       const primeraHoja = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[primeraHoja];
-      const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
       
-      console.log(`📋 Total filas: ${rawData.length}`);
+      let rawData;
+      try {
+        rawData = XLSX.utils.sheet_to_json(worksheet, { 
+          header: 1,
+          defval: '',  // 🆕 Valor por defecto para celdas vacías
+          blankrows: false  // 🆕 Omitir filas completamente vacías
+        });
+        
+        console.log(`📋 Total filas extraídas: ${rawData.length}`);
+        
+      } catch (jsonError) {
+        console.error('❌ Error convirtiendo hoja a JSON:', jsonError);
+        throw new Error(`Error convirtiendo datos de Excel: ${jsonError.message}`);
+      }
       
       if (rawData.length === 0) {
         throw new Error('El archivo Excel está vacío o no contiene datos válidos');
@@ -1035,6 +1241,12 @@ Error técnico: ${xlsxError.message}`);
               <div className="text-sm text-gray-600">
                 ✅ Detección mejorada por número de cuenta
               </div>
+              <div className="text-xs px-2 py-1 rounded-full" style={{
+                backgroundColor: typeof window.XLSX !== 'undefined' && typeof window.XLSX.read === 'function' ? '#22c55e' : '#ef4444',
+                color: 'white'
+              }}>
+                XLSX: {typeof window.XLSX !== 'undefined' && typeof window.XLSX.read === 'function' ? 'OK' : 'ERROR'}
+              </div>
               <button
                 onClick={onLogout}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
@@ -1081,6 +1293,32 @@ Error técnico: ${xlsxError.message}`);
                 📄 Gestión de Cartolas Bancarias
               </h2>
               
+              {/* Botones de utilidad */}
+              <div className="flex items-center gap-3 mb-4">
+                <button
+                  onClick={diagnosticarXLSX}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                >
+                  🔍 Diagnosticar XLSX
+                </button>
+                <button
+                  onClick={async () => {
+                    console.log('🔄 Recargando XLSX...');
+                    // Eliminar scripts existentes
+                    document.querySelectorAll('script[data-xlsx-loaded]').forEach(script => {
+                      script.remove();
+                    });
+                    // Limpiar variables globales
+                    if (window.XLSX) delete window.XLSX;
+                    console.log('✅ XLSX limpiado. Intenta cargar una cartola nuevamente.');
+                    alert('XLSX limpiado. Intenta cargar una cartola nuevamente.');
+                  }}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
+                >
+                  🔄 Limpiar XLSX
+                </button>
+              </div>
+
               {/* Área de carga de archivos */}
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 mb-6">
                 <input
@@ -1112,6 +1350,11 @@ Error técnico: ${xlsxError.message}`);
                       </p>
                       <p className="text-xs text-gray-400 mt-2">
                         ✅ Detección mejorada: Banco de Chile, BCI, Santander, Internacional
+                      </p>
+                      <p className="text-xs text-blue-500 mt-1">
+                        🔧 Estado XLSX: {typeof window.XLSX !== 'undefined' ? 
+                          (typeof window.XLSX.read === 'function' ? '✅ Listo' : '⚠️ Parcial') : 
+                          '❌ No cargado'}
                       </p>
                     </div>
                   </div>
