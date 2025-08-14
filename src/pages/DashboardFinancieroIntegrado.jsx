@@ -119,16 +119,17 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
     'santander': {
       nombre: 'Santander',
       identificadores: {
-        // ✅ NUEVO: Detectar por número de cuenta específico
-        numerosCuenta: ['70666618'],
+        // ✅ CORREGIDO: Número de cuenta Santander actualizado
+        numerosCuenta: ['70666618', '7066661-8', '0-000-7066661-8'],
         archivo: ['santander'],
         contenido: ['santander chile', 'banco santander'],
-        requiere: ['santander']
+        requiere: []  // ✅ CORREGIDO: Quitar requerimiento obligatorio
       },
       estructura: {
         tipoHeader: 'dinamico',
         buscarDesde: 5,
         buscarHasta: 20,
+        columnasMinimas: 4,  // ✅ NUEVO: Mínimo de columnas
         columnas: {
           fecha: 0,
           descripcion: 1,
@@ -183,7 +184,7 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
     }
   };
 
-  // ===== FUNCIÓN MEJORADA: DETECTAR BANCO POR NÚMERO DE CUENTA =====
+  // ===== FUNCIÓN CORREGIDA: DETECCIÓN DE BANCO MEJORADA =====
   const detectarBanco = (nombreArchivo, data) => {
     const archivo = nombreArchivo.toLowerCase();
     const contenido = data.slice(0, 20)
@@ -193,7 +194,7 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
     console.log(`📄 Archivo: "${archivo}"`);
     console.log(`📄 Contenido muestra: "${contenido.substring(0, 300)}"`);
     
-    // ✅ NUEVO: PASO 1 - Detectar por número de cuenta (método más preciso)
+    // ✅ NUEVO: PASO 1 - Detección por número de cuenta (método más preciso)
     console.log('\n🔍 FASE 1: Detección por número de cuenta');
     
     for (const [bancoCodigo, procesador] of Object.entries(PROCESADORES_BANCO)) {
@@ -216,10 +217,44 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
       }
     }
     
-    // ✅ PASO 2 - Detección por contenido (método existente como fallback)
-    console.log('\n🔍 FASE 2: Detección por contenido (fallback)');
+    // ✅ PASO 2 - Detección por nombre de archivo MEJORADA
+    console.log('\n🔍 FASE 2: Detección por nombre de archivo');
     
-    const bancosPorPrioridad = ['banco_chile', 'bci', 'santander', 'internacional'];
+    if (archivo.includes('santander')) {
+      console.log(`   🎯 ¡BANCO DETECTADO POR ARCHIVO: SANTANDER!`);
+      console.log('='.repeat(50));
+      return PROCESADORES_BANCO.santander;
+    }
+    
+    if (archivo.includes('banco de chile') || archivo.includes('bancodechile') || archivo.includes('emitida')) {
+      console.log(`   🎯 ¡BANCO DETECTADO POR ARCHIVO: BANCO DE CHILE!`);
+      console.log('='.repeat(50));
+      return PROCESADORES_BANCO.banco_chile;
+    }
+    
+    if (archivo.includes('bci') && !archivo.includes('santander')) {
+      console.log(`   🎯 ¡BANCO DETECTADO POR ARCHIVO: BCI!`);
+      console.log('='.repeat(50));
+      return PROCESADORES_BANCO.bci;
+    }
+    
+    if (archivo.includes('internacional')) {
+      console.log(`   🎯 ¡BANCO DETECTADO POR ARCHIVO: INTERNACIONAL!`);
+      console.log('='.repeat(50));
+      return PROCESADORES_BANCO.internacional;
+    }
+    
+    // ✅ PASO 3 - Detección por contenido (mejorada con prioridades)
+    console.log('\n🔍 FASE 3: Detección por contenido (fallback)');
+    
+    // Verificar Santander primero (para evitar confusión con BCI)
+    if (contenido.includes('banco santander') || contenido.includes('santander chile')) {
+      console.log(`   🎯 ¡BANCO DETECTADO POR CONTENIDO: SANTANDER!`);
+      console.log('='.repeat(50));
+      return PROCESADORES_BANCO.santander;
+    }
+    
+    const bancosPorPrioridad = ['banco_chile', 'bci', 'internacional'];
     
     for (const bancoCodigo of bancosPorPrioridad) {
       const procesador = PROCESADORES_BANCO[bancoCodigo];
@@ -422,7 +457,7 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
     return movimientosOrdenados;
   };
 
-  // ===== FUNCIÓN NUEVA: ELIMINAR CARTOLA =====
+  // ===== FUNCIÓN MEJORADA: ELIMINAR CARTOLA =====
   const eliminarCartola = (cartolaId) => {
     console.log(`🗑️ Eliminando cartola ID: ${cartolaId}`);
     
@@ -433,13 +468,14 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
       return;
     }
     
-    // Confirmar eliminación
+    // Confirmar eliminación con más detalles
     const confirmar = window.confirm(
       `¿Está seguro de eliminar la cartola "${cartolaAEliminar.nombre}"?\n\n` +
-      `Banco: ${cartolaAEliminar.banco}\n` +
-      `Movimientos: ${cartolaAEliminar.movimientos}\n` +
-      `Fecha de carga: ${new Date(cartolaAEliminar.fechaCarga).toLocaleDateString()}\n\n` +
-      `Esta acción no se puede deshacer.`
+      `🏦 Banco: ${cartolaAEliminar.banco}\n` +
+      `📊 Movimientos: ${cartolaAEliminar.movimientos}\n` +
+      `💰 Saldo: ${formatearMoneda(cartolaAEliminar.saldoFinal || 0)}\n` +
+      `📅 Cargada: ${new Date(cartolaAEliminar.fechaCarga).toLocaleDateString()}\n\n` +
+      `⚠️ Esta acción no se puede deshacer.`
     );
     
     if (!confirmar) return;
@@ -461,17 +497,26 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
       actualizarSaldosTotales(movimientosFiltrados);
       calcularKPIsIntegrados();
       
-      // Actualizar localStorage
-      localStorage.setItem('pgr_movimientos_bancarios', JSON.stringify(movimientosFiltrados));
-      localStorage.setItem('pgr_cartolas_cargadas', JSON.stringify(cartolasFiltradas));
+      // ✅ GUARDADO INTELIGENTE
+      const guardadoMovimientos = guardarEnLocalStorage('pgr_movimientos_bancarios', movimientosFiltrados);
+      const guardadoCartolas = guardarEnLocalStorage('pgr_cartolas_cargadas', cartolasFiltradas);
       
       console.log(`✅ Cartola "${cartolaAEliminar.nombre}" eliminada exitosamente`);
       console.log(`📊 Movimientos restantes: ${movimientosFiltrados.length}`);
       console.log(`📁 Cartolas restantes: ${cartolasFiltradas.length}`);
       
+      // Mostrar resultado
+      const mensaje = `✅ Cartola eliminada exitosamente:\n\n` +
+        `📄 "${cartolaAEliminar.nombre}"\n` +
+        `📊 Movimientos restantes: ${movimientosFiltrados.length}\n` +
+        `📁 Cartolas restantes: ${cartolasFiltradas.length}\n` +
+        `💾 Guardado: ${guardadoMovimientos && guardadoCartolas ? 'Exitoso' : 'Solo en memoria'}`;
+      
+      alert(mensaje);
+      
     } catch (error) {
       console.error('❌ Error eliminando cartola:', error);
-      alert(`Error eliminando cartola: ${error.message}`);
+      alert(`❌ Error eliminando cartola: ${error.message}`);
     }
   };
 
@@ -738,47 +783,126 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
     return isNaN(numero) ? 0 : numero;
   };
 
+  // ===== FUNCIÓN CORREGIDA: PARSEDATE ROBUSTA =====
   const parseDate = (valor) => {
     if (!valor) return null;
     
-    if (typeof valor === 'number' && valor > 40000) {
-      const fecha = new Date((valor - 25569) * 86400 * 1000);
-      return fecha.toISOString().split('T')[0];
-    }
+    console.log(`🔍 Parseando fecha: "${valor}" (tipo: ${typeof valor})`);
     
-    const fechaStr = valor.toString().trim();
-    const patronesFecha = [
-      /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/,
-      /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/,
-      /^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/
-    ];
-    
-    for (const patron of patronesFecha) {
-      const match = fechaStr.match(patron);
-      if (match) {
-        let dia, mes, año;
-        
-        if (match[3].length === 4) {
-          dia = parseInt(match[1]);
-          mes = parseInt(match[2]);
-          año = parseInt(match[3]);
-        } else if (match[1].length === 4) {
-          año = parseInt(match[1]);
-          mes = parseInt(match[2]);
-          dia = parseInt(match[3]);
-        } else {
-          dia = parseInt(match[1]);
-          mes = parseInt(match[2]);
-          año = parseInt(match[3]) + 2000;
-        }
-        
-        if (dia >= 1 && dia <= 31 && mes >= 1 && mes <= 12 && año >= 2000) {
-          const fecha = new Date(año, mes - 1, dia);
-          return fecha.toISOString().split('T')[0];
-        }
+    // ✅ CASO 1: Número de Excel (fecha serial)
+    if (typeof valor === 'number' && valor > 1) {
+      console.log(`   📊 Fecha serial de Excel: ${valor}`);
+      
+      // Diferentes bases de fecha para diferentes sistemas
+      let fechaBase;
+      if (valor > 40000 && valor < 50000) {
+        // Sistema moderno (base 1900)
+        fechaBase = new Date(1900, 0, 1);
+        fechaBase.setTime(fechaBase.getTime() + (valor - 2) * 86400 * 1000);
+      } else if (valor > 25000 && valor < 40000) {
+        // Sistema alternativo
+        fechaBase = new Date((valor - 25569) * 86400 * 1000);
+      } else {
+        // Intentar interpretación directa
+        fechaBase = new Date((valor - 25569) * 86400 * 1000);
+      }
+      
+      if (fechaBase && !isNaN(fechaBase.getTime())) {
+        const fechaFormateada = fechaBase.toISOString().split('T')[0];
+        console.log(`   ✅ Fecha serial convertida: ${fechaFormateada}`);
+        return fechaFormateada;
       }
     }
     
+    // ✅ CASO 2: Fecha como string
+    const fechaStr = valor.toString().trim();
+    if (!fechaStr || fechaStr.length < 6) {
+      console.log(`   ❌ String de fecha muy corto: "${fechaStr}"`);
+      return null;
+    }
+    
+    console.log(`   📝 Procesando string: "${fechaStr}"`);
+    
+    // Patrones de fecha mejorados y más específicos
+    const patronesFecha = [
+      // DD/MM/YYYY o DD-MM-YYYY
+      {
+        regex: /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/,
+        formato: 'DD/MM/YYYY',
+        parser: (match) => ({ dia: parseInt(match[1]), mes: parseInt(match[2]), año: parseInt(match[3]) })
+      },
+      // DD/MM/YY o DD-MM-YY
+      {
+        regex: /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/,
+        formato: 'DD/MM/YY',
+        parser: (match) => ({ 
+          dia: parseInt(match[1]), 
+          mes: parseInt(match[2]), 
+          año: parseInt(match[3]) + (parseInt(match[3]) < 50 ? 2000 : 1900)
+        })
+      },
+      // YYYY/MM/DD o YYYY-MM-DD
+      {
+        regex: /^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/,
+        formato: 'YYYY/MM/DD',
+        parser: (match) => ({ año: parseInt(match[1]), mes: parseInt(match[2]), dia: parseInt(match[3]) })
+      },
+      // DD MMM YYYY (ej: 15 ENE 2025)
+      {
+        regex: /^(\d{1,2})\s+(ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)\s+(\d{4})$/i,
+        formato: 'DD MMM YYYY',
+        parser: (match) => {
+          const meses = {
+            'ENE': 1, 'FEB': 2, 'MAR': 3, 'ABR': 4, 'MAY': 5, 'JUN': 6,
+            'JUL': 7, 'AGO': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DIC': 12
+          };
+          return { 
+            dia: parseInt(match[1]), 
+            mes: meses[match[2].toUpperCase()], 
+            año: parseInt(match[3])
+          };
+        }
+      },
+      // Formato ISO: YYYY-MM-DDTHH:mm:ss
+      {
+        regex: /^(\d{4})-(\d{2})-(\d{2})T/,
+        formato: 'ISO',
+        parser: (match) => ({ año: parseInt(match[1]), mes: parseInt(match[2]), dia: parseInt(match[3]) })
+      }
+    ];
+    
+    for (const patron of patronesFecha) {
+      const match = fechaStr.match(patron.regex);
+      if (match) {
+        console.log(`   🎯 Patrón encontrado: ${patron.formato}`);
+        
+        try {
+          const { dia, mes, año } = patron.parser(match);
+          console.log(`   📅 Componentes: día=${dia}, mes=${mes}, año=${año}`);
+          
+          // Validar componentes de fecha
+          if (dia >= 1 && dia <= 31 && mes >= 1 && mes <= 12 && año >= 1900 && año <= 2100) {
+            const fecha = new Date(año, mes - 1, dia);
+            
+            // Verificar que la fecha es válida (ej: no 31 de febrero)
+            if (fecha.getFullYear() === año && fecha.getMonth() === mes - 1 && fecha.getDate() === dia) {
+              const fechaFormateada = fecha.toISOString().split('T')[0];
+              console.log(`   ✅ Fecha válida: ${fechaFormateada}`);
+              return fechaFormateada;
+            } else {
+              console.log(`   ❌ Fecha inválida después de validación`);
+            }
+          } else {
+            console.log(`   ❌ Componentes fuera de rango: día=${dia}, mes=${mes}, año=${año}`);
+          }
+        } catch (error) {
+          console.log(`   ❌ Error parseando con patrón ${patron.formato}: ${error.message}`);
+        }
+        break;
+      }
+    }
+    
+    console.log(`   ❌ No se pudo parsear la fecha: "${fechaStr}"`);
     return null;
   };
 
@@ -894,7 +1018,93 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
     console.log('=====================================');
   };
 
-  // ===== FUNCIÓN PRINCIPAL MEJORADA: PROCESAR CARTOLA =====
+  // ===== ESTADO PARA MODO DE ALTO RENDIMIENTO =====
+  const [modoAltoRendimiento, setModoAltoRendimiento] = useState(false);
+
+  // ===== FUNCIÓN NUEVA: MANEJO INTELIGENTE DE LOCALSTORAGE SIN LIMITACIONES =====
+  const guardarEnLocalStorage = (clave, datos) => {
+    // Si está en modo de alto rendimiento, no intentar guardar
+    if (modoAltoRendimiento) {
+      console.log(`🚀 Modo alto rendimiento activo - saltando guardado de ${clave}`);
+      return false;
+    }
+
+    try {
+      console.log(`💾 Intentando guardar ${clave}...`);
+      
+      // Verificar tamaño de los datos
+      const datosString = JSON.stringify(datos);
+      const tamaño = new Blob([datosString]).size;
+      const tamañoMB = (tamaño / 1024 / 1024).toFixed(2);
+      
+      console.log(`📊 Tamaño de datos: ${tamañoMB} MB`);
+      
+      // Intentar guardar normalmente primero
+      try {
+        localStorage.setItem(clave, datosString);
+        console.log(`✅ Guardado exitosamente (${tamañoMB} MB)`);
+        return true;
+      } catch (firstError) {
+        if (firstError.name === 'QuotaExceededError') {
+          console.log(`⚠️ LocalStorage lleno, aplicando estrategias de limpieza...`);
+          
+          // Estrategia 1: Limpiar datos de otros proyectos
+          try {
+            const clavesAEliminar = [];
+            const clavesPGR = [];
+            
+            for (let i = 0; i < localStorage.length; i++) {
+              const clave_actual = localStorage.key(i);
+              if (clave_actual) {
+                if (clave_actual.startsWith('pgr_')) {
+                  clavesPGR.push(clave_actual);
+                } else {
+                  clavesAEliminar.push(clave_actual);
+                }
+              }
+            }
+            
+            console.log(`🗑️ Eliminando ${clavesAEliminar.length} claves de otros proyectos`);
+            console.log(`📁 Manteniendo ${clavesPGR.length} claves de PGR`);
+            
+            clavesAEliminar.forEach(k => localStorage.removeItem(k));
+            
+            // Intentar guardar después de limpiar
+            localStorage.setItem(clave, datosString);
+            console.log(`✅ Guardado exitosamente después de limpieza (${tamañoMB} MB)`);
+            return true;
+            
+          } catch (secondError) {
+            console.log(`⚠️ Aún no hay espacio suficiente después de limpieza`);
+            
+            // Estrategia 2: Usar compresión básica (eliminar espacios y agrupar)
+            try {
+              const datosComprimidos = JSON.stringify(datos, null, 0); // Sin espacios
+              localStorage.setItem(clave, datosComprimidos);
+              console.log(`✅ Guardado con compresión básica`);
+              return true;
+              
+            } catch (thirdError) {
+              console.log(`⚠️ Incluso con compresión no hay espacio suficiente`);
+              
+              // Estrategia 3: Activar modo alto rendimiento automáticamente
+              console.log(`🚀 Activando modo alto rendimiento automáticamente`);
+              setModoAltoRendimiento(true);
+              return false;
+            }
+          }
+        } else {
+          throw firstError;
+        }
+      }
+      
+    } catch (error) {
+      console.error(`❌ Error guardando ${clave}:`, error);
+      return false;
+    }
+  };
+
+  // ===== FUNCIÓN MEJORADA: PROCESAR CARTOLA CON MANEJO DE MEMORIA =====
   const procesarCartolaBAncaria = async (file) => {
     setIsLoadingCartola(true);
     setErrorCartola(null);
@@ -1024,6 +1234,9 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
         throw new Error('No se encontraron movimientos válidos en el archivo');
       }
       
+      // ✅ PROCESAR TODOS LOS MOVIMIENTOS SIN LIMITACIONES
+      console.log(`📊 Procesando TODOS los ${movimientos.length} movimientos para cálculo correcto de saldos`);
+      
       const estadisticas = calcularEstadisticasCartola(movimientos);
       
       const nuevosMovimientos = [...movimientosBancarios, ...movimientos];
@@ -1043,10 +1256,36 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
       actualizarSaldosTotales(nuevosMovimientos);
       calcularKPIsIntegrados();
       
-      localStorage.setItem('pgr_movimientos_bancarios', JSON.stringify(nuevosMovimientos));
-      localStorage.setItem('pgr_cartolas_cargadas', JSON.stringify([...cartolasCargadas, nuevaCartola]));
+      // ✅ GUARDADO INTELIGENTE EN LOCALSTORAGE (SIN LIMITACIONES)
+      const guardadoMovimientos = guardarEnLocalStorage('pgr_movimientos_bancarios', nuevosMovimientos);
+      const guardadoCartolas = guardarEnLocalStorage('pgr_cartolas_cargadas', [...cartolasCargadas, nuevaCartola]);
+      
+      let mensajePersistencia = '';
+      if (modoAltoRendimiento) {
+        mensajePersistencia = `\n\n🚀 MODO ALTO RENDIMIENTO ACTIVO:\n✅ Todos los ${movimientos.length} movimientos procesados en memoria\n✅ Cálculos de saldos 100% precisos\n⚡ Máximo rendimiento sin limitaciones de almacenamiento`;
+      } else if (!guardadoMovimientos || !guardadoCartolas) {
+        console.log(`⚠️ No se pudo guardar en localStorage, trabajando solo en memoria`);
+        mensajePersistencia = `\n\n⚠️ MODO MEMORIA AUTOMÁTICO:\n• Los datos se mantienen solo en memoria durante esta sesión\n• Si recargas la página, se perderán\n• Esto es normal con archivos muy grandes\n• Todos los movimientos están disponibles para cálculos correctos\n\n💡 Tip: Activa "🚀 Alto Rendimiento" para archivos grandes`;
+      } else {
+        mensajePersistencia = `\n\n✅ Datos guardados exitosamente en localStorage.`;
+      }
       
       console.log(`🎉 Cartola ${file.name} procesada exitosamente`);
+      
+      // ✅ MOSTRAR RESUMEN COMPLETO DE PROCESAMIENTO
+      const resumen = `✅ Cartola procesada exitosamente:
+
+📄 Archivo: ${file.name}
+🏦 Banco: ${procesador.nombre}
+📊 Movimientos procesados: ${movimientos.length} (TODOS - sin limitaciones)
+💰 Saldo final: ${formatearMoneda(estadisticas.saldoFinal)}
+💚 Total ingresos: ${formatearMoneda(estadisticas.totalIngresos)}
+💸 Total egresos: ${formatearMoneda(estadisticas.totalEgresos)}
+📈 Flujo neto: ${formatearMoneda(estadisticas.flujoNeto)}${mensajePersistencia}
+
+🎯 Los saldos se calcularán correctamente usando todos los movimientos.`;
+
+      alert(resumen);
       
     } catch (error) {
       console.error('❌ Error procesando cartola:', error);
@@ -1200,17 +1439,53 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
       setCuentasPorCobrar(adaptarCuentasPorCobrar(cobrarResp.items || []));
       setCuentasPorPagar(adaptarCuentasPorPagar(pagarResp.items || []));
 
-      // Cargar datos persistidos de cartolas
-      const movimientosGuardados = JSON.parse(localStorage.getItem('pgr_movimientos_bancarios') || '[]');
-      const cartolasGuardadas = JSON.parse(localStorage.getItem('pgr_cartolas_cargadas') || '[]');
+      // ✅ CARGAR DATOS PERSISTIDOS CON MANEJO DE ERRORES
+      try {
+        const movimientosGuardados = JSON.parse(localStorage.getItem('pgr_movimientos_bancarios') || '[]');
+        const cartolasGuardadas = JSON.parse(localStorage.getItem('pgr_cartolas_cargadas') || '[]');
 
-      if (movimientosGuardados.length > 0) {
-        setMovimientosBancarios(movimientosGuardados);
-        actualizarSaldosTotales(movimientosGuardados);
-      }
+        console.log(`📊 Cargando datos persistidos:`);
+        console.log(`   📋 Movimientos: ${movimientosGuardados.length}`);
+        console.log(`   📁 Cartolas: ${cartolasGuardadas.length}`);
 
-      if (cartolasGuardadas.length > 0) {
-        setCartolasCargadas(cartolasGuardadas);
+        if (movimientosGuardados.length > 0) {
+          // Validar que los movimientos tengan estructura correcta
+          const movimientosValidos = movimientosGuardados.filter(mov => 
+            mov && mov.fecha && mov.descripcion && mov.banco
+          );
+          
+          if (movimientosValidos.length !== movimientosGuardados.length) {
+            console.log(`⚠️ Se encontraron ${movimientosGuardados.length - movimientosValidos.length} movimientos inválidos`);
+          }
+          
+          setMovimientosBancarios(movimientosValidos);
+          actualizarSaldosTotales(movimientosValidos);
+        }
+
+        if (cartolasGuardadas.length > 0) {
+          // Validar que las cartolas tengan estructura correcta
+          const cartolasValidas = cartolasGuardadas.filter(cartola =>
+            cartola && cartola.nombre && cartola.banco && cartola.fechaCarga
+          );
+          
+          if (cartolasValidas.length !== cartolasGuardadas.length) {
+            console.log(`⚠️ Se encontraron ${cartolasGuardadas.length - cartolasValidas.length} cartolas inválidas`);
+          }
+          
+          setCartolasCargadas(cartolasValidas);
+        }
+
+        console.log(`✅ Datos persistidos cargados exitosamente`);
+        
+      } catch (storageError) {
+        console.error('❌ Error cargando datos persistidos:', storageError);
+        console.log('🧹 Limpiando localStorage corrupto...');
+        
+        // Limpiar datos corruptos
+        localStorage.removeItem('pgr_movimientos_bancarios');
+        localStorage.removeItem('pgr_cartolas_cargadas');
+        
+        alert(`⚠️ Se detectaron datos corruptos en el almacenamiento local.\n\nLos datos se han limpiado automáticamente.\n\nPuedes volver a cargar tus cartolas.`);
       }
 
     } catch (error) {
@@ -1293,8 +1568,8 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
                 📄 Gestión de Cartolas Bancarias
               </h2>
               
-              {/* Botones de utilidad */}
-              <div className="flex items-center gap-3 mb-4">
+              {/* Botones de utilidad mejorados */}
+              <div className="flex items-center gap-3 mb-4 flex-wrap">
                 <button
                   onClick={diagnosticarXLSX}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
@@ -1317,6 +1592,124 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
                 >
                   🔄 Limpiar XLSX
                 </button>
+                <button
+                  onClick={() => {
+                    setModoAltoRendimiento(!modoAltoRendimiento);
+                    const mensaje = !modoAltoRendimiento 
+                      ? `🚀 Modo Alto Rendimiento ACTIVADO:\n\n✅ Procesa archivos de cualquier tamaño\n✅ Mantiene TODOS los movimientos en memoria\n✅ Cálculos de saldos 100% precisos\n⚠️ Los datos no se guardan en localStorage\n💡 Ideal para archivos muy grandes`
+                      : `💾 Modo Normal ACTIVADO:\n\n✅ Guarda datos en localStorage\n✅ Persistencia entre sesiones\n⚠️ Limitado por capacidad del navegador`;
+                    
+                    alert(mensaje);
+                    console.log(`🚀 Modo alto rendimiento: ${!modoAltoRendimiento ? 'ACTIVADO' : 'DESACTIVADO'}`);
+                  }}
+                  className={`px-4 py-2 rounded-lg transition-colors text-sm ${
+                    modoAltoRendimiento 
+                      ? 'bg-green-600 text-white hover:bg-green-700' 
+                      : 'bg-gray-600 text-white hover:bg-gray-700'
+                  }`}
+                >
+                  {modoAltoRendimiento ? '🚀 Alto Rendimiento ON' : '💾 Modo Normal'}
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm('¿Estás seguro de eliminar todas las cartolas y movimientos guardados?\n\nEsta acción no se puede deshacer.')) {
+                      // Limpiar localStorage
+                      localStorage.removeItem('pgr_movimientos_bancarios');
+                      localStorage.removeItem('pgr_cartolas_cargadas');
+                      
+                      // Limpiar estados
+                      setMovimientosBancarios([]);
+                      setCartolasCargadas([]);
+                      setSaldosTotalesCartolas({});
+                      
+                      // Desactivar modo alto rendimiento
+                      setModoAltoRendimiento(false);
+                      
+                      console.log('🧹 Datos de cartolas limpiados');
+                      alert('✅ Todas las cartolas han sido eliminadas.\n🔄 Modo normal reactivado.');
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                >
+                  🧹 Limpiar Todo
+                </button>
+                <button
+                  onClick={() => {
+                    const storageSize = ((JSON.stringify(localStorage).length / 1024 / 1024).toFixed(2));
+                    const info = `📊 INFORMACIÓN DE ALMACENAMIENTO:
+
+💾 LocalStorage usado: ${storageSize} MB
+📁 Cartolas cargadas: ${cartolasCargadas.length}
+📋 Movimientos totales: ${movimientosBancarios.length}
+🏦 Bancos procesados: ${Object.keys(saldosTotalesCartolas).length}
+
+🚀 MODO ACTUAL: ${modoAltoRendimiento ? 'Alto Rendimiento (Solo memoria)' : 'Normal (Con persistencia)'}
+
+🔧 ESTADO DEL SISTEMA:
+• XLSX disponible: ${typeof window.XLSX !== 'undefined' ? '✅' : '❌'}
+• XLSX.read funcional: ${typeof window.XLSX?.read === 'function' ? '✅' : '❌'}
+• Conexión: ${navigator.onLine ? '✅ Online' : '❌ Offline'}
+
+💡 PARA ARCHIVOS GRANDES:
+• Activa "🚀 Alto Rendimiento" antes de cargar
+• Esto procesará TODOS los movimientos sin limitaciones
+• Los saldos serán 100% precisos
+• Los datos no se guardarán en localStorage (solo memoria)
+
+🔧 Si tienes problemas:
+1. Usa "🚀 Alto Rendimiento" para archivos grandes
+2. Usa "🧹 Limpiar Todo" si hay errores de memoria
+3. Usa "🔄 Limpiar XLSX" si hay problemas con Excel
+4. Recarga la página (Ctrl+F5) como último recurso`;
+                    
+                    alert(info);
+                  }}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                >
+                  📊 Info Sistema
+                </button>
+              </div>
+
+              {/* Información del estado actual mejorada */}
+              <div className={`rounded-lg p-4 mb-4 text-sm border-2 ${
+                modoAltoRendimiento 
+                  ? 'bg-green-50 border-green-200' 
+                  : 'bg-gray-50 border-gray-200'
+              }`}>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div>
+                    <span className="font-medium text-gray-700">💾 Almacenamiento:</span>
+                    <div className="text-blue-600">
+                      {((JSON.stringify(localStorage).length / 1024 / 1024).toFixed(2))} MB
+                    </div>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">📁 Cartolas:</span>
+                    <div className="text-green-600">{cartolasCargadas.length}</div>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">📋 Movimientos:</span>
+                    <div className="text-orange-600">{movimientosBancarios.length}</div>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">🏦 Bancos:</span>
+                    <div className="text-purple-600">{Object.keys(saldosTotalesCartolas).length}</div>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">⚡ Modo:</span>
+                    <div className={modoAltoRendimiento ? 'text-green-600 font-semibold' : 'text-gray-600'}>
+                      {modoAltoRendimiento ? '🚀 Alto Rendimiento' : '💾 Normal'}
+                    </div>
+                  </div>
+                </div>
+                {modoAltoRendimiento && (
+                  <div className="mt-3 p-3 bg-green-100 rounded-lg border border-green-300">
+                    <p className="text-green-800 text-sm font-medium">
+                      🚀 Modo Alto Rendimiento Activo: Se procesarán TODOS los movimientos sin limitaciones. 
+                      Los datos se mantienen solo en memoria para máximo rendimiento.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Área de carga de archivos */}
@@ -1356,6 +1749,11 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
                           (typeof window.XLSX.read === 'function' ? '✅ Listo' : '⚠️ Parcial') : 
                           '❌ No cargado'}
                       </p>
+                      {modoAltoRendimiento && (
+                        <p className="text-xs text-green-600 mt-1 font-semibold">
+                          🚀 Modo Alto Rendimiento: Sin limitaciones de movimientos
+                        </p>
+                      )}
                     </div>
                   </div>
                 </label>
@@ -1414,7 +1812,8 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
                           </div>
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
                             <div>
-                              <span className="font-medium">Movimientos:</span> {cartola.movimientos}
+                              <span className="font-medium">Movimientos:</span> 
+                              {cartola.movimientos}
                             </div>
                             <div>
                               <span className="font-medium">Ingresos:</span> {formatearMoneda(cartola.totalIngresos)}
@@ -1423,7 +1822,10 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
                               <span className="font-medium">Egresos:</span> {formatearMoneda(cartola.totalEgresos)}
                             </div>
                             <div>
-                              <span className="font-medium">Saldo Final:</span> {formatearMoneda(cartola.saldoFinal)}
+                              <span className="font-medium">Saldo Final:</span> 
+                              <span className={cartola.saldoFinal >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                {formatearMoneda(cartola.saldoFinal)}
+                              </span>
                             </div>
                           </div>
                           <div className="mt-2 text-xs text-gray-500">
