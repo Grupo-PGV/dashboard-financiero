@@ -1,19 +1,3 @@
-/**
- * 🔧 DASHBOARD FINANCIERO INTEGRADO - VERSIÓN CORREGIDA
- * 
- * CAMBIOS APLICADOS:
- * ✅ Detector de banco mejorado (BCI vs Banco Chile)
- * ✅ Procesador de movimientos robusto
- * ✅ Cálculo de saldos corregido
- * ✅ Manejo de errores mejorado
- * 
- * MANTIENE:
- * ✅ Toda la estructura UI existente
- * ✅ Estados del componente
- * ✅ Integración con Chipax
- * ✅ Funcionalidad existente
- */
-
 import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, Calendar, Wallet, PieChart, TrendingUp, TrendingDown,
@@ -34,14 +18,25 @@ import {
   filtrarComprasPorFecha 
 } from '../services/chipaxAdapter';
 
+/**
+ * Dashboard Financiero Integrado - PGR Seguridad
+ * 
+ * CARACTERÍSTICAS:
+ * ✅ Integración completa con API Chipax (tu sistema existente)
+ * ✅ Procesamiento inteligente de cartolas bancarias por banco
+ * ✅ KPIs consolidados (Chipax + Cartolas)
+ * ✅ Flujo de caja y proyecciones
+ * ✅ Alertas financieras automáticas
+ */
 const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
-  // ===== ESTADOS EXISTENTES (MANTENER TODOS) =====
+  // ===== ESTADOS CHIPAX EXISTENTES (mantener todos) =====
   const [saldosBancarios, setSaldosBancarios] = useState([]);
   const [cuentasPorCobrar, setCuentasPorCobrar] = useState([]);
   const [cuentasPorPagar, setCuentasPorPagar] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState([]);
   
+  // Estados de filtrado existentes
   const [filtroCompras, setFiltroCompras] = useState({
     soloNoPagadas: false,
     fechaInicio: '',
@@ -49,6 +44,7 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
     folioFiltro: ''
   });
 
+  // Estados de paginación existentes
   const [paginacionCompras, setPaginacionCompras] = useState({
     paginaActual: 1,
     itemsPorPagina: 50
@@ -59,28 +55,24 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
     itemsPorPagina: 50
   });
 
-  // Estados para cartolas bancarias
+  // ===== NUEVOS ESTADOS PARA CARTOLAS BANCARIAS =====
   const [cartolasCargadas, setCartolasCargadas] = useState([]);
   const [movimientosBancarios, setMovimientosBancarios] = useState([]);
   const [saldosTotalesCartolas, setSaldosTotalesCartolas] = useState({});
   const [isLoadingCartola, setIsLoadingCartola] = useState(false);
   const [errorCartola, setErrorCartola] = useState(null);
   
+  // Estados de análisis integrado
   const [kpisConsolidados, setKpisConsolidados] = useState({});
   const [alertasFinancieras, setAlertasFinancieras] = useState([]);
   const [pestanaActiva, setPestanaActiva] = useState('dashboard');
 
-  // ===== CONFIGURACIÓN MEJORADA DE PROCESADORES =====
+  // ===== CONFIGURACIÓN DE PROCESADORES POR BANCO =====
   const PROCESADORES_BANCO = {
     'banco_chile': {
       nombre: 'Banco de Chile',
-      identificadores: {
-        archivo: ['emitida', 'banco_chile'],
-        contenido: ['pgr seguridad spa', 'banco de chile', 'cheque o cargo', 'deposito o abono'],
-        requiere: ['pgr seguridad spa'] // DEBE contener este texto
-      },
+      identificadores: ['cartola', 'emitida', 'pgr seguridad spa'],
       estructura: {
-        tipoHeader: 'fijo',
         headerRow: 2,
         dataStartRow: 3,
         columnas: {
@@ -95,16 +87,10 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
     },
     'bci': {
       nombre: 'BCI',
-      identificadores: {
-        archivo: ['historica', 'cartola'],
-        contenido: ['cartola historica', 'cuenta corriente', 'estado de cuenta'],
-        excluir: ['pgr seguridad spa', 'banco de chile'] // NO debe contener estos
-      },
+      identificadores: ['bci', 'cuenta corriente', 'cartola historica'],
       estructura: {
-        tipoHeader: 'dinamico',
-        buscarDesde: 8,
-        buscarHasta: 25,
-        columnasMinimas: 4,
+        headerRow: 'auto',
+        dataStartRow: 'auto',
         columnas: {
           fecha: 0,
           descripcion: 1,
@@ -116,403 +102,254 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
     },
     'santander': {
       nombre: 'Santander',
-      identificadores: {
-        archivo: ['santander'],
-        contenido: ['santander chile', 'banco santander'],
-        requiere: ['santander']
-      },
+      identificadores: ['santander', 'santander chile'],
       estructura: {
-        tipoHeader: 'dinamico',
-        buscarDesde: 5,
-        buscarHasta: 20,
+        headerRow: 'auto',
+        dataStartRow: 'auto',
         columnas: {
           fecha: 0,
           descripcion: 1,
-          cargo: 2,
-          abono: 3,
-          saldo: 4
+          monto: 2,
+          saldo: 3
         }
       }
     },
-    'generico': {
+    'generic': {
       nombre: 'Formato Genérico',
-      identificadores: {
-        archivo: [],
-        contenido: [],
-        requiere: []
-      },
+      identificadores: [],
       estructura: {
-        tipoHeader: 'dinamico',
-        buscarDesde: 3,
-        buscarHasta: 30,
-        columnas: {
-          fecha: 0,
-          descripcion: 1,
-          cargo: 2,
-          abono: 3,
-          saldo: 4
-        }
+        headerRow: 'auto',
+        dataStartRow: 'auto',
+        columnas: 'auto'
       }
     }
   };
 
-  // ===== FUNCIONES MEJORADAS PARA CARTOLAS =====
-
-  /**
-   * FUNCIÓN MEJORADA: Detectar banco con lógica más precisa
-   */
-  const detectarBanco = (nombreArchivo, data) => {
-    console.log('🔍 DETECCIÓN MEJORADA DE BANCO');
-    console.log('='.repeat(50));
-    
-    const archivo = nombreArchivo.toLowerCase();
-    const contenido = data.slice(0, 20)
-      .map(row => (row || []).join(' ').toLowerCase())
-      .join(' ');
-    
-    console.log(`📄 Archivo: "${archivo}"`);
-    console.log(`📄 Contenido muestra: "${contenido.substring(0, 300)}"`);
-    
-    // ORDEN DE PRIORIDAD (más específico primero)
-    const bancosPorPrioridad = ['banco_chile', 'bci', 'santander'];
-    
-    for (const bancoCodigo of bancosPorPrioridad) {
-      const procesador = PROCESADORES_BANCO[bancoCodigo];
-      const identificadores = procesador.identificadores;
+  // ===== FUNCIONES CHIPAX EXISTENTES (mantener exactas) =====
+  
+  const cargarSaldosBancarios = async () => {
+    try {
+      console.log('🏦 Cargando saldos bancarios...');
+      const datos = await chipaxService.obtenerSaldosBancarios();
       
-      console.log(`\n🔍 Evaluando: ${procesador.nombre}`);
-      
-      // 1. VERIFICAR REQUERIMIENTOS
-      if (identificadores.requiere && identificadores.requiere.length > 0) {
-        const tieneRequeridos = identificadores.requiere.every(requerido => 
-          contenido.includes(requerido)
-        );
-        
-        if (!tieneRequeridos) {
-          console.log(`   ❌ No cumple requerimientos: ${identificadores.requiere.join(', ')}`);
-          continue;
-        }
-        console.log(`   ✅ Cumple requerimientos: ${identificadores.requiere.join(', ')}`);
+      if (Array.isArray(datos)) {
+        setSaldosBancarios(datos);
+        console.log(`✅ ${datos.length} saldos cargados`);
+      } else {
+        console.warn('⚠️ Saldos no es array, usando array vacío');
+        setSaldosBancarios([]);
       }
-      
-      // 2. VERIFICAR EXCLUSIONES
-      if (identificadores.excluir && identificadores.excluir.length > 0) {
-        const tieneExcluidos = identificadores.excluir.some(excluido => 
-          contenido.includes(excluido)
-        );
-        
-        if (tieneExcluidos) {
-          console.log(`   ❌ Contiene términos excluidos: ${identificadores.excluir.join(', ')}`);
-          continue;
-        }
-        console.log(`   ✅ No contiene términos excluidos`);
-      }
-      
-      // 3. VERIFICAR COINCIDENCIAS
-      const coincidenciasArchivo = identificadores.archivo.filter(id => 
-        archivo.includes(id)
-      );
-      
-      const coincidenciasContenido = identificadores.contenido.filter(id => 
-        contenido.includes(id)
-      );
-      
-      console.log(`   📁 Coincidencias archivo: ${coincidenciasArchivo.length}`);
-      console.log(`   📄 Coincidencias contenido: ${coincidenciasContenido.length}`);
-      
-      // 4. DECISIÓN FINAL
-      if (coincidenciasArchivo.length > 0 || coincidenciasContenido.length > 0) {
-        console.log(`   🎯 ¡BANCO DETECTADO! → ${procesador.nombre}`);
-        console.log('='.repeat(50));
-        return procesador;
-      }
+    } catch (error) {
+      console.error('❌ Error cargando saldos:', error);
+      setSaldosBancarios([]);
+      setErrors(prev => [...prev, `Saldos: ${error.message}`]);
     }
-    
-    console.log(`\n🏦 Usando formato genérico`);
-    console.log('='.repeat(50));
-    return PROCESADORES_BANCO.generico;
   };
 
-  /**
-   * FUNCIÓN MEJORADA: Procesar movimientos con detección dinámica
-   */
-  const procesarMovimientos = (rawData, procesador, nombreArchivo) => {
-    console.log('🔄 PROCESAMIENTO MEJORADO DE MOVIMIENTOS');
-    console.log(`🏦 Banco: ${procesador.nombre}`);
-    console.log(`📊 Total filas: ${rawData.length}`);
-    
-    const movimientos = [];
-    let dataStartRow = 0;
-    
-    if (procesador.estructura.tipoHeader === 'fijo') {
-      // ESTRUCTURA FIJA (Banco de Chile)
-      dataStartRow = procesador.estructura.dataStartRow;
-      console.log(`📍 Estructura fija - Datos desde fila: ${dataStartRow + 1}`);
+  const cargarCuentasPorCobrar = async () => {
+    try {
+      console.log('📋 Cargando cuentas por cobrar...');
+      const dtes = await chipaxService.obtenerCuentasPorCobrar();
       
-    } else {
-      // ESTRUCTURA DINÁMICA (BCI, Santander, etc.)
-      console.log('🔍 Buscando inicio de datos dinámicamente...');
-      
-      const buscarDesde = procesador.estructura.buscarDesde || 5;
-      const buscarHasta = Math.min(procesador.estructura.buscarHasta || 25, rawData.length);
-      
-      console.log(`   🔍 Rango: filas ${buscarDesde + 1} - ${buscarHasta}`);
-      
-      for (let i = buscarDesde; i < buscarHasta; i++) {
-        const row = rawData[i];
-        if (!row || row.length < (procesador.estructura.columnasMinimas || 3)) {
-          continue;
-        }
-        
-        const primeraColumna = (row[0] || '').toString().trim();
-        const segundaColumna = (row[1] || '').toString().trim();
-        
-        // Verificar fecha
-        const tieneFecha = /\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(primeraColumna) ||
-                          (typeof row[0] === 'number' && row[0] > 40000);
-        
-        // Verificar descripción
-        const tieneDescripcion = segundaColumna.length > 2 && 
-                                !segundaColumna.toLowerCase().includes('fecha') &&
-                                !segundaColumna.toLowerCase().includes('descripcion');
-        
-        // Verificar montos
-        const tieneMontos = row.slice(2).some(cell => {
-          const numero = parseFloat(String(cell).replace(/[.$,]/g, ''));
-          return !isNaN(numero) && numero !== 0;
-        });
-        
-        console.log(`   📋 Fila ${i + 1}: F=${tieneFecha}, D=${tieneDescripcion}, M=${tieneMontos}`);
-        
-        if (tieneFecha && tieneDescripcion && tieneMontos) {
-          dataStartRow = i;
-          console.log(`   ✅ Primera fila de datos en: ${dataStartRow + 1}`);
-          break;
-        }
+      if (Array.isArray(dtes)) {
+        const cuentasAdaptadas = adaptarCuentasPorCobrar(dtes);
+        setCuentasPorCobrar(cuentasAdaptadas);
+        console.log(`✅ ${cuentasAdaptadas.length} cuentas por cobrar cargadas`);
+      } else {
+        console.warn('⚠️ DTEs no es array');
+        setCuentasPorCobrar([]);
       }
-      
-      if (dataStartRow === 0) {
-        throw new Error(`No se pudo detectar el inicio de datos para ${procesador.nombre}`);
-      }
+    } catch (error) {
+      console.error('❌ Error cargando cuentas por cobrar:', error);
+      setCuentasPorCobrar([]);
+      setErrors(prev => [...prev, `Cuentas por cobrar: ${error.message}`]);
     }
-    
-    // PROCESAR MOVIMIENTOS
-    console.log('💰 Procesando movimientos...');
-    let movimientosValidos = 0;
-    let erroresProcesamiento = 0;
-    
-    for (let i = dataStartRow; i < rawData.length; i++) {
-      const row = rawData[i];
-      if (!row || row.length < 3) continue;
-      
-      try {
-        const movimiento = parseMovimiento(row, procesador, i, nombreArchivo);
-        if (movimiento && movimiento.fecha && movimiento.descripcion) {
-          movimientos.push(movimiento);
-          movimientosValidos++;
-          
-          if (movimientosValidos % 10 === 0) {
-            console.log(`   📊 Procesados ${movimientosValidos} movimientos...`);
-          }
-        }
-      } catch (error) {
-        erroresProcesamiento++;
-        if (erroresProcesamiento <= 5) {
-          console.warn(`   ⚠️ Error fila ${i + 1}: ${error.message}`);
-        }
-      }
-    }
-    
-    console.log(`✅ PROCESAMIENTO COMPLETADO:`);
-    console.log(`   💚 Movimientos válidos: ${movimientosValidos}`);
-    console.log(`   ⚠️ Errores: ${erroresProcesamiento}`);
-    
-    if (movimientosValidos === 0) {
-      throw new Error(`No se encontraron movimientos válidos en ${nombreArchivo}. Verifique el formato.`);
-    }
-    
-    return movimientos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
   };
 
-  /**
-   * FUNCIÓN MEJORADA: Parsear movimiento individual
-   */
-  const parseMovimiento = (row, procesador, rowIndex, archivo) => {
-    let fecha, descripcion, cargo = 0, abono = 0, saldo = 0, documento = '';
+  const cargarCuentasPorPagar = async () => {
+    try {
+      console.log('💸 Cargando cuentas por pagar...');
+      const compras = await chipaxService.obtenerCuentasPorPagar();
+      
+      if (Array.isArray(compras)) {
+        const cuentasAdaptadas = adaptarCuentasPorPagar(compras);
+        setCuentasPorPagar(cuentasAdaptadas);
+        console.log(`✅ ${cuentasAdaptadas.length} cuentas por pagar cargadas`);
+      } else {
+        console.warn('⚠️ Compras no es array');
+        setCuentasPorPagar([]);
+      }
+    } catch (error) {
+      console.error('❌ Error cargando cuentas por pagar:', error);
+      setCuentasPorPagar([]);
+      setErrors(prev => [...prev, `Cuentas por pagar: ${error.message}`]);
+    }
+  };
+
+  const cargarSolo2025 = async () => {
+    try {
+      setLoading(true);
+      console.log('🔄 Cargando solo facturas 2025...');
+      await cargarCuentasPorPagar();
+    } catch (error) {
+      console.error('❌ Error cargando 2025:', error);
+      setErrors(prev => [...prev, `Facturas 2025: ${error.message}`]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cargarSoloSaldos = async () => {
+    try {
+      setLoading(true);
+      console.log('🏦 Cargando solo saldos bancarios...');
+      await cargarSaldosBancarios();
+    } catch (error) {
+      console.error('❌ Error cargando saldos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cargarSoloCuentasPorCobrar = async () => {
+    try {
+      setLoading(true);
+      console.log('📋 Cargando solo cuentas por cobrar...');
+      await cargarCuentasPorCobrar();
+    } catch (error) {
+      console.error('❌ Error cargando cuentas por cobrar:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cargarTodosDatos = async () => {
+    setLoading(true);
+    setErrors([]);
     
     try {
-      const columnas = procesador.estructura.columnas;
+      console.log('🔄 Iniciando carga completa...');
       
-      // OBTENER FECHA
-      fecha = parseDate(row[columnas.fecha]);
-      if (!fecha) {
-        throw new Error(`Fecha inválida: "${row[columnas.fecha]}"`);
-      }
+      await Promise.all([
+        cargarSaldosBancarios(),
+        cargarCuentasPorCobrar(),
+        cargarCuentasPorPagar()
+      ]);
       
-      // OBTENER DESCRIPCIÓN
-      descripcion = (row[columnas.descripcion] || '').toString().trim();
-      if (!descripcion || descripcion.length < 2) {
-        throw new Error(`Descripción inválida: "${descripcion}"`);
-      }
-      
-      // OBTENER MONTOS SEGÚN BANCO
-      if (procesador.nombre === 'BCI') {
-        // LÓGICA ESPECIAL PARA BCI
-        const valores = row.slice(2).map(cell => parseMonto(cell));
-        
-        if (valores.length >= 3) {
-          cargo = valores[0] || 0;
-          abono = valores[1] || 0;
-          saldo = valores[2] || 0;
-          
-          // Si cargo y abono están mezclados, detectar por signo
-          if (cargo !== 0 && abono === 0) {
-            if (cargo < 0) {
-              abono = Math.abs(cargo);
-              cargo = 0;
-            }
-          }
-        }
-      } else {
-        // LÓGICA ESTÁNDAR
-        cargo = parseMonto(row[columnas.cargo]);
-        abono = parseMonto(row[columnas.abono]);
-        saldo = parseMonto(row[columnas.saldo]);
-        
-        if (columnas.documento !== undefined) {
-          documento = (row[columnas.documento] || '').toString().trim();
-        }
-      }
-      
-      // VALIDACIÓN FINAL
-      if (cargo === 0 && abono === 0) {
-        throw new Error('Sin montos válidos');
-      }
-      
-      return {
-        fecha: fecha,
-        descripcion: descripcion,
-        cargo: cargo,
-        abono: abono,
-        saldo: saldo,
-        documento: documento,
-        banco: procesador.nombre,
-        archivo: archivo,
-        fila: rowIndex + 1,
-        id: `${archivo}_${rowIndex}_${Date.now()}`
-      };
-      
+      console.log('✅ Carga completa finalizada');
     } catch (error) {
-      throw new Error(`Fila ${rowIndex + 1}: ${error.message}`);
+      console.error('❌ Error en carga completa:', error);
+      setErrors(prev => [...prev, `Carga general: ${error.message}`]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  /**
-   * FUNCIÓN MEJORADA: Actualizar saldos totales
-   */
-  const actualizarSaldosTotales = (movimientos) => {
-    console.log('💰 ACTUALIZANDO SALDOS TOTALES (VERSIÓN MEJORADA)');
-    console.log(`📊 Procesando ${movimientos.length} movimientos`);
-    
-    if (!movimientos || movimientos.length === 0) {
-      console.log('⚠️ No hay movimientos para procesar');
-      setSaldosTotalesCartolas({});
-      return;
+  const verificarConectividad = async () => {
+    try {
+      setLoading(true);
+      setErrors([]);
+      console.log('🔍 Verificando conectividad con Chipax...');
+      
+      await chipaxService.getChipaxToken();
+      
+      console.log('✅ Conectividad con Chipax verificada');
+      setErrors([]);
+    } catch (error) {
+      console.error('❌ Error de conectividad:', error);
+      
+      if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
+        setErrors(['⚠️ Error de CORS detectado. La API funciona pero requiere configuración especial desde navegador.']);
+      } else {
+        setErrors([`❌ Error de conectividad: ${error.message}`]);
+      }
+    } finally {
+      setLoading(false);
     }
-    
-    // Agrupar por banco
-    const saldosPorBanco = {};
-    
-    movimientos.forEach(movimiento => {
-      const banco = normalizarBanco(movimiento.banco || 'generico');
-      
-      if (!saldosPorBanco[banco]) {
-        saldosPorBanco[banco] = {
-          movimientos: [],
-          saldoCalculado: 0,
-          totalAbonos: 0,
-          totalCargos: 0
-        };
-      }
-      
-      saldosPorBanco[banco].movimientos.push(movimiento);
-    });
-    
-    // Calcular saldo para cada banco
-    const saldosFinales = {};
-    
-    Object.keys(saldosPorBanco).forEach(banco => {
-      const data = saldosPorBanco[banco];
-      const movimientosBanco = data.movimientos.sort((a, b) => 
-        new Date(a.fecha) - new Date(b.fecha)
-      );
-      
-      console.log(`🏦 Calculando ${banco}: ${movimientosBanco.length} movimientos`);
-      
-      let totalAbonos = 0;
-      let totalCargos = 0;
-      let saldoFinal = 0;
-      
-      // Detectar saldo inicial
-      if (movimientosBanco.length > 0) {
-        const primerMov = movimientosBanco[0];
-        if (primerMov.saldo && !isNaN(primerMov.saldo)) {
-          saldoFinal = primerMov.saldo - (primerMov.abono || 0) + (primerMov.cargo || 0);
-        }
-      }
-      
-      // Procesar movimientos
-      movimientosBanco.forEach(mov => {
-        const cargo = parseFloat(mov.cargo) || 0;
-        const abono = parseFloat(mov.abono) || 0;
-        
-        totalCargos += cargo;
-        totalAbonos += abono;
-        saldoFinal += abono - cargo;
-      });
-      
-      // Usar último saldo conocido si está disponible
-      const ultimoMovConSaldo = movimientosBanco
-        .slice()
-        .reverse()
-        .find(mov => mov.saldo && !isNaN(mov.saldo) && mov.saldo !== 0);
-      
-      if (ultimoMovConSaldo) {
-        saldoFinal = ultimoMovConSaldo.saldo;
-      }
-      
-      saldosFinales[banco] = saldoFinal;
-      console.log(`   💰 ${banco}: $${saldoFinal.toLocaleString('es-CL')}`);
-    });
-    
-    setSaldosTotalesCartolas(saldosFinales);
-    
-    // Guardar en localStorage
-    localStorage.setItem('pgr_saldos_cartolas', JSON.stringify(saldosFinales));
   };
 
-  /**
-   * FUNCIÓN PRINCIPAL: Procesar cartola bancaria (VERSIÓN CORREGIDA)
-   */
-  const procesarCartolaBAncaria = async (file) => {
+  // ===== FUNCIÓN CORREGIDA PARA CARTOLAS BANCARIAS =====
+  
+  const procesarCartolaBancaria = async (file) => {  // ✅ CORRECCIÓN 1: Sin typo
     setIsLoadingCartola(true);
     setErrorCartola(null);
 
     try {
       console.log(`📁 Procesando cartola: ${file.name}`);
       
-      // Leer archivo usando File API
-      const arrayBuffer = await readFileAsArrayBuffer(file);
-      
-      // Importar XLSX dinámicamente con fallback
+      // ✅ CORRECCIÓN 2: Sistema robusto de importación XLSX
       let XLSX;
       try {
-        XLSX = await import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
-      } catch (error) {
-        console.log('⚠️ CDN XLSX no disponible, intentando método alternativo...');
-        throw new Error('Librería XLSX no disponible. Recarga la página e intenta nuevamente.');
+        console.log('📚 Cargando XLSX desde CDN...');
+        
+        // Método 1: Importación dinámica con múltiples fallbacks
+        let xlsxModule;
+        try {
+          xlsxModule = await import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+        } catch (importError) {
+          console.log('🔄 Fallback: Intentando URL alternativa...');
+          xlsxModule = await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.full.min.js');
+        }
+        
+        // Extraer XLSX del módulo con múltiples estrategias
+        if (xlsxModule && typeof xlsxModule.read === 'function') {
+          // Caso 1: Funciones directamente en el módulo
+          XLSX = xlsxModule;
+          console.log('✅ XLSX encontrado directamente en módulo');
+        } else if (xlsxModule.default && typeof xlsxModule.default.read === 'function') {
+          // Caso 2: Funciones en .default
+          XLSX = xlsxModule.default;
+          console.log('✅ XLSX encontrado en .default');
+        } else if (xlsxModule.XLSX && typeof xlsxModule.XLSX.read === 'function') {
+          // Caso 3: Funciones en .XLSX
+          XLSX = xlsxModule.XLSX;
+          console.log('✅ XLSX encontrado en .XLSX');
+        } else if (typeof window !== 'undefined' && window.XLSX && typeof window.XLSX.read === 'function') {
+          // Caso 4: XLSX disponible globalmente
+          XLSX = window.XLSX;
+          console.log('✅ XLSX encontrado en window.XLSX');
+        } else {
+          // Caso 5: Crear script dinámico como último recurso
+          console.log('🔄 Cargando XLSX via script dinámico...');
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+            script.onload = () => {
+              if (window.XLSX && typeof window.XLSX.read === 'function') {
+                XLSX = window.XLSX;
+                console.log('✅ XLSX cargado via script');
+                resolve();
+              } else {
+                reject(new Error('XLSX no disponible después de cargar script'));
+              }
+            };
+            script.onerror = () => reject(new Error('Error cargando script XLSX'));
+            document.head.appendChild(script);
+          });
+        }
+        
+        // Verificación final
+        if (!XLSX || typeof XLSX.read !== 'function') {
+          throw new Error('No se pudo cargar XLSX.read después de todos los intentos');
+        }
+        
+        // Verificar también utils (necesario para sheet_to_json)
+        if (!XLSX.utils || typeof XLSX.utils.sheet_to_json !== 'function') {
+          throw new Error('XLSX.utils.sheet_to_json no está disponible');
+        }
+        
+        console.log('✅ XLSX completamente cargado y verificado');
+        console.log('🔍 XLSX funciones disponibles:', Object.keys(XLSX).slice(0, 10));
+        
+      } catch (xlsxError) {
+        console.error('❌ Error crítico cargando XLSX:', xlsxError);
+        throw new Error(`No se pudo cargar el procesador de Excel. 
+          Verifica tu conexión a internet e intenta nuevamente. 
+          Error: ${xlsxError.message}`);
       }
       
+      // Leer archivo
+      const arrayBuffer = await readFileAsArrayBuffer(file);
       const workbook = XLSX.read(arrayBuffer, {
         cellStyles: true,
         cellFormulas: true,
@@ -521,17 +358,18 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
       
       console.log('📊 Hojas disponibles:', workbook.SheetNames);
       
+      // Analizar primera hoja
       const primeraHoja = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[primeraHoja];
       const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
       
       console.log(`📋 Total filas: ${rawData.length}`);
       
-      // Detectar banco con lógica mejorada
+      // Detectar banco y procesador
       const procesador = detectarBanco(file.name, rawData);
       console.log(`🏦 Banco detectado: ${procesador.nombre}`);
       
-      // Procesar movimientos con nueva lógica
+      // Procesar movimientos
       const movimientos = procesarMovimientos(rawData, procesador, file.name);
       console.log(`✅ Procesados ${movimientos.length} movimientos`);
       
@@ -546,7 +384,7 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
       const nuevosMovimientos = [...movimientosBancarios, ...movimientos];
       setMovimientosBancarios(nuevosMovimientos);
       
-      // Registrar cartola
+      // Registrar cartola cargada
       const nuevaCartola = {
         id: Date.now(),
         nombre: file.name,
@@ -558,10 +396,10 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
       
       setCartolasCargadas(prev => [...prev, nuevaCartola]);
       
-      // Actualizar saldos con nueva lógica
+      // Actualizar saldos totales
       actualizarSaldosTotales(nuevosMovimientos);
       
-      // Recalcular KPIs
+      // Recalcular KPIs integrados
       calcularKPIsIntegrados();
       
       // Guardar en localStorage
@@ -572,236 +410,377 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
       
     } catch (error) {
       console.error('❌ Error procesando cartola:', error);
-      
-      // Mensaje de error más descriptivo
-      let mensajeError = `Error procesando ${file.name}:\n\n${error.message}`;
-      
-      if (error.message.includes('XLSX')) {
-        mensajeError += `\n\n🔧 Posibles soluciones:\n`;
-        mensajeError += `• Verifica tu conexión a internet\n`;
-        mensajeError += `• Recarga la página e intenta nuevamente\n`;
-        mensajeError += `• Verifica que el archivo sea un Excel válido`;
-      } else if (error.message.includes('No se encontraron movimientos')) {
-        mensajeError += `\n\n🔧 Posibles causas:\n`;
-        mensajeError += `• El archivo podría tener un formato diferente al esperado\n`;
-        mensajeError += `• Los datos podrían estar en una hoja diferente\n`;
-        mensajeError += `• El banco podría no estar configurado correctamente`;
-      }
-      
-      setErrorCartola(mensajeError);
+      setErrorCartola(`Error procesando ${file.name}: ${error.message}`);
     } finally {
       setIsLoadingCartola(false);
     }
   };
 
-  // ===== FUNCIONES AUXILIARES MEJORADAS =====
-
-  const parseDate = (valor) => {
-    if (!valor) return null;
+  const detectarBanco = (nombreArchivo, data) => {
+    const archivo = nombreArchivo.toLowerCase();
+    const contenido = data.slice(0, 10)
+      .map(row => (row || []).join(' ').toLowerCase())
+      .join(' ');
     
-    if (typeof valor === 'number' && valor > 40000) {
-      const fecha = new Date((valor - 25569) * 86400 * 1000);
-      return fecha.toISOString().split('T')[0];
+    console.log('🔍 Detectando banco...');
+    console.log('📄 Archivo:', archivo);
+    console.log('📄 Contenido muestra:', contenido.substring(0, 200));
+    
+    // Detectar Banco de Chile
+    if (archivo.includes('emitida') || 
+        contenido.includes('pgr seguridad spa') ||
+        contenido.includes('cheque o cargo') ||
+        contenido.includes('deposito o abono')) {
+      console.log('🏦 Banco detectado: Banco de Chile');
+      return PROCESADORES_BANCO.banco_chile;
     }
     
-    const fechaStr = valor.toString().trim();
-    const patronesFecha = [
-      /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/,
-      /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/,
-      /^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/
+    // Detectar BCI
+    if (archivo.includes('historica') || 
+        archivo.includes('cartola') ||
+        contenido.includes('cartola historica') ||
+        contenido.includes('cuenta corriente')) {
+      console.log('🏦 Banco detectado: BCI');
+      return PROCESADORES_BANCO.bci;
+    }
+    
+    // Detectar Santander
+    if (archivo.includes('santander') || 
+        contenido.includes('santander')) {
+      console.log('🏦 Banco detectado: Santander');
+      return PROCESADORES_BANCO.santander;
+    }
+    
+    // Formato genérico
+    console.log('🏦 Banco detectado: Formato Genérico');
+    return PROCESADORES_BANCO.generic;
+  };
+
+  const procesarMovimientos = (rawData, procesador, nombreArchivo) => {
+    const movimientos = [];
+    
+    // Detectar donde empiezan los datos reales
+    let dataStartRow = 0;
+    
+    if (procesador.nombre === 'Banco de Chile') {
+      // Buscar la fila con headers específicos de Banco de Chile
+      for (let i = 0; i < Math.min(10, rawData.length); i++) {
+        const row = rawData[i] || [];
+        const hasHeaders = row.some(cell => {
+          const cellStr = (cell || '').toString().toLowerCase();
+          return cellStr.includes('fecha') && (
+            cellStr.includes('detalle') || 
+            cellStr.includes('movimiento') ||
+            row.some(c => (c || '').toString().toLowerCase().includes('cargo'))
+          );
+        });
+        if (hasHeaders) {
+          dataStartRow = i + 1;
+          break;
+        }
+      }
+      console.log(`🏦 Banco de Chile - Datos empiezan en fila: ${dataStartRow + 1}`);
+    } else if (procesador.nombre === 'BCI') {
+      // Para BCI, buscar datos después de metadatos
+      for (let i = 10; i < Math.min(25, rawData.length); i++) {
+        const row = rawData[i] || [];
+        if (row.length >= 4) {
+          // Verificar si parece una fila de datos (fecha en primera columna)
+          const primeraColumna = (row[0] || '').toString();
+          if (primeraColumna.match(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/) || 
+              typeof row[0] === 'number' && row[0] > 40000) { // Excel date number
+            dataStartRow = i;
+            break;
+          }
+        }
+      }
+      console.log(`🏦 BCI - Datos empiezan en fila: ${dataStartRow + 1}`);
+    } else {
+      // Para otros bancos, buscar primera fila con datos numéricos
+      for (let i = 5; i < Math.min(20, rawData.length); i++) {
+        const row = rawData[i] || [];
+        if (row.length >= 4) {
+          const tieneNumeros = row.some(cell => typeof cell === 'number' && cell > 0);
+          if (tieneNumeros) {
+            dataStartRow = i;
+            break;
+          }
+        }
+      }
+      console.log(`🏦 ${procesador.nombre} - Datos empiezan en fila: ${dataStartRow + 1}`);
+    }
+    
+    // Procesar cada fila de datos
+    let movimientosValidos = 0;
+    for (let i = dataStartRow; i < rawData.length; i++) {
+      const row = rawData[i];
+      if (!row || row.length < 3) continue;
+      
+      try {
+        const movimiento = parseMovimiento(row, procesador, i, nombreArchivo);
+        if (movimiento && movimiento.fecha && movimiento.descripcion) {
+          movimientos.push(movimiento);
+          movimientosValidos++;
+        }
+      } catch (error) {
+        console.warn(`⚠️ Error en fila ${i + 1}:`, error.message);
+      }
+    }
+    
+    console.log(`✅ Procesados ${movimientosValidos} movimientos válidos de ${rawData.length} filas totales`);
+    
+    // Ordenar por fecha
+    return movimientos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+  };
+
+  const parseMovimiento = (row, procesador, rowIndex, archivo) => {
+    let fecha, descripcion, cargo = 0, abono = 0, saldo = 0;
+    
+    if (procesador.nombre === 'Banco de Chile') {
+      // Formato Banco de Chile: [Fecha, Detalle, Cargo, Abono, Saldo, ...]
+      fecha = parseDate(row[0]);
+      descripcion = (row[1] || '').toString().trim();
+      cargo = parseFloat(row[2]) || 0;
+      abono = parseFloat(row[3]) || 0;
+      saldo = parseFloat(row[4]) || 0;
+      
+    } else if (procesador.nombre === 'BCI') {
+      // Formato BCI: detectar dinámicamente
+      fecha = parseDate(row[0]);
+      descripcion = (row[1] || '').toString().trim();
+      
+      // Buscar valores numéricos en las columnas siguientes
+      for (let i = 2; i < row.length; i++) {
+        const valor = parseFloat(row[i]);
+        if (!isNaN(valor) && valor !== 0) {
+          if (i === row.length - 1) {
+            saldo = valor; // Última columna suele ser saldo
+          } else if (cargo === 0 && valor > 0) {
+            cargo = valor;
+          } else if (abono === 0 && valor > 0) {
+            abono = valor;
+          }
+        }
+      }
+      
+    } else {
+      // Formato genérico
+      fecha = parseDate(row[0]);
+      descripcion = (row[1] || '').toString().trim();
+      cargo = parseFloat(row[2]) || 0;
+      abono = parseFloat(row[3]) || 0;
+      saldo = parseFloat(row[4]) || 0;
+    }
+    
+    // Determinar tipo de movimiento
+    const tipo = cargo > 0 ? 'egreso' : 'ingreso';
+    const monto = Math.abs(cargo || abono);
+    
+    return {
+      id: `${archivo}_${rowIndex}`,
+      fecha,
+      descripcion,
+      tipo,
+      monto,
+      cargo,
+      abono,
+      saldo,
+      banco: procesador.nombre,
+      categoria: categorizarMovimiento(descripcion)
+    };
+  };
+
+  const parseDate = (dateValue) => {
+    if (!dateValue) return null;
+    
+    // Si es número de Excel, convertir
+    if (typeof dateValue === 'number' && dateValue > 40000) {
+      const date = new Date((dateValue - 25569) * 86400 * 1000);
+      return date.toISOString().split('T')[0];
+    }
+    
+    // Si es texto, intentar parsear
+    const dateStr = dateValue.toString().trim();
+    
+    // Intentar con Date.parse primero
+    const parsed = Date.parse(dateStr);
+    if (!isNaN(parsed)) {
+      return new Date(parsed).toISOString().split('T')[0];
+    }
+    
+    // Formatos manuales
+    const dateFormats = [
+      /(\d{1,2})\/(\d{1,2})\/(\d{4})/,
+      /(\d{1,2})-(\d{1,2})-(\d{4})/,
+      /(\d{4})-(\d{1,2})-(\d{1,2})/
     ];
     
-    for (const patron of patronesFecha) {
-      const match = fechaStr.match(patron);
+    for (const format of dateFormats) {
+      const match = dateStr.match(format);
       if (match) {
-        let dia, mes, año;
-        
-        if (match[3].length === 4) {
-          dia = parseInt(match[1]);
-          mes = parseInt(match[2]);
-          año = parseInt(match[3]);
-        } else if (match[1].length === 4) {
-          año = parseInt(match[1]);
-          mes = parseInt(match[2]);
-          dia = parseInt(match[3]);
+        if (format.source.startsWith('(\\d{4})')) {
+          return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
         } else {
-          dia = parseInt(match[1]);
-          mes = parseInt(match[2]);
-          año = parseInt(match[3]) + 2000;
-        }
-        
-        if (dia >= 1 && dia <= 31 && mes >= 1 && mes <= 12 && año >= 2000) {
-          const fecha = new Date(año, mes - 1, dia);
-          return fecha.toISOString().split('T')[0];
+          return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
         }
       }
     }
     
-    return null;
+    return new Date().toISOString().split('T')[0];
   };
 
-  const parseMonto = (valor) => {
-    if (!valor) return 0;
+  const categorizarMovimiento = (descripcion) => {
+    const desc = descripcion.toLowerCase();
     
-    const valorStr = valor.toString().trim();
-    if (!valorStr) return 0;
+    if (desc.includes('transferencia') || desc.includes('traspaso')) return 'transferencia';
+    if (desc.includes('pago') || desc.includes('credito')) return 'pago';
+    if (desc.includes('deposito') || desc.includes('ingreso')) return 'deposito';
+    if (desc.includes('comision') || desc.includes('mantención') || desc.includes('mantencion')) return 'comision';
+    if (desc.includes('giro') || desc.includes('atm')) return 'giro';
+    if (desc.includes('cheque')) return 'cheque';
+    if (desc.includes('nomina') || desc.includes('sueldo')) return 'nomina';
+    if (desc.includes('app-')) return 'app_bancaria';
     
-    const valorLimpio = valorStr
-      .replace(/[^\d,\-\.]/g, '')
-      .replace(/(\d)\.(\d{3})/g, '$1$2')
-      .replace(',', '.');
-    
-    const numero = parseFloat(valorLimpio);
-    return isNaN(numero) ? 0 : numero;
+    return 'otros';
   };
 
-  const normalizarBanco = (banco) => {
-    const bancoStr = banco.toString().toLowerCase().trim();
+  const calcularEstadisticasCartola = (movimientos) => {
+    const ingresos = movimientos.filter(m => m.tipo === 'ingreso');
+    const egresos = movimientos.filter(m => m.tipo === 'egreso');
     
-    const mapeo = {
-      'banco de chile': 'banco_chile',
-      'banco chile': 'banco_chile',
-      'bci': 'bci',
-      'banco de credito': 'bci',
-      'santander': 'santander',
-      'banco santander': 'santander',
-      'formato generico': 'generico'
+    const totalIngresos = ingresos.reduce((sum, m) => sum + m.monto, 0);
+    const totalEgresos = egresos.reduce((sum, m) => sum + Math.abs(m.monto), 0);
+    const saldoFinal = movimientos.length > 0 ? movimientos[movimientos.length - 1].saldo : 0;
+    
+    return {
+      totalIngresos,
+      totalEgresos,
+      flujoNeto: totalIngresos - totalEgresos,
+      saldoFinal,
+      promedioIngreso: ingresos.length > 0 ? totalIngresos / ingresos.length : 0,
+      promedioEgreso: egresos.length > 0 ? totalEgresos / egresos.length : 0
+    };
+  };
+
+  const actualizarSaldosTotales = (todosMovimientos) => {
+    const saldosPorBanco = {};
+    
+    // Agrupar por banco y calcular último saldo
+    todosMovimientos.forEach(mov => {
+      if (!saldosPorBanco[mov.banco]) {
+        saldosPorBanco[mov.banco] = {
+          banco: mov.banco,
+          movimientos: 0,
+          ultimoSaldo: 0,
+          ultimaActualizacion: mov.fecha
+        };
+      }
+      
+      saldosPorBanco[mov.banco].movimientos++;
+      if (mov.fecha >= saldosPorBanco[mov.banco].ultimaActualizacion) {
+        saldosPorBanco[mov.banco].ultimoSaldo = mov.saldo;
+        saldosPorBanco[mov.banco].ultimaActualizacion = mov.fecha;
+      }
+    });
+    
+    setSaldosTotalesCartolas(saldosPorBanco);
+  };
+
+  const calcularKPIsIntegrados = () => {
+    const saldoBancarioChipax = saldosBancarios.reduce((sum, cuenta) => sum + (cuenta.saldoCalculado || 0), 0);
+    const saldoBancarioCartolas = Object.values(saldosTotalesCartolas)
+      .reduce((sum, banco) => sum + banco.ultimoSaldo, 0);
+    
+    const totalPorCobrar = cuentasPorCobrar.reduce((sum, cuenta) => sum + (cuenta.saldo || cuenta.monto || 0), 0);
+    const totalPorPagar = cuentasPorPagar.reduce((sum, cuenta) => sum + (cuenta.monto || 0), 0);
+    
+    const kpis = {
+      // Liquidez total combinada
+      liquidezTotal: saldoBancarioChipax + saldoBancarioCartolas,
+      
+      // Cobertura de deudas
+      coberturaCuentas: totalPorPagar > 0 ? (saldoBancarioCartolas / totalPorPagar) : 0,
+      
+      // Eficiencia operacional
+      ratioCobranzaPago: totalPorCobrar > 0 && totalPorPagar > 0 ? (totalPorCobrar / totalPorPagar) : 0,
+      
+      // Alertas
+      alertas: []
     };
     
-    return mapeo[bancoStr] || bancoStr.replace(/\s+/g, '_');
+    // Generar alertas automáticas
+    if (kpis.liquidezTotal < totalPorPagar * 0.3) {
+      kpis.alertas.push({ 
+        tipo: 'danger', 
+        mensaje: 'Liquidez crítica: Saldos insuficientes para cubrir obligaciones' 
+      });
+    }
+    
+    if (kpis.coberturaCuentas < 0.5 && totalPorPagar > 0) {
+      kpis.alertas.push({ 
+        tipo: 'warning', 
+        mensaje: 'Cobertura baja: Saldos bancarios cubren menos del 50% de las deudas' 
+      });
+    }
+    
+    if (cartolasCargadas.length === 0 && saldosBancarios.length === 0) {
+      kpis.alertas.push({ 
+        tipo: 'info', 
+        mensaje: 'Sin datos bancarios: Carga cartolas o conecta con Chipax para análisis completo' 
+      });
+    }
+    
+    setKpisConsolidados(kpis);
+    setAlertasFinancieras(kpis.alertas);
   };
 
   const readFileAsArrayBuffer = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (event) => resolve(event.target.result);
-      reader.onerror = (error) => reject(error);
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = () => reject(new Error('Error leyendo archivo'));
       reader.readAsArrayBuffer(file);
     });
   };
 
-  // ===== RESTO DE FUNCIONES EXISTENTES (MANTENER IGUAL) =====
+  const limpiarTodasLasCartolas = () => {
+    if (window.confirm('¿Estás seguro de eliminar todas las cartolas cargadas? Esta acción no se puede deshacer.')) {
+      setCartolasCargadas([]);
+      setMovimientosBancarios([]);
+      setSaldosTotalesCartolas({});
+      localStorage.removeItem('pgr_movimientos_bancarios');
+      localStorage.removeItem('pgr_cartolas_cargadas');
+      calcularKPIsIntegrados(); // Recalcular KPIs sin cartolas
+    }
+  };
+
+  // ===== FUNCIONES DE UTILIDAD EXISTENTES =====
   
-  const verificarConectividad = async () => {
-    setLoading(true);
-    setErrors([]);
-
-    try {
-      console.log('🔗 Verificando conectividad con Chipax...');
-      
-      const [saldosResponse, cobrarResponse, pagarResponse] = await Promise.all([
-        chipaxService.getSaldosBancarios(),
-        chipaxService.getCuentasPorCobrar(),
-        chipaxService.getCuentasPorPagar()
-      ]);
-
-      const saldosAdaptados = saldosResponse || [];
-      const cobrarAdaptados = adaptarCuentasPorCobrar(cobrarResponse || []);
-      const pagarAdaptados = adaptarCuentasPorPagar(pagarResponse || []);
-
-      setSaldosBancarios(saldosAdaptados);
-      setCuentasPorCobrar(cobrarAdaptados);
-      setCuentasPorPagar(pagarAdaptados);
-
-      console.log('✅ Conectividad verificada exitosamente');
-      console.log(`📊 Saldos bancarios: ${saldosAdaptados.length}`);
-      console.log(`📊 Cuentas por cobrar: ${cobrarAdaptados.length}`);
-      console.log(`📊 Cuentas por pagar: ${pagarAdaptados.length}`);
-
-    } catch (error) {
-      console.error('❌ Error de conectividad:', error);
-      
-      if (error.message.includes('CORS')) {
-        setErrors(['⚠️ Problema de CORS detectado. ' +
-          'La API funciona pero requiere configuración especial desde navegador.']);
-      } else {
-        setErrors([`❌ Error de conectividad: ${error.message}`]);
-      }
-    } finally {
-      setLoading(false);
-    }
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      maximumFractionDigits: 0
+    }).format(amount || 0);
   };
 
-  const calcularEstadisticasCartola = (movimientos) => {
-    if (!movimientos || movimientos.length === 0) {
-      return {
-        totalMovimientos: 0,
-        totalAbonos: 0,
-        totalCargos: 0,
-        saldoNeto: 0,
-        fechaInicio: null,
-        fechaFin: null
-      };
-    }
-    
-    const movimientosOrdenados = movimientos.sort((a, b) => 
-      new Date(a.fecha) - new Date(b.fecha)
-    );
-    
-    let totalAbonos = 0;
-    let totalCargos = 0;
-    
-    movimientos.forEach(mov => {
-      totalAbonos += parseFloat(mov.abono) || 0;
-      totalCargos += parseFloat(mov.cargo) || 0;
-    });
-    
-    return {
-      totalMovimientos: movimientos.length,
-      totalAbonos: totalAbonos,
-      totalCargos: totalCargos,
-      saldoNeto: totalAbonos - totalCargos,
-      fechaInicio: movimientosOrdenados[0].fecha,
-      fechaFin: movimientosOrdenados[movimientosOrdenados.length - 1].fecha
-    };
-  };
-
-  const calcularKPIsIntegrados = () => {
-    // Mantener la lógica existente de KPIs
-    // Solo actualizar con nuevos saldos de cartolas
-    
-    const kpis = {
-      saldoTotalChipax: saldosBancarios.reduce((sum, cuenta) => sum + (cuenta.saldo || 0), 0),
-      saldoTotalCartolas: Object.values(saldosTotalesCartolas).reduce((sum, saldo) => sum + saldo, 0),
-      totalPorCobrar: cuentasPorCobrar.reduce((sum, cuenta) => sum + (cuenta.monto || 0), 0),
-      totalPorPagar: cuentasPorPagar.reduce((sum, cuenta) => sum + (cuenta.monto || 0), 0),
-      cartolasVigentes: cartolasCargadas.length,
-      ultimaActualizacion: new Date().toISOString()
-    };
-    
-    setKpisConsolidados(kpis);
-    
-    // Generar alertas si es necesario
-    const alertas = [];
-    if (kpis.saldoTotalCartolas < 0) {
-      alertas.push({
-        tipo: 'warning',
-        mensaje: 'Saldo total negativo detectado en cartolas',
-        valor: kpis.saldoTotalCartolas
-      });
-    }
-    
-    setAlertasFinancieras(alertas);
-  };
-
-  // ===== FUNCIONES DE FILTRADO Y PAGINACIÓN (MANTENER EXISTENTES) =====
-  
   const obtenerComprasFiltradas = () => {
-    let comprasFiltradas = cuentasPorPagar;
+    let comprasFiltradas = [...cuentasPorPagar];
 
     if (filtroCompras.soloNoPagadas) {
-      comprasFiltradas = filtrarComprasPendientes(comprasFiltradas);
-    }
-
-    if (filtroCompras.fechaInicio && filtroCompras.fechaFin) {
-      comprasFiltradas = filtrarComprasPorFecha(comprasFiltradas, filtroCompras.fechaInicio, filtroCompras.fechaFin);
+      comprasFiltradas = comprasFiltradas.filter(compra => 
+        compra.estado !== 'Pagado' && !compra.estaPagado
+      );
     }
 
     if (filtroCompras.folioFiltro) {
       comprasFiltradas = comprasFiltradas.filter(compra =>
-        (compra.numero || '').toString().toLowerCase().includes(filtroCompras.folioFiltro.toLowerCase()) ||
-        (compra.proveedor || '').toLowerCase().includes(filtroCompras.folioFiltro.toLowerCase())
+        compra.folio.toString().toLowerCase().includes(filtroCompras.folioFiltro.toLowerCase())
       );
+    }
+
+    if (filtroCompras.fechaInicio && filtroCompras.fechaFin) {
+      comprasFiltradas = filtrarComprasPorFecha(comprasFiltradas, filtroCompras.fechaInicio, filtroCompras.fechaFin);
     }
 
     return comprasFiltradas;
@@ -833,22 +812,18 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
   useEffect(() => {
     verificarConectividad();
     
-    // Cargar datos guardados
+    // Cargar datos guardados de cartolas
     const movimientosGuardados = localStorage.getItem('pgr_movimientos_bancarios');
     const cartolasGuardadas = localStorage.getItem('pgr_cartolas_cargadas');
-    const saldosGuardados = localStorage.getItem('pgr_saldos_cartolas');
     
     if (movimientosGuardados) {
       const movimientos = JSON.parse(movimientosGuardados);
       setMovimientosBancarios(movimientos);
+      actualizarSaldosTotales(movimientos);
     }
     
     if (cartolasGuardadas) {
       setCartolasCargadas(JSON.parse(cartolasGuardadas));
-    }
-    
-    if (saldosGuardados) {
-      setSaldosTotalesCartolas(JSON.parse(saldosGuardados));
     }
   }, []);
 
@@ -856,99 +831,546 @@ const DashboardFinancieroIntegrado = ({ onBack, onLogout }) => {
     calcularKPIsIntegrados();
   }, [saldosBancarios, cuentasPorCobrar, cuentasPorPagar, saldosTotalesCartolas]);
 
-  // ===== RENDERIZADO (MANTENER TU UI EXISTENTE) =====
+  // ===== COMPONENTES DE INTERFAZ =====
+
+  // Header del dashboard
+  const HeaderDashboard = () => (
+    <div className="bg-white shadow-sm border-b">
+      <div className="px-6 py-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-4">
+            {onBack && (
+              <button onClick={onBack} className="text-gray-600 hover:text-gray-900">
+                ← Volver
+              </button>
+            )}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                💼 Dashboard Financiero Integrado
+              </h1>
+              <p className="text-gray-600">Chipax + Cartolas Bancarias • PGR Seguridad</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            {/* Estado de conectividad */}
+            <div className="flex items-center gap-2">
+              {loading ? (
+                <>
+                  <RefreshCw className="animate-spin text-blue-500" size={16} />
+                  <span className="text-sm text-blue-600">Cargando...</span>
+                </>
+              ) : errors.length === 0 ? (
+                <>
+                  <CheckCircle className="text-green-500" size={16} />
+                  <span className="text-sm text-green-600">Conectado</span>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="text-red-500" size={16} />
+                  <span className="text-sm text-red-600">Con errores</span>
+                </>
+              )}
+            </div>
+            
+            {onLogout && (
+              <button 
+                onClick={onLogout}
+                className="px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+              >
+                Cerrar Sesión
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Pestañas principales */}
+        <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
+          {[
+            { id: 'dashboard', label: '📊 Dashboard', icon: BarChart3 },
+            { id: 'cartolas', label: '🏦 Cartolas', icon: FileText },
+            { id: 'saldos', label: '💰 Saldos', icon: Wallet },
+            { id: 'debugger', label: '🔧 Debug', icon: Bug }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setPestanaActiva(tab.id)}
+              className={`flex items-center px-4 py-2 rounded-md font-medium text-sm ${
+                pestanaActiva === tab.id
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              <tab.icon size={16} className="mr-2" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Alertas financieras
+  const AlertasFinancieras = () => {
+    if (!alertasFinancieras || alertasFinancieras.length === 0) return null;
+
+    const getAlertColor = (tipo) => {
+      switch (tipo) {
+        case 'danger': return 'bg-red-50 border-red-200 text-red-800';
+        case 'warning': return 'bg-yellow-50 border-yellow-200 text-yellow-800';
+        case 'info': return 'bg-blue-50 border-blue-200 text-blue-800';
+        default: return 'bg-gray-50 border-gray-200 text-gray-800';
+      }
+    };
+
+    return (
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold mb-3">🚨 Alertas Financieras</h3>
+        <div className="space-y-3">
+          {alertasFinancieras.map((alerta, index) => (
+            <div key={index} className={`p-4 rounded-lg border ${getAlertColor(alerta.tipo)}`}>
+              <div className="flex items-start">
+                <AlertCircle className="h-5 w-5 mr-3 mt-0.5" />
+                <p className="font-medium">{alerta.mensaje}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // KPIs consolidados
+  const KPIsConsolidados = () => {
+    const saldoBancarioChipax = saldosBancarios.reduce((sum, cuenta) => sum + (cuenta.saldoCalculado || 0), 0);
+    const saldoBancarioCartolas = Object.values(saldosTotalesCartolas)
+      .reduce((sum, banco) => sum + banco.ultimoSaldo, 0);
+    
+    const totalPorCobrar = cuentasPorCobrar.reduce((sum, cuenta) => sum + (cuenta.saldo || cuenta.monto || 0), 0);
+    const totalPorPagar = cuentasPorPagar.reduce((sum, cuenta) => sum + (cuenta.monto || 0), 0);
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Liquidez Total</p>
+              <p className="text-2xl font-bold">
+                {formatCurrency(saldoBancarioChipax + saldoBancarioCartolas)}
+              </p>
+              <p className="text-blue-100 text-sm">
+                Chipax + Cartolas
+              </p>
+            </div>
+            <Wallet className="h-8 w-8 text-blue-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm font-medium">Por Cobrar</p>
+              <p className="text-2xl font-bold">{formatCurrency(totalPorCobrar)}</p>
+              <p className="text-green-100 text-sm">
+                {cuentasPorCobrar.length} facturas
+              </p>
+            </div>
+            <TrendingUp className="h-8 w-8 text-green-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-red-500 to-red-600 rounded-xl p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-red-100 text-sm font-medium">Por Pagar</p>
+              <p className="text-2xl font-bold">{formatCurrency(totalPorPagar)}</p>
+              <p className="text-red-100 text-sm">
+                {cuentasPorPagar.length} facturas
+              </p>
+            </div>
+            <TrendingDown className="h-8 w-8 text-red-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm font-medium">Cobertura</p>
+              <p className="text-2xl font-bold">
+                {totalPorPagar > 0 ? ((saldoBancarioCartolas / totalPorPagar) * 100).toFixed(1) : '0'}%
+              </p>
+              <p className="text-purple-100 text-sm">
+                de deudas cubiertas
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Controles principales (existentes)
+  const ControlesPrincipales = () => (
+    <div className="mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <button
+          onClick={cargarSolo2025}
+          disabled={loading}
+          className="flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+        >
+          <AlertCircle size={16} />
+          <div className="text-left">
+            <div className="text-sm font-medium">Cuentas por Pagar</div>
+            <div className="text-xs opacity-90">Facturas 2025</div>
+          </div>
+        </button>
+
+        <button
+          onClick={cargarSoloCuentasPorCobrar}
+          disabled={loading}
+          className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+        >
+          <TrendingUp size={16} />
+          <div className="text-left">
+            <div className="text-sm font-medium">Cuentas por Cobrar</div>
+            <div className="text-xs opacity-90">Facturas pendientes</div>
+          </div>
+        </button>
+
+        <button
+          onClick={cargarSoloSaldos}
+          disabled={loading}
+          className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        >
+          <Wallet size={16} />
+          <div className="text-left">
+            <div className="text-sm font-medium">Saldos Bancarios</div>
+            <div className="text-xs opacity-90">Cuentas corrientes</div>
+          </div>
+        </button>
+
+        <button
+          onClick={cargarTodosDatos}
+          disabled={loading}
+          className="flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
+        >
+          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          <div className="text-left">
+            <div className="text-sm font-medium">Cargar Todo</div>
+            <div className="text-xs opacity-90">Todos los módulos</div>
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+
+  // Zona de carga de cartolas
+  const ZonaCargaCartolas = () => (
+    <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+      <h3 className="text-xl font-semibold mb-4 flex items-center">
+        <Upload className="mr-3 text-blue-600" />
+        Cargar Cartola Bancaria
+      </h3>
+      
+      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
+        <input
+          type="file"
+          accept=".csv,.xlsx,.xls"
+          onChange={(e) => {
+            if (e.target.files[0]) {
+              procesarCartolaBancaria(e.target.files[0]);  // ✅ CORRECCIÓN 3: Sin typo
+            }
+          }}
+          className="hidden"
+          id="cartola-upload"
+          disabled={isLoadingCartola}
+        />
+        <label htmlFor="cartola-upload" className="cursor-pointer">
+          <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-lg font-medium text-gray-900 mb-2">
+            {isLoadingCartola ? 'Procesando cartola...' : 'Seleccionar archivo de cartola'}
+          </p>
+          <p className="text-sm text-gray-500 mb-4">
+            Detección automática: Banco de Chile, BCI, Santander, otros
+          </p>
+          <p className="text-xs text-gray-400">
+            Formatos: CSV, Excel (.xlsx, .xls)
+          </p>
+        </label>
+      </div>
+
+      {errorCartola && (
+        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <AlertCircle className="h-5 w-5 text-red-600 inline mr-2" />
+          <span className="text-red-700">{errorCartola}</span>
+        </div>
+      )}
+
+      {cartolasCargadas.length > 0 && (
+        <div className="mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-lg font-semibold">Cartolas Procesadas</h4>
+            <button
+              onClick={limpiarTodasLasCartolas}
+              className="flex items-center px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Limpiar Todo
+            </button>
+          </div>
+          
+          <div className="space-y-3">
+            {cartolasCargadas.map((cartola, index) => (
+              <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <h5 className="font-medium text-gray-900">{cartola.nombre}</h5>
+                  <p className="text-sm text-gray-600">
+                    {cartola.banco} • {cartola.movimientos} movimientos • 
+                    {new Date(cartola.fechaCarga).toLocaleString('es-CL')}
+                  </p>
+                </div>
+                
+                <div className="text-right">
+                  <p className="font-semibold text-blue-600">
+                    {formatCurrency(cartola.saldoFinal || 0)}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {formatCurrency(cartola.flujoNeto || 0)} neto
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // Estados generales (existente, simplificado)
+  const EstadisticasGenerales = () => {
+    const totalSaldos = saldosBancarios.reduce((sum, cuenta) => sum + (cuenta.saldoCalculado || 0), 0);
+    const totalPorCobrar = cuentasPorCobrar.reduce((sum, cuenta) => sum + (cuenta.saldo || cuenta.monto || 0), 0);
+    const totalPorPagar = cuentasPorPagar.reduce((sum, cuenta) => sum + (cuenta.monto || 0), 0);
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-green-50 rounded-lg p-6 border border-green-200">
+          <h3 className="text-lg font-semibold text-green-800 mb-2">Por Cobrar (Chipax)</h3>
+          <p className="text-2xl font-bold text-green-600">{formatCurrency(totalPorCobrar)}</p>
+          <p className="text-sm text-green-600">{cuentasPorCobrar.length} facturas</p>
+        </div>
+
+        <div className="bg-red-50 rounded-lg p-6 border border-red-200">
+          <h3 className="text-lg font-semibold text-red-800 mb-2">Por Pagar (Chipax)</h3>
+          <p className="text-2xl font-bold text-red-600">{formatCurrency(totalPorPagar)}</p>
+          <p className="text-sm text-red-600">{cuentasPorPagar.length} facturas</p>
+        </div>
+
+        <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
+          <h3 className="text-lg font-semibold text-blue-800 mb-2">Saldos Chipax</h3>
+          <p className="text-2xl font-bold text-blue-600">{formatCurrency(totalSaldos)}</p>
+          <p className="text-sm text-blue-600">{saldosBancarios.length} cuentas</p>
+        </div>
+      </div>
+    );
+  };
+
+  // Tablas simplificadas (existentes)
+  const TablaCompras = () => {
+    const comprasPaginadas = obtenerComprasPaginadas();
+    
+    if (comprasPaginadas.length === 0) {
+      return (
+        <div className="bg-white rounded-lg shadow-md p-6 text-center">
+          <h3 className="text-lg font-semibold mb-4">Cuentas por Pagar</h3>
+          <p className="text-gray-500">No hay datos cargados. Usa el botón "Cuentas por Pagar" para cargar.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="px-6 py-4 border-b">
+          <h3 className="text-lg font-semibold">Cuentas por Pagar</h3>
+          <p className="text-sm text-gray-600">{obtenerComprasFiltradas().length} facturas</p>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Folio</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {comprasPaginadas.map((compra, index) => (
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {compra.folio}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {compra.proveedor}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {compra.fecha}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {formatCurrency(compra.monto)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                      compra.estado === 'Pagado' 
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {compra.estado || 'Pendiente'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const TablaCobrar = () => {
+    const cobrarPaginadas = obtenerCobrarPaginadas();
+    
+    if (cobrarPaginadas.length === 0) {
+      return (
+        <div className="bg-white rounded-lg shadow-md p-6 text-center">
+          <h3 className="text-lg font-semibold mb-4">Cuentas por Cobrar</h3>
+          <p className="text-gray-500">No hay datos cargados. Usa el botón "Cuentas por Cobrar" para cargar.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="px-6 py-4 border-b">
+          <h3 className="text-lg font-semibold">Cuentas por Cobrar</h3>
+          <p className="text-sm text-gray-600">{cuentasPorCobrar.length} facturas</p>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Folio</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Saldo</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vencimiento</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {cobrarPaginadas.map((cuenta, index) => (
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {cuenta.folio}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {cuenta.cliente}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {cuenta.fecha}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {formatCurrency(cuenta.saldo || cuenta.monto)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {cuenta.vencimiento || 'N/A'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  // ===== RENDER PRINCIPAL =====
   
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* TU CÓDIGO DE UI EXISTENTE AQUÍ */}
-      {/* Solo cambiar las funciones de procesamiento, mantener toda la UI igual */}
+      <HeaderDashboard />
       
-      <div className="p-6">
-        <h1 className="text-2xl font-bold mb-6">Dashboard Financiero Mejorado</h1>
+      <div className="max-w-7xl mx-auto p-6">
+        <AlertasFinancieras />
         
-        {/* Sección de carga de cartolas */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">📁 Cargar Cartola Bancaria</h2>
-          
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={(e) => {
-              const file = e.target.files[0];
-              if (file) {
-                procesarCartolaBAncaria(file);
-              }
-            }}
-            className="mb-4"
-            disabled={isLoadingCartola}
-          />
-          
-          {isLoadingCartola && (
-            <div className="flex items-center gap-2 text-blue-600">
-              <RefreshCw className="animate-spin" size={16} />
-              <span>Procesando cartola...</span>
+        {/* Mostrar errores de Chipax */}
+        {errors.length > 0 && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="text-sm text-red-600">
+              {errors.map((error, index) => (
+                <div key={index}>• {error}</div>
+              ))}
             </div>
-          )}
-          
-          {errorCartola && (
-            <div className="bg-red-100 border border-red-300 rounded p-4 mt-4">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="text-red-500 mt-1" size={16} />
-                <div>
-                  <h4 className="font-semibold text-red-800">Error procesando cartola</h4>
-                  <pre className="text-sm text-red-700 mt-2 whitespace-pre-wrap">{errorCartola}</pre>
+          </div>
+        )}
+        
+        {/* KPIs consolidados */}
+        <KPIsConsolidados />
+        
+        {/* Contenido según pestaña activa */}
+        {pestanaActiva === 'dashboard' && (
+          <>
+            <ControlesPrincipales />
+            
+            {/* Mensaje de ayuda si no hay datos cargados */}
+            {saldosBancarios.length === 0 && cuentasPorCobrar.length === 0 && cuentasPorPagar.length === 0 && !loading && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-yellow-100 rounded-full">
+                    <Database className="text-yellow-600" size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-yellow-800 mb-2">
+                      🚀 ¡Bienvenido al Dashboard Financiero!
+                    </h3>
+                    <p className="text-yellow-700 mb-3">
+                      Para comenzar, haz clic en los botones de arriba para cargar los datos que necesites:
+                    </p>
+                    <ul className="text-sm text-yellow-700 space-y-1">
+                      <li>• <strong>Cuentas por Pagar:</strong> Facturas de proveedores (2025)</li>
+                      <li>• <strong>Cuentas por Cobrar:</strong> Facturas de clientes pendientes</li>
+                      <li>• <strong>Saldos Bancarios:</strong> Estado de cuentas corrientes</li>
+                      <li>• <strong>Cargar Todo:</strong> Todos los módulos de una vez</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
+            )}
+
+            <EstadisticasGenerales />
+            
+            <div className="space-y-8">
+              <TablaCompras />
+              <TablaCobrar />
             </div>
-          )}
-        </div>
-        
-        {/* Sección de saldos */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">💰 Saldos por Banco</h2>
-          
-          {Object.keys(saldosTotalesCartolas).length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {Object.entries(saldosTotalesCartolas).map(([banco, saldo]) => (
-                <div key={banco} className="bg-gray-50 rounded p-4">
-                  <h3 className="font-medium text-gray-700 capitalize">
-                    {banco.replace('_', ' ')}
-                  </h3>
-                  <p className="text-2xl font-bold text-green-600">
-                    ${saldo.toLocaleString('es-CL')}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-500">No hay cartolas cargadas</p>
-          )}
-        </div>
-        
-        {/* Sección de cartolas cargadas */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">📋 Cartolas Cargadas ({cartolasCargadas.length})</h2>
-          
-          {cartolasCargadas.length > 0 ? (
-            <div className="space-y-2">
-              {cartolasCargadas.map((cartola) => (
-                <div key={cartola.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                  <div>
-                    <span className="font-medium">{cartola.nombre}</span>
-                    <span className="text-sm text-gray-500 ml-2">
-                      ({cartola.banco} - {cartola.movimientos} movimientos)
-                    </span>
-                  </div>
-                  <span className="text-sm text-gray-400">
-                    {new Date(cartola.fechaCarga).toLocaleDateString()}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-500">No hay cartolas cargadas</p>
-          )}
-        </div>
+          </>
+        )}
+
+        {pestanaActiva === 'cartolas' && (
+          <div className="space-y-6">
+            <ZonaCargaCartolas />
+          </div>
+        )}
+
+        {pestanaActiva === 'saldos' && (
+          <ChipaxSaldosExplorer />
+        )}
+
+        {pestanaActiva === 'debugger' && (
+          <ChipaxComprasDebugger />
+        )}
       </div>
     </div>
   );
